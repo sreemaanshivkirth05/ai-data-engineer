@@ -1,0 +1,24 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.result-box {
+    background-color: #ffffff;
+    color: #111;
+    padding: 16px;
+    border-radius: 6px;
+    max-height: 500px;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    white-space: normal;
+    line-height: 1.5;
+    border: 1px solid #ddd;
+}
+
+.card {
+    border-radius: 8px;
+}
+
+.nav-tabs .nav-link {
+    font-weight: 500;
+}

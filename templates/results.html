@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-4">📊 Analysis Results</h2>
+
+<ul class="nav nav-tabs" id="resultTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#arch">Architecture</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pipe">Pipeline</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#model">Data Model</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dq">Data Quality</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#perf">Performance</button></li>
+</ul>
+
+<div class="tab-content mt-3">
+
+  {% macro section(id, title, content, active=False) %}
+  <div class="tab-pane fade {% if active %}show active{% endif %}" id="{{ id }}">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>{{ title }}</strong>
+        <button class="btn btn-sm btn-outline-secondary" onclick="copyText('{{ id }}_content')">Copy</button>
+      </div>
+      <div class="card-body">
+        <div id="{{ id }}_content" class="result-box">
+          {{ content | replace('\n', '<br>') | safe }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endmacro %}
+
+  {{ section("arch", "Architecture", architecture, True) }}
+  {{ section("pipe", "Pipeline Design", pipeline) }}
+  {{ section("model", "Data Model", data_model) }}
+  {{ section("dq", "Data Quality Plan", data_quality) }}
+  {{ section("perf", "Performance & Cost Review", performance) }}
+
+</div>
+
+<a href="/" class="btn btn-secondary mt-4">⬅ Back</a>
+
+<script>
+function copyText(id) {
+  const text = document.getElementById(id).innerText;
+  navigator.clipboard.writeText(text);
+  alert("Copied to clipboard!");
+}
+</script>
+{% endblock %}

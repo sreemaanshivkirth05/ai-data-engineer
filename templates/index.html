@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2>Design Your Data Platform with AI</h2>
+        <p class="text-muted">
+            Paste your business requirements and source schemas. The AI Data Engineer will generate
+            architecture, pipeline design, data model, quality checks, and performance recommendations.
+        </p>
+    </div>
+</div>
+
+<form method="post" action="/run">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label"><strong>Business Requirements</strong></label>
+            <textarea
+                class="form-control"
+                name="requirements"
+                rows="12"
+                placeholder="Describe the business goals, dashboards, metrics, SLAs, etc..."
+                required
+            ></textarea>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label"><strong>Source Schemas</strong></label>
+            <textarea
+                class="form-control"
+                name="schemas"
+                rows="12"
+                placeholder="Paste table schemas, columns, data types, sample tables..."
+                required
+            ></textarea>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12">
+            <button class="btn btn-primary btn-lg" type="submit">
+                🚀 Run AI Data Engineer
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}
