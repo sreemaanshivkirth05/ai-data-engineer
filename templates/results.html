@@ -1,49 +1,330 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2 class="mb-4">📊 Analysis Results</h2>
 
-<ul class="nav nav-tabs" id="resultTabs" role="tablist">
-  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#arch">Architecture</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pipe">Pipeline</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#model">Data Model</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dq">Data Quality</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#perf">Performance</button></li>
-</ul>
+<style>
+    /* ---- RESULTS HEADER ---- */
+    .results-header {
+        margin-bottom: 2rem;
+        animation: fadeUp 0.5s ease both;
+    }
 
-<div class="tab-content mt-3">
+    .results-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.75rem;
+    }
 
-  {% macro section(id, title, content, active=False) %}
-  <div class="tab-pane fade {% if active %}show active{% endif %}" id="{{ id }}">
-    <div class="card shadow-sm">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <strong>{{ title }}</strong>
-        <button class="btn btn-sm btn-outline-secondary" onclick="copyText('{{ id }}_content')">Copy</button>
-      </div>
-      <div class="card-body">
-        <div id="{{ id }}_content" class="result-box">
-          {{ content | replace('\n', '<br>') | safe }}
-        </div>
-      </div>
+    .results-eyebrow .dot {
+        width: 6px; height: 6px;
+        background: var(--accent);
+        border-radius: 50%;
+        animation: pulse 1.5s ease infinite;
+    }
+
+    .results-header h1 {
+        font-family: var(--font-display);
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--ink);
+        margin-bottom: 0.4rem;
+    }
+
+    .results-header p {
+        color: var(--ink-muted);
+        font-size: 0.9rem;
+        font-weight: 300;
+    }
+
+    /* ---- TABS ---- */
+    .tabs-wrap {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 1.5rem;
+        overflow-x: auto;
+        scrollbar-width: none;
+        animation: fadeUp 0.5s 0.1s ease both;
+        padding-bottom: 0;
+    }
+
+    .tabs-wrap::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0.6rem 1rem 0.7rem;
+        font-family: var(--font-display);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: var(--ink-muted);
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        white-space: nowrap;
+        margin-bottom: -1px;
+        transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: var(--ink); }
+
+    .tab-btn.active {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+    }
+
+    .tab-num {
+        font-size: 0.62rem;
+        background: var(--border);
+        color: var(--ink-muted);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-weight: 600;
+    }
+
+    .tab-btn.active .tab-num {
+        background: var(--accent-light);
+        color: var(--accent);
+    }
+
+    /* ---- TAB PANELS ---- */
+    .tab-panel { display: none; animation: fadeUp 0.4s ease both; }
+    .tab-panel.active { display: block; }
+
+    /* ---- RESULT CARD ---- */
+    .result-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .result-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg);
+    }
+
+    .result-card-title {
+        font-family: var(--font-display);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--ink);
+    }
+
+    .result-card-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-family: var(--font-body);
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--ink-muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+        background: var(--accent-light);
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    .copy-btn.copied {
+        background: #E8F5E9;
+        border-color: #4CAF50;
+        color: #2E7D32;
+    }
+
+    .copy-btn svg {
+        width: 13px; height: 13px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* ---- RESULT CONTENT ---- */
+    .result-body {
+        padding: 1.5rem 1.75rem;
+        max-height: 60vh;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+    }
+
+    .result-body::-webkit-scrollbar { width: 5px; }
+    .result-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+
+    .result-content {
+        font-size: 0.875rem;
+        line-height: 1.8;
+        color: var(--ink);
+        white-space: pre-wrap;
+        font-family: var(--font-body);
+    }
+
+    /* Markdown-style rendering inside result */
+    .result-content strong, .result-content b { font-weight: 600; }
+    .result-content code {
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 0.82em;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+    }
+
+    /* ---- BACK BTN ---- */
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 1.5rem;
+        font-family: var(--font-display);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--ink-muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 1rem;
+        text-decoration: none;
+        transition: all 0.2s;
+        animation: fadeUp 0.5s 0.3s ease both;
+    }
+
+    .back-btn:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+        background: var(--bg-card);
+    }
+
+    .back-btn svg {
+        width: 13px; height: 13px;
+        stroke: currentColor; fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round; stroke-linejoin: round;
+    }
+
+
+    /* ---- ANIMATIONS ---- */
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+</style>
+
+<!-- Header -->
+<div class="results-header">
+    <div class="results-eyebrow">
+        <span class="dot"></span>
+        Analysis Complete
     </div>
-  </div>
-  {% endmacro %}
-
-  {{ section("arch", "Architecture", architecture, True) }}
-  {{ section("pipe", "Pipeline Design", pipeline) }}
-  {{ section("model", "Data Model", data_model) }}
-  {{ section("dq", "Data Quality Plan", data_quality) }}
-  {{ section("perf", "Performance & Cost Review", performance) }}
-
+    <h1>Your Data Platform Blueprint</h1>
+    <p>5 agents completed · Review each section below</p>
 </div>
 
-<a href="/" class="btn btn-secondary mt-4">⬅ Back</a>
+<!-- Tabs -->
+<div class="tabs-wrap" id="tabsWrap">
+    <button class="tab-btn active" id="tab-arch" onclick="showTab('arch')">
+        <span class="tab-num">01</span> Architecture
+    </button>
+    <button class="tab-btn" id="tab-pipe" onclick="showTab('pipe')">
+        <span class="tab-num">02</span> Pipeline Design
+    </button>
+    <button class="tab-btn" id="tab-model" onclick="showTab('model')">
+        <span class="tab-num">03</span> Data Model
+    </button>
+    <button class="tab-btn" id="tab-dq" onclick="showTab('dq')">
+        <span class="tab-num">04</span> Data Quality
+    </button>
+    <button class="tab-btn" id="tab-perf" onclick="showTab('perf')">
+        <span class="tab-num">05</span> Performance
+    </button>
+</div>
+
+<!-- Tab panels -->
+{% macro result_panel(id, title, content, active=False) %}
+<div class="tab-panel {% if active %}active{% endif %}" id="panel-{{ id }}">
+    <div class="result-card">
+        <div class="result-card-header">
+            <span class="result-card-title">{{ title }}</span>
+            <div class="result-card-actions">
+                <button class="copy-btn" id="copy-{{ id }}" onclick="copySection('{{ id }}')">
+                    <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    Copy
+                </button>
+            </div>
+        </div>
+        <div class="result-body">
+            <div class="result-content" id="content-{{ id }}">{{ content }}</div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{{ result_panel("arch", "Architecture Analysis", architecture, True) }}
+{{ result_panel("pipe", "Pipeline Design", pipeline) }}
+{{ result_panel("model", "Data Model", data_model) }}
+{{ result_panel("dq", "Data Quality Plan", data_quality) }}
+{{ result_panel("perf", "Performance & Cost Review", performance) }}
+
+<a href="/" class="back-btn">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Input
+</a>
 
 <script>
-function copyText(id) {
-  const text = document.getElementById(id).innerText;
-  navigator.clipboard.writeText(text);
-  alert("Copied to clipboard!");
+function showTab(id) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    document.getElementById('panel-' + id).classList.add('active');
+}
+
+function copySection(id) {
+    const text = document.getElementById('content-' + id).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-' + id);
+        btn.classList.add('copied');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+        }, 2000);
+    });
 }
 </script>
+
 {% endblock %}
