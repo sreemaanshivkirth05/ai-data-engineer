@@ -1,58 +1,53 @@
-# Performance & Cost Optimization Review
+# Performance & Cost Optimization Review for MLB Employee Data Pipeline
 
 ## 1. Performance Goals
-The primary performance goals for the e-commerce analytics pipeline are:
-- **Low Latency**: Ensure data is available for analytics within 2 hours of ingestion.
-- **High Throughput**: Efficiently process large volumes of data daily.
-- **Optimized Query Performance**: Minimize query execution times for analytical workloads.
-- **Scalability**: Support increasing data volumes and user queries without degradation in performance.
+- **Data Ingestion Latency**: Aim for ingestion completion within 30 minutes of scheduled time.
+- **Query Performance**: Ensure that 95% of queries return results in under 5 seconds.
+- **Data Quality**: Achieve 95% of records passing validation checks on the first attempt.
+- **System Uptime**: Maintain 99.9% uptime for accessing processed data.
 
 ## 2. Potential Bottlenecks
-- **ETL Processing Time**: The transformation step using AWS Glue may become a bottleneck if the volume of data increases significantly.
-- **Data Storage**: Storing raw CSV files in S3 can lead to increased costs and slower access times compared to optimized formats like Parquet.
-- **Data Warehouse Performance**: Amazon Redshift may experience performance degradation if not properly indexed or if queries are not optimized, especially with large datasets.
-- **Concurrency Limits**: The data warehouse may struggle with concurrent queries if not provisioned correctly.
+- **Data Ingestion**: Batch ingestion may lead to delays if the volume of CSV files increases significantly.
+- **ETL Processing**: AWS Glue jobs may experience performance degradation with large datasets or complex transformations.
+- **Query Performance**: Queries against the Gold layer may slow down if not properly optimized, especially with large aggregated datasets.
+- **Data Quality Checks**: Validation checks may introduce latency, particularly if they are not efficiently implemented.
 
 ## 3. Storage Optimizations
-- **Use of Parquet Format**: Ensure that all processed data in the Silver layer is stored in Parquet format, which is already planned. This format reduces storage costs and improves query performance due to its columnar nature.
-- **Lifecycle Policies**: Implement S3 lifecycle policies to automatically transition older data to S3 Glacier after the retention period, reducing storage costs.
-- **Data Partitioning**: Optimize partitioning strategies in both Silver and Gold layers:
-  - For the Silver layer, consider additional partitions based on `customer_id` or `product_id` if frequent queries target specific customers or products.
-  - In the Gold layer, partition by both `month` and `customer_region` to improve query performance for regional analytics.
+- **File Format**: Continue using Parquet for the Silver and Gold layers, but ensure that the data is compressed (e.g., Snappy or Gzip) to reduce storage costs and improve I/O performance.
+- **Partitioning Strategy**: 
+  - For the Silver layer, consider additional partitioning by `age_group` and `team` to optimize queries that filter by these dimensions.
+  - In the Gold layer, consider partitioning by `year` in addition to `month` to improve performance for year-over-year comparisons.
+- **Lifecycle Policies**: Implement S3 lifecycle policies to transition older Silver layer data to lower-cost storage (e.g., S3 Glacier) after 5 years, reducing costs associated with long-term storage.
 
 ## 4. Compute & Query Optimizations
 - **AWS Glue Job Optimization**: 
-  - Use job bookmarks in AWS Glue to process only new or changed data, reducing processing time.
-  - Optimize Glue job configurations (e.g., worker type and number) based on the expected data volume.
-- **Redshift Query Optimization**:
-  - Implement distribution keys and sort keys on the fact tables to optimize join performance and reduce data shuffling.
-  - Regularly analyze and vacuum Redshift tables to maintain performance.
-  - Consider using Redshift Spectrum to query data directly from S3 for less frequently accessed datasets, reducing storage costs in Redshift.
-- **Caching Strategies**: Use Amazon ElastiCache or similar services to cache frequently accessed query results, reducing load on the data warehouse.
+  - Use job bookmarks to avoid reprocessing data that has already been ingested and processed.
+  - Optimize Glue jobs by adjusting the worker type and number of workers based on the size of the data being processed.
+- **Query Optimization**: 
+  - Use materialized views in Amazon Redshift to pre-aggregate data, speeding up common queries.
+  - Implement query caching in AWS Athena to reduce costs and improve performance for frequently accessed data.
+- **Auto-scaling**: Ensure that Amazon Redshift or Athena is configured to auto-scale based on query load, allowing for dynamic resource allocation during peak times.
 
 ## 5. Cost Optimization Strategies
-- **AWS Glue Cost Management**: 
-  - Schedule Glue jobs during off-peak hours to take advantage of lower pricing.
-  - Use AWS Glue DataBrew for lightweight transformations when applicable, as it may be more cost-effective for simple data cleaning tasks.
-- **Data Warehouse Cost Control**: 
-  - Use Amazon Redshift's concurrency scaling feature to handle peak loads without provisioning additional clusters.
-  - Consider using reserved instances for Redshift if the usage pattern is predictable, which can significantly reduce costs.
-- **S3 Storage Class Optimization**: 
-  - Store raw data in S3 Standard for the first 30 days, then transition to S3 Intelligent-Tiering or S3 Standard-IA for infrequently accessed data.
+- **Storage Costs**: 
+  - Regularly review and delete unused or obsolete data in the Bronze layer to minimize storage costs.
+  - Use S3 Intelligent-Tiering for the Bronze layer to automatically move data to the most cost-effective access tier based on usage patterns.
+- **Compute Costs**: 
+  - Schedule AWS Glue jobs during off-peak hours to take advantage of lower pricing.
+  - Use spot instances for non-critical processing tasks to reduce compute costs significantly.
+- **Monitoring Costs**: 
+  - Use AWS CloudWatch to monitor and set alarms for unexpected spikes in costs, particularly for data storage and query execution.
 
 ## 6. Tradeoffs & Risks
-- **Tradeoffs**:
-  - Optimizing for performance may increase costs, especially if more compute resources are provisioned for Glue or Redshift.
-  - Implementing complex partitioning strategies may complicate the ETL process and require additional maintenance.
-- **Risks**:
-  - Over-optimization can lead to increased complexity in the pipeline, making it harder to maintain.
-  - Changes in data volume or query patterns may require continuous adjustments to the architecture.
+- **Performance vs. Cost**: Optimizing for cost may lead to performance trade-offs, particularly if using lower-cost storage or compute options that are not as performant.
+- **Complexity vs. Maintainability**: Implementing advanced partitioning and caching strategies may increase the complexity of the data pipeline, making it harder to maintain and troubleshoot.
+- **Data Quality vs. Latency**: Extensive data quality checks may introduce latency in the ETL process, impacting the overall ingestion timeline.
 
 ## 7. Final Recommendations
-1. **Optimize ETL Jobs**: Leverage job bookmarks and optimize Glue job configurations to handle increased data volumes efficiently.
-2. **Enhance Storage Strategies**: Implement lifecycle policies for S3 and optimize partitioning strategies in both Silver and Gold layers.
-3. **Improve Query Performance**: Use distribution and sort keys in Redshift, and consider caching frequently accessed data to reduce query times.
-4. **Cost Management**: Monitor AWS Glue and Redshift usage closely, and consider reserved instances or concurrency scaling to manage costs effectively.
-5. **Regular Maintenance**: Schedule regular maintenance tasks for Redshift (e.g., vacuuming and analyzing tables) to ensure optimal performance.
+- **Enhance Ingestion Strategy**: Consider implementing incremental ingestion strategies to reduce the load during batch processing, especially as data volume grows.
+- **Optimize ETL Jobs**: Regularly review and optimize AWS Glue jobs for performance, including job configurations and resource allocation.
+- **Implement Advanced Monitoring**: Set up detailed monitoring and alerting for both performance metrics and cost metrics to proactively manage the pipeline.
+- **Review Data Retention Policies**: Periodically review data retention policies to ensure they align with business needs while minimizing costs.
+- **Conduct Regular Performance Reviews**: Establish a routine for performance testing and optimization to adapt to changing data volumes and query patterns.
 
-By implementing these optimizations, the e-commerce analytics pipeline can achieve better performance and cost efficiency while maintaining reliability and scalability.
+By implementing these recommendations, the MLB employee data pipeline can achieve improved performance and cost efficiency while maintaining high data quality and compliance standards.

@@ -1,86 +1,82 @@
-# E-commerce Analytics and BI Layer Design
+```markdown
+# Analytics and BI Layer Design for MLB Employee Data
 
 ## 1. Overview
-This document outlines the design of the analytics and BI layer for an e-commerce company, focusing on revenue, orders, customers, and payments. The architecture is built on AWS, leveraging a layered data storage approach (Bronze, Silver, Gold) and a star schema data model to facilitate efficient querying and reporting. The goal is to provide daily dashboards, scalable architecture, and optimize for self-service analytics.
+This document outlines the design of the analytics and BI layer for analyzing MLB employee data. The focus is on creating data marts, defining metrics and KPIs, establishing a semantic layer, and optimizing for self-service analytics. The design leverages a star schema architecture and a layered data platform on AWS, ensuring efficient querying and reporting capabilities.
 
 ## 2. Data Marts Design
-### 2.1. Revenue Data Mart
-- **Fact Table**: `fact_orders`
-- **Dimensions**:
-  - `dim_customers`
-  - `dim_products`
-- **Purpose**: Analyze total revenue, average order value, and revenue trends over time.
-
-### 2.2. Orders Data Mart
-- **Fact Table**: `fact_orders`
-- **Dimensions**:
-  - `dim_customers`
-  - `dim_products`
-- **Purpose**: Track order volume, order trends, and customer purchasing behavior.
-
-### 2.3. Payments Data Mart
-- **Fact Table**: `fact_payments`
-- **Dimensions**:
-  - `dim_customers`
-- **Purpose**: Analyze payment methods, payment trends, and payment success rates.
-
-### 2.4. Customer Data Mart
-- **Dimension Table**: `dim_customers`
-- **Purpose**: Analyze customer demographics, registration trends, and customer retention metrics.
+### Data Mart Structure
+- **Employee Data Mart**: Focused on employee demographics and performance metrics.
+  - **Fact Table**: `fact_employee`
+  - **Dimension Tables**: `dim_team`, `dim_position`
+  
+### Data Mart Usage
+- **Target Users**: Analysts, coaches, and management.
+- **Use Cases**:
+  - Analyze employee demographics by team and position.
+  - Track performance metrics over time.
+  - Evaluate team composition and player statistics.
 
 ## 3. Metrics & KPIs
-### 3.1. Revenue Metrics
-- **Total Revenue**: Sum of `total_amount` from `fact_orders`.
-- **Average Order Value (AOV)**: Total Revenue / Total Orders.
-- **Revenue Growth Rate**: (Current Period Revenue - Previous Period Revenue) / Previous Period Revenue.
+### Key Metrics
+- **Average Height**: Average height of employees by team and position.
+- **Average Weight**: Average weight of employees by team and position.
+- **Average Age**: Average age of employees by team and position.
+- **Total Employees**: Count of employees per team.
+- **Employee Turnover Rate**: Percentage of employees leaving the team over a specified period.
 
-### 3.2. Order Metrics
-- **Total Orders**: Count of `order_id` from `fact_orders`.
-- **Order Conversion Rate**: Total Orders / Total Visitors.
-
-### 3.3. Payment Metrics
-- **Total Payments**: Sum of `amount` from `fact_payments`.
-- **Payment Success Rate**: Successful Payments / Total Payment Attempts.
-
-### 3.4. Customer Metrics
-- **Customer Acquisition Rate**: New Customers / Total Customers.
-- **Customer Retention Rate**: Returning Customers / Total Customers.
+### KPIs
+- **Team Performance Index**: Composite score based on average height, weight, and age.
+- **Diversity Index**: Measure of diversity within teams based on demographics.
 
 ## 4. Semantic / Metrics Layer
-The semantic layer will provide a unified view of metrics and KPIs across different data marts. This layer will include:
-- **Business Definitions**: Clear definitions of each metric and KPI.
-- **Calculated Fields**: Predefined calculations for common metrics (e.g., AOV, conversion rates).
-- **User-Friendly Names**: Business-friendly names for technical fields to enhance self-service analytics.
+### Definition
+The semantic layer will provide a unified view of metrics and dimensions, allowing users to easily understand and interact with the data.
+
+### Implementation
+- **Naming Conventions**: Standardized naming for metrics (e.g., `avg_height`, `total_employees`).
+- **Business Logic**: Encapsulate calculations for metrics in the semantic layer to ensure consistency across reports.
+- **Access Control**: Define user roles to restrict access to sensitive PII data, while allowing broader access to aggregated metrics.
 
 ## 5. BI Tools & Access Patterns
-### 5.1. Suggested BI Tools
+### Suggested BI Tools
 - **Tableau**: For interactive dashboards and visual analytics.
-- **Looker**: For embedded analytics and data exploration.
-- **Amazon QuickSight**: For cost-effective BI solutions integrated with AWS.
+- **Looker**: For data exploration and self-service analytics.
+- **Power BI**: For integration with Microsoft products and ease of use.
 
-### 5.2. Access Patterns
-- **Dashboards**: Daily dashboards for executives and stakeholders focusing on key metrics.
-- **Ad-hoc Reporting**: Allow business users to create custom reports using drag-and-drop interfaces.
-- **Scheduled Reports**: Automated reports sent via email on a daily/weekly basis.
+### Access Patterns
+- **Scheduled Reports**: Daily/weekly reports for management on employee demographics and performance.
+- **Ad-hoc Analysis**: Allow analysts to create custom queries and dashboards based on their needs.
+- **Self-Service Dashboards**: Empower users to create their own visualizations using predefined metrics.
 
 ## 6. Performance Considerations
-- **Query Optimization**: Utilize indexing and partitioning in the data warehouse to improve query performance.
-- **Caching**: Implement caching strategies in BI tools to reduce load times for frequently accessed reports.
-- **Concurrency**: Ensure the data warehouse can handle multiple concurrent queries by scaling resources as needed.
+### Optimization Strategies
+- **Data Partitioning**: Implement partitioning strategies in the Gold layer to improve query performance.
+- **Caching**: Utilize caching mechanisms in BI tools to speed up frequently accessed reports.
+- **Query Optimization**: Regularly review and optimize SQL queries for performance.
+
+### Monitoring
+- **Performance Metrics**: Track query performance and adjust resources as needed.
+- **User Feedback**: Gather feedback from users to identify pain points and optimize the BI experience.
 
 ## 7. Governance & Metric Consistency
-- **Data Governance Framework**: Establish a governance framework to manage data quality, security, and compliance.
-- **Metric Documentation**: Maintain a centralized repository for metric definitions and calculations to ensure consistency across reports.
-- **Change Management**: Implement a change management process for updates to data models and metrics to prevent discrepancies.
+### Governance Framework
+- **Data Stewardship**: Assign data stewards to oversee data quality and compliance.
+- **Documentation**: Maintain comprehensive documentation of metrics definitions, data sources, and transformation logic.
+
+### Metric Consistency
+- **Single Source of Truth**: Ensure that all reports and dashboards reference the same definitions and calculations.
+- **Version Control**: Implement version control for metrics to track changes over time.
 
 ## 8. Risks & Tradeoffs
-### 8.1. Risks
-- **Data Quality Issues**: Inaccurate or incomplete data may lead to misleading insights.
-- **Performance Bottlenecks**: Increased data volume may affect query performance if not properly managed.
-- **User Adoption**: Resistance to new BI tools may hinder self-service analytics initiatives.
+### Identified Risks
+- **Data Quality Issues**: Inconsistent data entry or updates could lead to inaccurate metrics.
+- **Compliance Risks**: Handling PII data requires strict adherence to regulations, which may complicate data access and sharing.
+- **Tool Limitations**: BI tools may have limitations in handling complex queries or large datasets.
 
-### 8.2. Tradeoffs
-- **Real-time vs. Batch Processing**: While real-time analytics provide immediate insights, they may increase complexity and costs.
-- **Complexity of the Semantic Layer**: A more complex semantic layer may provide richer insights but could also require more maintenance and user training.
+### Tradeoffs
+- **Performance vs. Cost**: Optimizing for performance may increase costs; careful balancing is required.
+- **Self-Service vs. Control**: Empowering users with self-service analytics may lead to inconsistent reporting if not governed properly.
 
-This design provides a comprehensive framework for the analytics and BI layer of the e-commerce company, ensuring scalability, performance, and user empowerment through self-service analytics.
+This design provides a comprehensive framework for the analytics and BI layer, ensuring that the MLB team can effectively analyze employee data while maintaining data quality, compliance, and performance.
+```

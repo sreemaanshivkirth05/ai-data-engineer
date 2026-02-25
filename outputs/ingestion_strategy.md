@@ -1,57 +1,51 @@
-# Data Ingestion Strategy for E-commerce Analytics
+# Data Ingestion Strategy for MLB Analysis
 
 ## 1. Overview
-This document outlines the data ingestion strategy for an e-commerce company that requires analytics for revenue, orders, customers, and payments. The strategy focuses on building a production-grade architecture on AWS to support daily dashboards, scalability, and efficient data processing.
+This document outlines the data ingestion strategy for a dataset containing employee information relevant to an MLB team. The goal is to establish a robust, production-grade ingestion pipeline on AWS that ensures data integrity, consistency, and compliance with business requirements while enabling efficient analysis of the MLB season.
 
 ## 2. Ingestion Sources
-The primary ingestion source for this strategy is a CSV file containing employee data, which includes personal and professional information. The dataset profile indicates that it has 1,034 rows and 7 columns, with no null values and potential PII (Personally Identifiable Information) in the first and last name fields.
+The primary ingestion source will be a CSV file containing employee data. This dataset includes personal and demographic information, which may contain PII (Personally Identifiable Information). The dataset profile indicates that it is relatively small (1034 rows, 7 columns) and free of null values, making it suitable for both batch and near-real-time ingestion approaches.
 
 ## 3. Ingestion Approach (Batch / CDC / Streaming)
-Given the dataset profile and business requirements, the ingestion approach will be **Batch**. This is appropriate due to:
-- The manageable size of the dataset (1,034 rows).
-- The requirement for daily dashboards, which aligns well with batch processing.
-- The absence of real-time data requirements for the employee dataset.
+Given the dataset size and the nature of the data, a **Batch ingestion approach** is recommended. This approach is suitable as the dataset does not require real-time updates and can be processed periodically without significant latency concerns. 
 
 ## 4. AWS Services & Components
-The following AWS services will be utilized for the ingestion strategy:
-- **Amazon S3**: For storing raw CSV files and processed data.
-- **AWS Glue**: For ETL (Extract, Transform, Load) processes to clean and transform the data.
-- **Amazon Athena**: For querying the data stored in S3.
-- **AWS Lambda**: For serverless functions to trigger processing jobs based on events (e.g., new files in S3).
-- **Amazon EventBridge**: To schedule and trigger ingestion workflows.
+To implement the ingestion strategy, the following AWS services will be utilized:
+- **Amazon S3**: For storing the raw CSV files and processed data.
+- **AWS Glue**: For ETL (Extract, Transform, Load) operations to clean and prepare the data for analysis.
+- **AWS Lambda**: To trigger processing jobs based on events (e.g., new files uploaded to S3).
+- **Amazon EventBridge**: To schedule ingestion jobs and manage event-driven workflows.
 
 ## 5. Load Frequency & Scheduling
-The ingestion frequency will be set to **daily**. A scheduled job will run every night to:
-- Ingest the latest CSV file.
-- Process and transform the data.
-- Load it into a structured format in S3 for analytics.
+The ingestion frequency will be set to **daily**. A scheduled job will run every 24 hours to check for new data files in the designated S3 bucket. This frequency aligns with the business requirement to analyze the MLB season without the need for real-time data.
 
 ## 6. Data Landing & File Formats
-- **Landing Zone**: Raw CSV files will be stored in an S3 bucket (e.g., `s3://ecommerce-data/raw/employee/`).
-- **Processed Data**: After ETL, the cleaned data will be stored in a structured format (e.g., Parquet or ORC) in a different S3 bucket (e.g., `s3://ecommerce-data/processed/employee/`).
-- **File Formats**: The raw data will remain in CSV format, while the processed data will use Parquet for efficient querying and storage.
+- **Landing Zone**: Raw CSV files will be stored in an S3 bucket (e.g., `s3://mlb-team-data/raw/`).
+- **Processed Data**: After ETL, the cleaned data will be stored in a separate S3 bucket (e.g., `s3://mlb-team-data/processed/`).
+- **File Format**: The raw data will remain in CSV format for initial ingestion, while processed data can be converted to Parquet format for optimized storage and query performance.
 
 ## 7. Idempotency, Deduplication & Backfills
-- **Idempotency**: The ingestion process will ensure that reprocessing the same file does not create duplicate records. This can be achieved by checking for existing records based on the composite key `(first_name, last_name, age)`.
-- **Deduplication**: During the ETL process, records will be checked against existing entries in the target dataset to prevent duplicates.
-- **Backfills**: If historical data needs to be ingested, a separate process will be created to handle backfills, ensuring that existing records are not overwritten.
+- **Idempotency**: The ingestion process will be designed to be idempotent, meaning that reprocessing the same file will not result in duplicate records. This can be achieved by checking for existing records based on the composite key (first_name, last_name) before inserting new records.
+- **Deduplication**: During the ETL process, any duplicates identified based on the composite key will be removed.
+- **Backfills**: If historical data needs to be ingested, a separate backfill process can be implemented to load older datasets without affecting the daily ingestion pipeline.
 
 ## 8. Failure Handling & Retries
 - **Failure Handling**: If an ingestion job fails, an alert will be sent via Amazon SNS (Simple Notification Service) to notify the data engineering team.
-- **Retries**: The ingestion job will be retried up to three times with exponential backoff. If it fails after three attempts, it will be logged for manual intervention.
+- **Retries**: The ingestion job will be retried up to three times with exponential backoff in case of transient errors (e.g., network issues).
+- **Reprocessing**: Failed records will be logged, and a separate process will be created to reprocess these records after resolving the underlying issues.
 
 ## 9. SLAs & Freshness Guarantees
-- **SLA**: The ingestion process will have a Service Level Agreement (SLA) of 99.9% uptime, ensuring that data is ingested and processed daily.
-- **Freshness Guarantees**: Data will be available for analytics within 24 hours of ingestion, providing timely insights for daily dashboards.
+- **SLA**: The ingestion process will have a Service Level Agreement (SLA) of 99.9% uptime, ensuring that data is ingested daily without significant delays.
+- **Freshness Guarantees**: Data will be considered fresh if ingested within 24 hours of the latest available data. The daily ingestion schedule will ensure that data is updated regularly.
 
 ## 10. Risks & Tradeoffs
 - **Risks**:
-  - Changes in the dataset structure may lead to breaking changes in the ingestion process.
-  - Inaccurate data entry could lead to violations of uniqueness and range constraints.
-  - Potential exposure of PII if not properly managed and secured.
+  - **Data Collisions**: The composite primary key (first_name, last_name) may lead to collisions, especially for common names, which could affect data integrity.
+  - **PII Compliance**: Handling PII data requires adherence to regulations (e.g., GDPR, CCPA), which may introduce additional complexity in data processing and storage.
+  - **Dependency on External Sources**: Any changes to the format or availability of the CSV files could disrupt the ingestion process.
 
 - **Tradeoffs**:
-  - While batch processing is simpler and sufficient for daily analytics, it may not support real-time insights if needed in the future.
-  - Using Parquet format optimizes storage and query performance but requires additional processing during the ETL phase.
+  - While batch ingestion is simpler and sufficient for the current dataset size, it may not scale well if the volume of data increases significantly in the future.
+  - The choice of CSV format for raw data is user-friendly but may not be as efficient as binary formats like Parquet for large datasets.
 
-This strategy provides a comprehensive approach to ingesting and processing employee data for analytics in an e-commerce context, ensuring scalability and adherence to business requirements.
+This strategy provides a comprehensive framework for ingesting and processing employee data for MLB analysis, ensuring data quality and compliance while being adaptable to future requirements.

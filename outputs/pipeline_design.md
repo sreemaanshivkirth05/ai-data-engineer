@@ -1,72 +1,70 @@
 ## Overview
-- Design a production-grade data pipeline for e-commerce analytics on AWS.
-- Focus on daily ingestion of revenue, orders, customers, and payments data.
-- Ensure scalability, data quality, and timely availability for analytics.
+- Design a production-grade data pipeline for MLB employee data analysis.
+- Utilize AWS services for ingestion, transformation, storage, orchestration, and monitoring.
+- Ensure data quality, performance, and compliance with regulations.
 
 ## Ingestion
-- **Source**: Data from CSV files containing orders, customers, and payments.
-- **Approach**: Batch ingestion due to daily analytics requirements.
+- **Sources**: CSV files containing employee data.
+- **Approach**: Batch ingestion, scheduled daily.
 - **AWS Services**:
-  - **Amazon S3**: Store raw CSV files.
-  - **AWS Glue**: ETL processes for data transformation.
-  - **AWS Lambda**: Trigger processing jobs based on S3 events.
-  - **Amazon EventBridge**: Schedule daily ingestion jobs.
-- **Frequency**: Daily ingestion at 2 AM UTC.
-- **Landing Zone**: 
-  - Raw data in `s3://ecommerce-data/raw/`.
-  - Processed data in `s3://ecommerce-data/processed/`.
+  - **Amazon S3**: Store raw and processed data.
+  - **AWS Glue**: Perform ETL operations.
+  - **AWS Lambda**: Trigger processing jobs on new file uploads.
+  - **Amazon EventBridge**: Schedule ingestion jobs.
+- **Data Landing**:
+  - Raw data in `s3://mlb-team-data/raw/`
+  - Processed data in `s3://mlb-team-data/processed/`
+- **Idempotency**: Check for existing records using composite key (first_name, last_name) before inserting.
 
 ## Transformation
+- **Layered Architecture**:
+  - **Bronze Layer**: Raw CSV files stored in S3.
+  - **Silver Layer**: Cleaned data in Parquet format for efficient querying.
+  - **Gold Layer**: Aggregated data for analytics in Redshift or Athena.
 - **ETL Process**:
-  - Use AWS Glue to clean and transform data.
-  - Convert raw CSV files to Parquet format for efficient querying.
-- **Data Quality Checks**:
-  - Validate data integrity and completeness during transformation.
-  - Implement deduplication based on composite keys.
-- **Output**: Store transformed data in the Silver layer in S3.
+  - Use AWS Glue to clean, deduplicate, and validate data.
+  - Transform data into Parquet format for the Silver layer.
+  - Create summary tables and metrics for the Gold layer.
 
 ## Storage
-- **Layered Architecture**:
-  - **Bronze Layer**: 
-    - Raw data in CSV format.
-    - Path: `s3://ecommerce-data/raw/`.
-    - Retention: 30 days.
-  - **Silver Layer**: 
-    - Processed data in Parquet format.
-    - Path: `s3://ecommerce-data/processed/`.
-    - Retention: 365 days.
-  - **Gold Layer**: 
-    - Aggregated data in Amazon Redshift.
-    - Path: `s3://ecommerce-data/gold/`.
-    - Retention: 5 years.
-- **Partitioning**:
-  - Silver Layer: Partition by `order_date` and `customer_region`.
-  - Gold Layer: Partition by `month` for time-based analytics.
+- **Bronze Layer**:
+  - Storage: `s3://mlb-team-data/raw/`
+  - Data: Raw CSV files.
+- **Silver Layer**:
+  - Storage: `s3://mlb-team-data/processed/`
+  - Data: Parquet files partitioned by team and age group.
+- **Gold Layer**:
+  - Storage: Amazon Redshift or AWS Athena.
+  - Data: Aggregated tables partitioned by team and month.
+- **Retention Policies**:
+  - Bronze: Indefinite retention.
+  - Silver: 5 years, older data archived.
+  - Gold: 2 years, with periodic snapshots.
 
 ## Orchestration
-- **Tool**: Apache Airflow for orchestration.
+- **Tool**: Apache Airflow for workflow management.
 - **DAG Design**:
-  - Tasks: Ingest Raw Data → Transform Data → Load Processed Data → Aggregate Data → Notify Completion.
-- **Scheduling**: Daily at 2 AM UTC.
-- **SLAs**: Each task has a 2-hour SLA.
-- **Retries**: Configure up to 3 retries with exponential backoff.
-- **Backfills**: Separate process for historical data ingestion.
+  - **Task 1**: Ingest Raw Data.
+  - **Task 2**: ETL Process.
+  - **Task 3**: Load Processed Data.
+  - **Task 4**: Aggregate Data.
+  - **Task 5**: Notify on Failure.
+- **Task Dependencies**: Linear flow from ingestion to aggregation.
+- **Scheduling**: Daily execution at midnight.
 
 ## Monitoring & Alerts
-- **Monitoring**:
-  - Use Airflow's built-in monitoring for task execution.
-  - Create dashboards in Grafana or CloudWatch for performance tracking.
-- **Alerts**:
-  - Configure alerts via Amazon SNS for task failures and SLA breaches.
-  - Notify the data engineering team via email.
+- **Monitoring**: Use Airflow's built-in capabilities to track task execution.
+- **Alerts**: Integrate with Amazon SNS for notifications on failures or SLA breaches.
+- **Dashboard**: Create a monitoring dashboard using Grafana or AWS CloudWatch to visualize pipeline health.
+
+## Performance Considerations
+- **Query Optimization**: Use Parquet format in Silver and Gold layers for improved performance.
+- **Data Caching**: Implement caching strategies in the data warehouse.
+- **Resource Scaling**: Utilize auto-scaling features in AWS services for workload management.
 
 ## Risks & Tradeoffs
-- **Risks**:
-  - Dependency on AWS services may lead to failures during downtime.
-  - Schema changes could disrupt the ETL process.
-  - Data quality issues may arise if ingestion fails.
-- **Tradeoffs**:
-  - Batch processing limits real-time analytics capabilities.
-  - Using Parquet format requires additional processing time but optimizes storage and query performance.
+- **Data Collisions**: Potential for composite key collisions affecting data integrity.
+- **PII Compliance**: Adhere to regulations for handling PII data.
+- **Cost Management**: Monitor costs associated with data storage and querying to avoid unexpected expenses. 
 
-This architecture provides a comprehensive and scalable solution for managing e-commerce analytics data on AWS, ensuring data quality and timely insights for decision-making.
+This architecture provides a comprehensive framework for ingesting, processing, and analyzing MLB employee data, ensuring data quality, compliance, and optimized performance on AWS.

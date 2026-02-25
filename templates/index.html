@@ -1,29 +1,682 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
 
-<h1>🤖 AI Data Engineer</h1>
+/* ═══════════════════════════════════════
+   PAGE LAYOUT
+═══════════════════════════════════════ */
+.page-grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .page-grid { grid-template-columns: 1fr; }
+    .sidebar { order: 2; }
+    .main-col { order: 1; }
+}
 
-<form action="/run" method="post" enctype="multipart/form-data">
+/* ═══════════════════════════════════════
+   PAGE HEADER
+═══════════════════════════════════════ */
+.page-header {
+    margin-bottom: 2.5rem;
+    animation: fadeUp 0.5s ease both;
+}
+.page-header-inner {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 2rem; flex-wrap: wrap;
+}
+.page-header h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 3.5vw, 2.75rem);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    line-height: 1.1;
+    margin-bottom: 0.625rem;
+}
+.page-header h1 strong {
+    font-weight: 400;
+    color: var(--coral);
+    font-style: italic;
+}
+.page-header p {
+    font-size: 15px;
+    color: var(--ink-3);
+    max-width: 520px;
+    line-height: 1.65;
+}
 
-  <h3>📄 Upload Dataset (CSV)</h3>
-  <input type="file" name="dataset" accept=".csv" required />
+/* ═══════════════════════════════════════
+   STEP INDICATOR  (top of form)
+═══════════════════════════════════════ */
+.step-bar {
+    display: flex; align-items: center;
+    gap: 0; margin-bottom: 2rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    box-shadow: var(--shadow-xs);
+    animation: fadeUp 0.5s 0.05s ease both;
+}
+.step-item {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    padding: 0.875rem 1.125rem;
+    border-right: 1px solid var(--border);
+    transition: background 0.15s;
+    position: relative;
+}
+.step-item:last-child { border-right: none; }
+.step-item:hover { background: var(--bg-subtle); }
+.step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    background: var(--bg-subtle); color: var(--ink-3);
+    border: 1px solid var(--border); flex-shrink: 0;
+    transition: all 0.15s;
+}
+.step-item:hover .step-num { background: var(--navy); color: white; border-color: var(--navy); }
+.step-text { font-size: 12px; font-weight: 500; color: var(--ink-2); line-height: 1.2; }
+.step-subtext { font-size: 10px; color: var(--ink-4); margin-top: 1px; }
 
-  <h3>🧠 Business Requirements</h3>
-  <textarea name="business_requirements" rows="10" style="width:100%;" required>
-We are an e-commerce company that needs analytics for revenue, orders, customers, and payments.
-We want daily dashboards, scalable architecture, and AWS-based design.
-  </textarea>
+@media (max-width: 700px) {
+    .step-bar { flex-wrap: wrap; }
+    .step-item { flex: 1 1 calc(33% - 1px); }
+    .step-subtext { display: none; }
+}
 
-  <h3>🗂️ Source Schemas</h3>
-  <textarea name="source_schemas" rows="10" style="width:100%;" required>
-orders(id, customer_id, total_amount, created_at, status)
-customers(id, email, region, signup_date)
-payments(id, order_id, amount, status, paid_at)
-  </textarea>
+/* ═══════════════════════════════════════
+   MAIN FORM CARD
+═══════════════════════════════════════ */
+.form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    animation: fadeUp 0.5s 0.1s ease both;
+}
 
-  <br><br>
-  <button type="submit">🚀 Run AI Data Engineer</button>
+.form-card-header {
+    padding: 1.375rem 1.75rem;
+    background: var(--navy);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.form-card-header-left { display: flex; align-items: center; gap: 10px; }
+.header-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+}
+.header-icon svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.form-card-title { font-size: 14px; font-weight: 600; color: white; letter-spacing: -0.01em; }
+.form-card-subtitle { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 1px; }
 
-</form>
+/* Section labels inside form */
+.form-section {
+    padding: 1.5rem 1.75rem 0;
+}
+.form-section + .form-section { padding-top: 1.25rem; }
+
+.section-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700;
+    color: var(--ink-2); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 0.75rem;
+}
+.section-label-line {
+    flex: 1; height: 1px; background: var(--border);
+}
+
+/* ═══════════════════════════════════════
+   PRESET TEMPLATES
+═══════════════════════════════════════ */
+.presets {
+    display: flex; flex-wrap: wrap; gap: 8px;
+}
+.preset {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--ink-2);
+    background: var(--bg-subtle); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px;
+    cursor: pointer; transition: all 0.15s;
+    user-select: none;
+}
+.preset:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-light); }
+.preset.active { background: var(--navy); border-color: var(--navy); color: white; }
+.preset-icon { font-size: 13px; }
+
+/* ═══════════════════════════════════════
+   FILE UPLOAD
+═══════════════════════════════════════ */
+.upload-box {
+    border: 1.5px dashed var(--border-2);
+    border-radius: var(--radius);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    background: var(--bg-subtle);
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+    margin: 0 1.75rem 1.25rem;
+}
+.upload-box:hover, .upload-box.drag-over {
+    border-color: var(--coral);
+    background: var(--coral-light);
+}
+.upload-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon-ring {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem; transition: all 0.18s;
+}
+.upload-box:hover .upload-icon-ring { border-color: var(--coral-border); box-shadow: 0 0 0 4px var(--coral-light); }
+.upload-icon-ring svg { width: 20px; height: 20px; stroke: var(--ink-3); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.18s; }
+.upload-box:hover .upload-icon-ring svg { stroke: var(--coral); }
+.upload-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.upload-sub { font-size: 12px; color: var(--ink-3); }
+.upload-sub span { font-weight: 500; color: var(--coral); }
+.upload-file-pill {
+    display: none; margin-top: 0.75rem;
+    background: var(--teal-light); border: 1px solid rgba(13,122,108,0.2);
+    border-radius: 20px; padding: 4px 12px;
+    font-size: 12px; font-weight: 500; color: var(--teal);
+    align-items: center; gap: 6px;
+}
+.upload-file-pill svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ═══════════════════════════════════════
+   TEXTAREA FIELDS
+═══════════════════════════════════════ */
+.fields-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+    padding: 0 1.75rem 1.75rem;
+}
+@media (max-width: 640px) { .fields-row { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field-label {
+    font-size: 12px; font-weight: 600; color: var(--ink-2);
+    display: flex; align-items: center; gap: 6px;
+}
+.field-label-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--coral); flex-shrink: 0;
+}
+.field-label-dot.teal { background: var(--teal); }
+.field-desc { font-size: 11px; color: var(--ink-4); line-height: 1.4; }
+
+textarea {
+    width: 100%; background: var(--bg-subtle);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.875rem 1rem; font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 12px; color: var(--ink); resize: vertical; min-height: 220px;
+    line-height: 1.7; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    caret-color: var(--coral);
+}
+textarea::placeholder { color: var(--ink-4); font-family: var(--font-body); font-size: 12px; }
+textarea:focus { outline: none; border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-light); background: var(--white); }
+
+/* ═══════════════════════════════════════
+   FORM FOOTER / SUBMIT
+═══════════════════════════════════════ */
+.form-footer {
+    padding: 1.25rem 1.75rem;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+}
+.form-footer-meta { display: flex; align-items: center; gap: 1.25rem; }
+.meta-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--ink-3);
+}
+.meta-item svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.submit-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--coral); color: white;
+    font-family: var(--font-body); font-size: 14px; font-weight: 600;
+    padding: 0.75rem 1.75rem; border: none; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.18s;
+    box-shadow: 0 2px 8px rgba(232,76,43,0.25), 0 1px 2px rgba(232,76,43,0.2);
+    letter-spacing: -0.01em;
+}
+.submit-btn:hover {
+    background: #D63D1E;
+    box-shadow: 0 4px 16px rgba(232,76,43,0.35);
+    transform: translateY(-1px);
+}
+.submit-btn:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(232,76,43,0.2); }
+.submit-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ═══════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════ */
+.sidebar { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.sidebar-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-xs);
+    overflow: hidden;
+    animation: fadeUp 0.5s 0.15s ease both;
+}
+.sidebar-card + .sidebar-card { animation-delay: 0.2s; }
+
+.sc-header {
+    padding: 1rem 1.25rem; background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; color: var(--ink-2);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 7px;
+}
+.sc-header svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.agent-list { padding: 0.5rem 0; }
+.agent-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0.625rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+}
+.agent-row:last-child { border-bottom: none; }
+.agent-row:hover { background: var(--bg-subtle); }
+.agent-idx {
+    width: 22px; height: 22px; border-radius: 50%;
+    font-size: 10px; font-weight: 700; color: var(--ink-3);
+    background: var(--bg-subtle); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.agent-info { flex: 1; }
+.agent-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.agent-desc { font-size: 11px; color: var(--ink-4); }
+
+.tips-list { padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0.625rem; }
+.tip-row { display: flex; gap: 8px; align-items: flex-start; }
+.tip-icon { width: 18px; height: 18px; border-radius: 4px; background: var(--coral-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.tip-icon svg { width: 10px; height: 10px; stroke: var(--coral); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.tip-text { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
+/* ═══════════════════════════════════════
+   LOADING MODAL
+═══════════════════════════════════════ */
+.loading-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 999;
+    background: rgba(13,17,23,0.45);
+    backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+}
+.loading-backdrop.show { display: flex; animation: fadeIn 0.2s ease; }
+
+.loading-modal {
+    background: white; border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    width: 500px; max-width: 92vw;
+    overflow: hidden;
+}
+
+.lm-header {
+    background: var(--navy); padding: 1.5rem 1.75rem;
+    display: flex; align-items: center; gap: 12px;
+}
+.lm-spinner {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: white;
+    animation: spin 0.75s linear infinite; flex-shrink: 0;
+}
+.lm-title { font-size: 16px; font-weight: 600; color: white; }
+.lm-sub { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+.lm-body { padding: 1.5rem 1.75rem; }
+
+.lm-steps { display: flex; flex-direction: column; gap: 2px; }
+
+.lm-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    opacity: 0; transform: translateX(-6px);
+    animation: stepAppear 0.35s ease forwards;
+}
+.lm-step:nth-child(1) { animation-delay: 0.3s; }
+.lm-step:nth-child(2) { animation-delay: 1.8s; }
+.lm-step:nth-child(3) { animation-delay: 3.5s; }
+.lm-step:nth-child(4) { animation-delay: 5.5s; }
+.lm-step:nth-child(5) { animation-delay: 7.8s; }
+.lm-step:nth-child(6) { animation-delay: 10.2s; }
+.lm-step:nth-child(7) { animation-delay: 13s; }
+
+.lm-step-num {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-subtle); color: var(--ink-3); border: 1px solid var(--border);
+}
+.lm-step-name { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.lm-step-detail { font-size: 11px; color: var(--ink-4); margin-top: 1px; }
+
+.lm-progress {
+    margin-top: 1.25rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+}
+.lmp-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.lmp-label { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.lmp-time { font-size: 11px; color: var(--ink-4); }
+.lmp-track { height: 4px; background: var(--ink-5); border-radius: 4px; overflow: hidden; }
+.lmp-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--navy) 0%, var(--coral) 100%);
+    width: 0%; animation: progAnim 85s cubic-bezier(0.2,0,0.8,1) forwards;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes stepAppear { to { opacity: 1; transform: translateX(0); } }
+@keyframes progAnim { 0%{width:0%} 100%{width:92%} }
+
+</style>
+
+<!-- Loading modal -->
+<div class="loading-backdrop" id="loadingModal">
+    <div class="loading-modal">
+        <div class="lm-header">
+            <div class="lm-spinner"></div>
+            <div>
+                <div class="lm-title">Running AI Pipeline</div>
+                <div class="lm-sub">7 specialised agents are processing your inputs</div>
+            </div>
+        </div>
+        <div class="lm-body">
+            <div class="lm-steps">
+                <div class="lm-step">
+                    <div class="lm-step-num">1</div>
+                    <div><div class="lm-step-name">Requirements Interpreter</div><div class="lm-step-detail">Parsing business objectives and constraints</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">2</div>
+                    <div><div class="lm-step-name">Pipeline Architect</div><div class="lm-step-detail">Designing end-to-end data flow</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">3</div>
+                    <div><div class="lm-step-name">Data Modeller</div><div class="lm-step-detail">Structuring schemas and relationships</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">4</div>
+                    <div><div class="lm-step-name">Quality Engineer</div><div class="lm-step-detail">Defining validation and quality checks</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">5</div>
+                    <div><div class="lm-step-name">Performance Optimiser</div><div class="lm-step-detail">Cost and performance tuning</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">6</div>
+                    <div><div class="lm-step-name">Architecture Diagram</div><div class="lm-step-detail">Generating visual diagram</div></div>
+                </div>
+                <div class="lm-step">
+                    <div class="lm-step-num">7</div>
+                    <div><div class="lm-step-name">Documentation Writer</div><div class="lm-step-detail">Producing full technical documentation</div></div>
+                </div>
+            </div>
+            <div class="lm-progress">
+                <div class="lmp-top">
+                    <span class="lmp-label">Pipeline Progress</span>
+                    <span class="lmp-time">Estimated 60–90 seconds</span>
+                </div>
+                <div class="lmp-track"><div class="lmp-fill"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-header-inner">
+        <div>
+            <h1>Design your <strong>data platform</strong><br>in minutes</h1>
+            <p>Upload a sample CSV, describe your business requirements, and provide your source schemas. Seven AI agents will analyse and produce a complete architecture blueprint.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; padding-top:6px;">
+            <span class="badge badge-navy"><span class="badge-dot"></span> 7 AI Agents</span>
+            <span class="badge badge-coral"><span class="badge-dot"></span> 60–90s</span>
+            <span class="badge badge-teal"><span class="badge-dot"></span> Full Blueprint</span>
+        </div>
+    </div>
+</div>
+
+<!-- Step bar -->
+<div class="step-bar">
+    <div class="step-item">
+        <div class="step-num">1</div>
+        <div><div class="step-text">Upload Dataset</div><div class="step-subtext">CSV file required</div></div>
+    </div>
+    <div class="step-item">
+        <div class="step-num">2</div>
+        <div><div class="step-text">Requirements</div><div class="step-subtext">Business goals &amp; SLAs</div></div>
+    </div>
+    <div class="step-item">
+        <div class="step-num">3</div>
+        <div><div class="step-text">Schemas</div><div class="step-subtext">Source table definitions</div></div>
+    </div>
+    <div class="step-item">
+        <div class="step-num">4</div>
+        <div><div class="step-text">Run Pipeline</div><div class="step-subtext">7 agents execute</div></div>
+    </div>
+    <div class="step-item">
+        <div class="step-num">5</div>
+        <div><div class="step-text">Review Blueprint</div><div class="step-subtext">Architecture + docs</div></div>
+    </div>
+</div>
+
+<!-- Main grid -->
+<div class="page-grid">
+
+    <!-- Main form -->
+    <div class="main-col">
+        <form method="post" action="/run" enctype="multipart/form-data" id="mainForm">
+            <div class="form-card">
+
+                <div class="form-card-header">
+                    <div class="form-card-header-left">
+                        <div class="header-icon">
+                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        </div>
+                        <div>
+                            <div class="form-card-title">Configure New Run</div>
+                            <div class="form-card-subtitle">Fill in all three sections to begin</div>
+                        </div>
+                    </div>
+                    <!-- Preset chips in header -->
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="preset" onclick="loadPreset('ecommerce',this)"><span class="preset-icon">🛒</span> E-Commerce</button>
+                        <button type="button" class="preset" onclick="loadPreset('saas',this)"><span class="preset-icon">💻</span> SaaS</button>
+                        <button type="button" class="preset" onclick="loadPreset('fintech',this)"><span class="preset-icon">💳</span> Fintech</button>
+                        <button type="button" class="preset" onclick="loadPreset('healthcare',this)"><span class="preset-icon">🏥</span> Healthcare</button>
+                    </div>
+                </div>
+
+                <!-- Upload -->
+                <div class="form-section">
+                    <div class="section-label">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Step 1 — Upload Dataset
+                        <span class="section-label-line"></span>
+                    </div>
+                </div>
+
+                <div class="upload-box" id="uploadBox">
+                    <input type="file" name="dataset" accept=".csv" required id="fileInput">
+                    <div class="upload-icon-ring">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <div class="upload-title">Drop your CSV file here</div>
+                    <div class="upload-sub">or <span>click to browse</span> &nbsp;·&nbsp; .csv files only</div>
+                    <div class="upload-file-pill" id="filePill">
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span id="fileName">file.csv</span>
+                    </div>
+                </div>
+
+                <!-- Text fields -->
+                <div class="form-section">
+                    <div class="section-label">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/></svg>
+                        Steps 2 &amp; 3 — Requirements &amp; Schemas
+                        <span class="section-label-line"></span>
+                    </div>
+                </div>
+
+                <div class="fields-row">
+                    <div class="field">
+                        <label class="field-label">
+                            <span class="field-label-dot"></span>
+                            Business Requirements
+                        </label>
+                        <p class="field-desc">Describe your business goals, KPIs, dashboards, SLAs, and reporting needs.</p>
+                        <textarea name="business_requirements" rows="12"
+                            placeholder="Example:&#10;We need a daily sales dashboard showing&#10;revenue by region, product, and sales rep.&#10;&#10;Key metrics: revenue, orders, AOV, LTV&#10;SLA: refresh by 07:00 UTC daily&#10;Retention: 3 years historical data"
+                            required></textarea>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">
+                            <span class="field-label-dot teal"></span>
+                            Source Table Schemas
+                        </label>
+                        <p class="field-desc">List table names, columns, data types and relationships.</p>
+                        <textarea name="source_schemas" rows="12"
+                            placeholder="orders(&#10;  order_id   INT PRIMARY KEY,&#10;  customer_id INT,&#10;  total       DECIMAL,&#10;  status      VARCHAR,&#10;  created_at  TIMESTAMP&#10;)&#10;&#10;customers(&#10;  customer_id INT PRIMARY KEY,&#10;  email       VARCHAR,&#10;  region      VARCHAR&#10;)"
+                            required></textarea>
+                    </div>
+                </div>
+
+                <div class="form-footer">
+                    <div class="form-footer-meta">
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            60–90 seconds
+                        </div>
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                            7 agents
+                        </div>
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Full architecture blueprint
+                        </div>
+                    </div>
+                    <button class="submit-btn" type="submit">
+                        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        Run AI Pipeline
+                    </button>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <div class="sidebar-card">
+            <div class="sc-header">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                Agent Pipeline
+            </div>
+            <div class="agent-list">
+                <div class="agent-row"><div class="agent-idx">1</div><div class="agent-info"><div class="agent-name">Requirements Interpreter</div><div class="agent-desc">Structures goals &amp; constraints</div></div></div>
+                <div class="agent-row"><div class="agent-idx">2</div><div class="agent-info"><div class="agent-name">Pipeline Architect</div><div class="agent-desc">End-to-end data flow design</div></div></div>
+                <div class="agent-row"><div class="agent-idx">3</div><div class="agent-info"><div class="agent-name">Data Modeller</div><div class="agent-desc">Schema &amp; relationship design</div></div></div>
+                <div class="agent-row"><div class="agent-idx">4</div><div class="agent-info"><div class="agent-name">Quality Engineer</div><div class="agent-desc">Validation &amp; quality checks</div></div></div>
+                <div class="agent-row"><div class="agent-idx">5</div><div class="agent-info"><div class="agent-name">Performance Optimiser</div><div class="agent-desc">Cost &amp; performance tuning</div></div></div>
+                <div class="agent-row"><div class="agent-idx">6</div><div class="agent-info"><div class="agent-name">Diagram Generator</div><div class="agent-desc">Visual architecture diagram</div></div></div>
+                <div class="agent-row"><div class="agent-idx">7</div><div class="agent-info"><div class="agent-name">Documentation Writer</div><div class="agent-desc">Full technical documentation</div></div></div>
+            </div>
+        </div>
+
+        <div class="sidebar-card">
+            <div class="sc-header">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Tips for Best Results
+            </div>
+            <div class="tips-list">
+                <div class="tip-row">
+                    <div class="tip-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="tip-text">Use the preset templates to see example inputs before filling in your own data.</div>
+                </div>
+                <div class="tip-row">
+                    <div class="tip-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="tip-text">Include SLAs and data freshness requirements in your business needs for more accurate output.</div>
+                </div>
+                <div class="tip-row">
+                    <div class="tip-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="tip-text">List all source tables with column types — the more detail, the better the data model output.</div>
+                </div>
+                <div class="tip-row">
+                    <div class="tip-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div class="tip-text">Upload a real sample CSV so agents can analyse your actual data shape and volume.</div>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+</div><!-- end page-grid -->
+
+<script>
+// Upload UX
+const fileInput = document.getElementById('fileInput');
+const uploadBox = document.getElementById('uploadBox');
+const filePill = document.getElementById('filePill');
+const fileName = document.getElementById('fileName');
+
+fileInput.addEventListener('change', function() {
+    if (this.files[0]) showFile(this.files[0].name);
+});
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('drag-over'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag-over'));
+uploadBox.addEventListener('drop', e => {
+    e.preventDefault(); uploadBox.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) { fileInput.files = e.dataTransfer.files; showFile(e.dataTransfer.files[0].name); }
+});
+function showFile(name) {
+    filePill.style.display = 'inline-flex'; fileName.textContent = name;
+}
+
+// Form submit
+document.getElementById('mainForm').addEventListener('submit', function() {
+    document.getElementById('loadingModal').classList.add('show');
+});
+
+// Presets
+const PRESETS = {
+    ecommerce: {
+        req: `Business: Online retail analytics platform\n\nGoals:\n- Daily sales dashboard: revenue by region, product category, and sales rep\n- Customer lifetime value (LTV) and churn prediction\n- Inventory alerts when stock drops below reorder threshold\n- Marketing attribution across channels\n\nSLAs:\n- Dashboard refresh by 07:00 UTC daily\n- Order data latency: max 1 hour\n- 3 years of historical data retained\n\nUsers: 50 analysts, 200 business stakeholders`,
+        schema: `orders(\n  order_id    INT PRIMARY KEY,\n  customer_id INT,\n  status      VARCHAR(20),\n  total       DECIMAL(12,2),\n  region      VARCHAR(50),\n  created_at  TIMESTAMP\n)\n\ncustomers(\n  customer_id INT PRIMARY KEY,\n  email       VARCHAR(255),\n  tier        VARCHAR(20),\n  signup_date DATE,\n  country     VARCHAR(50)\n)\n\norder_items(\n  item_id    INT PRIMARY KEY,\n  order_id   INT,\n  product_id INT,\n  quantity   INT,\n  unit_price DECIMAL(10,2)\n)\n\nproducts(\n  product_id INT PRIMARY KEY,\n  name       VARCHAR(255),\n  category   VARCHAR(100),\n  cost       DECIMAL(10,2)\n)`
+    },
+    saas: {
+        req: `Business: B2B SaaS revenue intelligence\n\nGoals:\n- MRR/ARR dashboard with expansion, contraction, churn breakdown\n- Product usage analytics: DAU/MAU, feature adoption rates\n- Customer health score for CSM team\n- Trial-to-paid conversion funnel analysis\n\nSLAs:\n- Billing metrics accurate to the minute\n- Usage data latency: max 4 hours\n- 2 years historical data\n\nUsers: 10 analysts, 30 CSMs, 5 executives`,
+        schema: `accounts(\n  account_id  INT PRIMARY KEY,\n  name        VARCHAR(255),\n  plan        VARCHAR(50),\n  mrr         DECIMAL(10,2),\n  status      VARCHAR(20),\n  created_at  TIMESTAMP\n)\n\nsubscriptions(\n  sub_id         INT PRIMARY KEY,\n  account_id     INT,\n  seats          INT,\n  monthly_amount DECIMAL(10,2),\n  start_date     DATE\n)\n\nusage_events(\n  event_id   BIGINT PRIMARY KEY,\n  account_id INT,\n  user_id    INT,\n  feature    VARCHAR(100),\n  occurred_at TIMESTAMP\n)\n\nusers(\n  user_id    INT PRIMARY KEY,\n  account_id INT,\n  role       VARCHAR(50),\n  last_login TIMESTAMP\n)`
+    },
+    fintech: {
+        req: `Business: Digital payments & lending risk platform\n\nGoals:\n- Transaction monitoring: volume, value, failure rates by gateway\n- Credit risk scoring pipeline for loan applications\n- Fraud detection reporting with false positive tracking\n- AML compliance: daily transaction summaries\n\nSLAs:\n- Transaction data within 5 minutes\n- Risk scores within 30 seconds of application\n- Regulatory reports daily by 06:00 UTC`,
+        schema: `transactions(\n  txn_id     VARCHAR(36) PRIMARY KEY,\n  sender_id  INT,\n  amount     DECIMAL(15,2),\n  currency   CHAR(3),\n  status     VARCHAR(20),\n  created_at TIMESTAMP\n)\n\nusers(\n  user_id    INT PRIMARY KEY,\n  kyc_status VARCHAR(20),\n  risk_tier  VARCHAR(10),\n  country    CHAR(2),\n  created_at TIMESTAMP\n)\n\nloan_applications(\n  app_id     INT PRIMARY KEY,\n  user_id    INT,\n  amount     DECIMAL(15,2),\n  status     VARCHAR(20),\n  score      DECIMAL(5,2),\n  applied_at TIMESTAMP\n)`
+    },
+    healthcare: {
+        req: `Business: Hospital network analytics\n\nGoals:\n- Patient outcomes: readmission rates, length of stay, mortality\n- Bed occupancy and capacity planning by ward\n- Staff scheduling efficiency and overtime tracking\n- Billing and insurance claim reconciliation\n\nSLAs:\n- Clinical data refresh every 2 hours\n- Bed availability near-real-time (< 5 min)\n- Monthly regulatory compliance reports`,
+        schema: `patients(\n  patient_id  INT PRIMARY KEY,\n  dob         DATE,\n  gender      CHAR(1),\n  insurance_id VARCHAR(50)\n)\n\nadmissions(\n  admission_id  INT PRIMARY KEY,\n  patient_id    INT,\n  ward          VARCHAR(50),\n  admitted_at   TIMESTAMP,\n  discharged_at TIMESTAMP,\n  diagnosis_code VARCHAR(10)\n)\n\nstaff(\n  staff_id INT PRIMARY KEY,\n  name     VARCHAR(100),\n  role     VARCHAR(50),\n  ward     VARCHAR(50)\n)\n\nshifts(\n  shift_id       INT PRIMARY KEY,\n  staff_id       INT,\n  start_time     TIMESTAMP,\n  end_time       TIMESTAMP,\n  overtime_hours DECIMAL(4,2)\n)`
+    }
+};
+
+function loadPreset(key, el) {
+    const p = PRESETS[key]; if (!p) return;
+    document.querySelector('[name="business_requirements"]').value = p.req;
+    document.querySelector('[name="source_schemas"]').value = p.schema;
+    document.querySelectorAll('.preset').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+}
+</script>
 
 {% endblock %}

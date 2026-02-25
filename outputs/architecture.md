@@ -1,42 +1,39 @@
 # Requirements Analysis
 
 ## 1. Business Goals
-The primary business goal is to enable analytics for revenue, orders, customers, and payments in order to support decision-making and performance tracking for the e-commerce company. The company aims to create daily dashboards that provide insights into key metrics, ensuring the architecture is scalable and based on AWS technologies.
+The primary goal is to enable the baseball team to perform comprehensive analyses on the overall MLB season. This includes evaluating player performance, team statistics, and demographic insights to enhance decision-making and strategic planning. The analysis should support various use cases, such as scouting, player development, and fan engagement.
 
 ## 2. Key Metrics
-- **Total Revenue**: Sum of all payments received.
-- **Total Orders**: Count of all orders placed.
-- **Total Customers**: Count of unique customers who have placed orders.
-- **Payment Status**: Breakdown of payment statuses (e.g., completed, pending, failed).
-- **Average Order Value**: Total revenue divided by the total number of orders.
-- **Customer Retention Rate**: Percentage of customers who make repeat purchases over a defined period.
+- **Player Performance Metrics**: Batting average, on-base percentage, slugging percentage, strikeouts, and home runs.
+- **Team Statistics**: Wins, losses, win percentage, runs scored, and earned run average (ERA).
+- **Demographic Insights**: Average age, height, and weight of players by team and position.
+- **Player Availability**: Injury reports and player transactions.
 
 ## 3. Core Entities
-- **Orders**: Represents customer orders with attributes such as order ID, customer ID, total amount, creation date, and status.
-- **Customers**: Represents customer information with attributes including customer ID, email, region, and signup date.
-- **Payments**: Represents payment transactions with attributes such as payment ID, order ID, amount, status, and payment date.
+- **Player**: Represents individual players with attributes such as name, team, position, height, weight, and age.
+- **Team**: Represents the teams in the MLB, including team name and overall statistics.
+- **Game**: Represents individual games played, including date, teams involved, and scores.
+- **Season**: Represents the overall season context, including start and end dates, and season statistics.
 
 ## 4. Data Sources
-- **Orders Table**: 
-  - Schema: `orders(id, customer_id, total_amount, created_at, status)`
-- **Customers Table**: 
-  - Schema: `customers(id, email, region, signup_date)`
-- **Payments Table**: 
-  - Schema: `payments(id, order_id, amount, status, paid_at)`
+- **Player Dataset**: Contains player information (first name, last name, team, position, height, weight, age).
+- **Game Dataset**: Contains game results, including teams, scores, and dates.
+- **Team Dataset**: Contains aggregated team statistics and performance metrics.
+- **Injury Reports**: Contains data on player injuries and availability.
 
 ## 5. Data Granularity
-- **Orders**: Daily granularity based on the `created_at` timestamp.
-- **Customers**: Daily updates reflecting new signups.
-- **Payments**: Daily granularity based on the `paid_at` timestamp.
+- **Player Level**: Data should be captured at the individual player level for detailed analysis.
+- **Game Level**: Each game should be recorded with results and statistics for performance tracking.
+- **Season Level**: Aggregated data should be available for the entire season to analyze trends and overall performance.
 
 ## 6. Assumptions & Open Questions
 ### Assumptions
-- The data from the source tables will be consistently available and updated on a daily basis.
-- The existing schemas for orders, customers, and payments will remain stable, with no major changes expected in the near term.
-- Data quality checks will be implemented to ensure accuracy and completeness.
+- The player dataset is complete and accurately reflects the current roster of players.
+- The composite key of (first_name, last_name) will sufficiently identify players without significant collisions.
+- Data will be collected and updated regularly to maintain freshness and relevance for analysis.
 
 ### Open Questions
-- What specific AWS services are preferred for data ingestion, storage, and processing (e.g., AWS Glue, Redshift, S3)?
-- Are there any specific compliance requirements related to customer data (e.g., GDPR, CCPA)?
-- What are the expected volumes of data, and how will this impact performance and scalability?
-- How will data quality be monitored, and what thresholds will be set for alerts?
+- What is the frequency of data updates for player statistics and game results?
+- Are there any additional data sources or external APIs that should be integrated for richer analysis?
+- How will PII data be handled in compliance with relevant regulations, and what measures are in place for data security?
+- What specific analytical tools or platforms will be used for data visualization and reporting?

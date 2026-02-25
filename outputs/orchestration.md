@@ -1,52 +1,68 @@
-# Data Orchestration and Scheduling for E-commerce Analytics
+# Data Orchestration and Scheduling for MLB Employee Data Platform
 
 ## 1. Overview
-This document outlines the orchestration and scheduling design for a production data platform focused on e-commerce analytics. The architecture is designed to handle daily ingestion of employee data, ensuring data quality, efficient processing, and timely availability for analytics. The orchestration will leverage AWS services to automate the ETL process and manage dependencies effectively.
+This document outlines the orchestration and scheduling design for the production data platform dedicated to ingesting, processing, and analyzing employee data for an MLB team. The design leverages AWS services and follows a structured approach to ensure data quality, reliability, and compliance with business requirements.
 
 ## 2. Orchestration Tool Choice
-For this data orchestration, **Apache Airflow** is chosen due to its flexibility, rich scheduling capabilities, and strong community support. Airflow allows for complex DAG (Directed Acyclic Graph) designs, making it suitable for managing dependencies and workflows in a data pipeline.
+For this data platform, **Apache Airflow** is chosen as the orchestration tool due to its flexibility, rich scheduling capabilities, and strong community support. Airflow allows for defining complex workflows as Directed Acyclic Graphs (DAGs), making it suitable for managing the ingestion and processing of the employee dataset.
 
 ## 3. DAG / Workflow Design
-The DAG for the e-commerce analytics ingestion process will consist of the following tasks:
+The DAG will consist of the following key tasks:
+- **Task 1: Ingest Raw Data** - Load CSV files from the S3 landing zone into the Bronze layer.
+- **Task 2: ETL Process** - Execute AWS Glue jobs to clean, deduplicate, and transform the data into the Silver layer.
+- **Task 3: Load Processed Data** - Store the transformed data in Parquet format in the Silver layer.
+- **Task 4: Aggregate Data** - Run scheduled jobs to create summary tables and metrics in the Gold layer.
+- **Task 5: Notify on Failure** - Send notifications via Amazon SNS if any task fails.
 
-1. **Ingest Raw Data**: Load the latest CSV file from S3 to the Bronze layer.
-2. **Transform Data**: Clean and transform the data using AWS Glue, converting it to Parquet format for the Silver layer.
-3. **Load Processed Data**: Store the transformed data in the Silver layer in S3.
-4. **Aggregate Data**: Perform aggregation and load the data into the Gold layer (data warehouse).
-5. **Notify Completion**: Send a notification upon successful completion of the workflow.
+```python
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.operators.dummy_operator import DummyOperator
+from datetime import datetime, timedelta
 
-The DAG will be triggered daily to ensure data freshness.
+default_args = {
+    'owner': 'data_engineer',
+    'depends_on_past': False,
+    'start_date': datetime(2023, 10, 1),
+    'retries': 3,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG('mlb_employee_data_pipeline', default_args=default_args, schedule_interval='@daily')
+
+start = DummyOperator(task_id='start', dag=dag)
+
+ingest_raw_data = PythonOperator(task_id='ingest_raw_data', python_callable=ingest_raw_data_function, dag=dag)
+etl_process = PythonOperator(task_id='etl_process', python_callable=etl_process_function, dag=dag)
+load_processed_data = PythonOperator(task_id='load_processed_data', python_callable=load_processed_data_function, dag=dag)
+aggregate_data = PythonOperator(task_id='aggregate_data', python_callable=aggregate_data_function, dag=dag)
+notify_failure = PythonOperator(task_id='notify_failure', python_callable=notify_failure_function, dag=dag)
+
+start >> ingest_raw_data >> etl_process >> load_processed_data >> aggregate_data
+```
 
 ## 4. Task Dependencies
-The task dependencies will be defined as follows:
-
-- **Ingest Raw Data** → **Transform Data** → **Load Processed Data** → **Aggregate Data** → **Notify Completion**
-
-This linear dependency ensures that each task is completed before the next one begins, maintaining data integrity throughout the process.
+The tasks are structured in a linear fashion, where each task depends on the successful completion of the previous task:
+- **Ingest Raw Data** → **ETL Process** → **Load Processed Data** → **Aggregate Data**
+- **Notify on Failure** is a separate task that can be triggered by any task failure.
 
 ## 5. Scheduling & SLAs
-- **Scheduling**: The DAG will be scheduled to run daily at 2 AM UTC to allow for overnight processing of the latest CSV file.
-- **SLAs**: Each task will have an SLA of 2 hours, ensuring that the entire workflow completes within this timeframe. If any task exceeds this duration, alerts will be triggered.
+- **Scheduling**: The DAG is scheduled to run **daily** at a specified time (e.g., midnight) to align with the ingestion frequency.
+- **SLAs**: Each task will have an SLA of 2 hours, ensuring that data is processed and available for analysis within this timeframe. If any task exceeds this duration, an alert will be triggered.
 
 ## 6. Retries, Backfills & Recovery
-- **Retries**: Each task will be configured to retry up to 3 times with exponential backoff in case of failure. This will help to handle transient issues effectively.
-- **Backfills**: A separate backfill process will be implemented to handle historical data ingestion. This will allow for reprocessing of previous days' data without affecting the regular daily workflow.
-- **Recovery**: If a task fails after the maximum retries, it will log the error and send an alert via Amazon SNS for manual intervention.
+- **Retries**: Each task will be retried up to three times with an exponential backoff strategy in case of transient errors.
+- **Backfills**: In the event of historical data needing to be ingested, a backfill mechanism will be implemented to allow for re-running the DAG for specific dates.
+- **Recovery**: Failed tasks will log the error details, and a separate recovery process will be initiated to handle reprocessing of failed records.
 
 ## 7. Monitoring & Observability
-- **Monitoring Hooks**: Airflow's built-in monitoring capabilities will be utilized to track task execution times, success rates, and failure logs.
-- **Alerts**: Alerts will be configured to notify the data engineering team via email and Amazon SNS in case of task failures or SLA breaches.
-- **Dashboards**: A monitoring dashboard will be created using tools like Grafana or CloudWatch to visualize the performance of the DAG and track key metrics.
+- **Monitoring Hooks**: Airflow's built-in monitoring capabilities will be utilized to track task execution times, success rates, and failure counts.
+- **Alerts**: Integration with Amazon SNS will be set up to send alerts to the data engineering team in case of task failures or SLA breaches.
+- **Dashboard**: A monitoring dashboard will be created using tools like Grafana or AWS CloudWatch to visualize the health of the data pipeline.
 
 ## 8. Risks & Tradeoffs
-- **Risks**:
-  - Dependency on external services (e.g., S3, AWS Glue) may lead to failures if those services experience downtime.
-  - Changes in the data schema may require updates to the transformation logic, potentially causing downstream issues.
-  - Data quality issues may arise if the ingestion process fails, leading to incomplete or incorrect datasets.
+- **Data Collisions**: The composite key may lead to data integrity issues if not managed properly during the ETL process.
+- **PII Compliance**: Handling PII data requires strict adherence to compliance regulations, which may complicate the ingestion and processing workflows.
+- **Tool Complexity**: While Airflow provides powerful orchestration capabilities, it may introduce complexity in setup and maintenance, requiring skilled personnel to manage the environment.
 
-- **Tradeoffs**:
-  - While Airflow provides flexibility, it may require additional overhead for maintenance and monitoring compared to simpler orchestration tools.
-  - The choice of batch processing limits real-time analytics capabilities, which may be a concern if business needs evolve.
-  - Using Parquet format optimizes storage and query performance but requires additional processing time during the ETL phase.
-
-This orchestration and scheduling design provides a robust framework for managing the data ingestion and processing workflow for e-commerce analytics, ensuring data quality and timely availability for analysis.
+This orchestration and scheduling design aims to provide a robust framework for the MLB employee data platform, ensuring data quality, reliability, and compliance while facilitating efficient analysis of the MLB season.

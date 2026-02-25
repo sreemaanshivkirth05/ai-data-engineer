@@ -1,83 +1,100 @@
-# Data Quality Strategy for E-commerce Analytics Pipeline
+# Data Quality Strategy for MLB Employee Data Pipeline
 
 ## 1. Data Quality Goals
-The primary goals for data quality in the e-commerce analytics pipeline are as follows:
-- **Completeness**: Ensure all necessary data is present and accounted for in the fact and dimension tables.
-- **Accuracy**: Validate that the data adheres to defined formats, ranges, and business rules.
-- **Consistency**: Maintain uniformity in data types and values across different tables and layers.
-- **Uniqueness**: Prevent duplicate records in fact tables and ensure primary key constraints are enforced.
-- **Timeliness**: Ensure data is ingested and made available for analysis within defined SLAs.
+The primary goals for ensuring data quality in the MLB employee data pipeline are:
+- **Completeness**: Ensure all required fields are populated without null values.
+- **Uniqueness**: Guarantee that each employee is uniquely identified, preventing duplicate entries.
+- **Validity**: Validate that all data adheres to defined constraints (e.g., acceptable ranges for height, weight, and age).
+- **Consistency**: Maintain consistent data across different datasets and versions.
+- **Timeliness**: Ensure data is up-to-date and reflects the latest information.
 
 ## 2. Critical Tables & Columns
-The following tables and columns are critical for maintaining data integrity and quality:
-- **Fact Tables**:
-  - `fact_orders`
-    - Critical Columns: `order_id`, `customer_id`, `order_date`, `total_amount`, `payment_id`
-  - `fact_payments`
-    - Critical Columns: `payment_id`, `order_id`, `payment_date`, `amount`
-  
+### Critical Tables
+- **Fact Table**: `fact_employee`
+- **Dimension Tables**: 
+  - `dim_team`
+  - `dim_position`
+
+### Critical Columns
+- **Fact Table**: 
+  - `employee_id` (INT, PK)
+  - `first_name` (STRING, PII)
+  - `last_name` (STRING, PII)
+  - `team_id` (INT, FK)
+  - `position_id` (INT, FK)
+  - `height_inches` (INT)
+  - `weight_pounds` (INT)
+  - `age` (FLOAT)
+  - `record_date` (DATE)
+
 - **Dimension Tables**:
-  - `dim_customers`
-    - Critical Columns: `customer_id`, `first_name`, `last_name`, `email`, `registration_date`, `customer_region`
-  - `dim_products`
-    - Critical Columns: `product_id`, `product_name`, `category`, `price`
+  - `dim_team`: `team_id`, `team_name`, `league`
+  - `dim_position`: `position_id`, `position_name`
 
 ## 3. Validation Rules & Checks
-To ensure data quality, the following validation rules and checks will be implemented during the ETL process:
-
 ### Completeness Checks
-- **Null Checks**: Ensure no null values are present in critical columns (e.g., `order_id`, `customer_id`, `payment_id`, etc.).
-- **Row Count Checks**: Compare the number of rows in the raw data against the number of rows in the processed data to ensure all records are ingested.
-
-### Accuracy Checks
-- **Data Type Validation**: Ensure that all columns conform to their defined data types (e.g., `total_amount` as DECIMAL).
-- **Range Checks**: Validate that `total_amount` is greater than 0, and `amount` in `fact_payments` is also greater than 0.
-- **Email Format Check**: Validate that the `email` in `dim_customers` follows a standard email format.
-
-### Consistency Checks
-- **Referential Integrity**: Ensure that foreign keys in `fact_orders` and `fact_payments` reference existing records in `dim_customers` and `dim_products`.
-- **Data Type Consistency**: Ensure that the data types match across fact and dimension tables for foreign key relationships.
+- Ensure that all columns in the `fact_employee` table are populated (0% null values).
+- Validate that `team_id` and `position_id` in the `fact_employee` table correspond to existing records in `dim_team` and `dim_position`.
 
 ### Uniqueness Checks
-- **Primary Key Enforcement**: Ensure that `order_id` in `fact_orders`, `payment_id` in `fact_payments`, and `customer_id` in `dim_customers` are unique.
-- **Deduplication Logic**: Implement deduplication based on composite keys (e.g., `order_id` and `customer_id`).
+- Implement a check to ensure that the combination of `first_name` and `last_name` is unique before inserting records into the `fact_employee` table.
+- Use `employee_id` as the primary key to prevent duplicate entries.
+
+### Validity Checks
+- **Height Check**: Ensure `height_inches` is between 67 and 83.
+- **Weight Check**: Ensure `weight_pounds` is between 150 and 290.
+- **Age Check**: Ensure `age` is between 21 and 48.
+- Validate that `record_date` is not a future date.
+
+### Consistency Checks
+- Ensure that `team` and `position` values in the raw data match the corresponding values in `dim_team` and `dim_position` respectively.
+- Check for consistent naming conventions across datasets.
 
 ## 4. Freshness & SLA Definitions
-- **Data Freshness**: Data must be available within 2 hours of ingestion, ensuring that it is ready for analytics by 4 AM UTC.
-- **SLA Definitions**:
-  - Each ETL task in the Airflow DAG has a 2-hour SLA.
-  - Alerts will be triggered if any task exceeds its SLA.
+### Freshness Expectations
+- Data should be ingested and processed daily, with the latest data available by 6 AM UTC each day.
+- The `record_date` field in the `fact_employee` table should reflect the date of the latest data snapshot.
+
+### SLA Definitions
+- **Data Ingestion SLA**: 99% of data ingestion jobs should complete successfully within 30 minutes of the scheduled time.
+- **Data Quality SLA**: 95% of records should pass all validation checks on the first attempt.
+- **Data Availability SLA**: 99.9% uptime for accessing the processed data in the Silver and Gold layers.
 
 ## 5. Monitoring & Alerting Strategy
-To maintain high data quality, the following monitoring and alerting strategies will be implemented:
-
 ### Monitoring
-- **Airflow Monitoring**: Utilize Airflow's built-in monitoring tools to track task execution and performance metrics.
-- **Data Quality Dashboards**: Create dashboards in Grafana or CloudWatch to visualize data quality metrics, including counts of nulls, duplicates, and failed validations.
+- Utilize Apache Airflow's built-in monitoring capabilities to track the success and failure of each task in the DAG.
+- Implement data quality checks as part of the ETL process using AWS Glue, logging results to a centralized logging system (e.g., AWS CloudWatch).
 
 ### Alerting
-- **SNS Alerts**: Configure Amazon SNS to send alerts for:
+- Integrate Amazon SNS to send notifications for:
   - Task failures in Airflow.
-  - SLA breaches for any ETL tasks.
-  - Data quality check failures (e.g., null values, duplicates).
-- **Email Notifications**: Notify the data engineering team via email for any critical issues that arise during the ETL process.
+  - SLA breaches for data ingestion and quality checks.
+  - Data validation failures (e.g., records failing completeness or validity checks).
+
+### Dashboard
+- Create a monitoring dashboard using Grafana or AWS CloudWatch to visualize:
+  - Data ingestion success rates.
+  - Data quality check results.
+  - SLA compliance metrics.
 
 ## 6. Failure Handling & Remediation
-In the event of data quality failures or pipeline issues, the following strategies will be employed:
+### Failure Handling
+- Implement retry logic in Airflow for transient failures during data ingestion and processing.
+- If data quality checks fail, log the errors and alert the data engineering team via SNS.
 
-- **Retry Mechanism**: Configure Airflow to automatically retry failed tasks up to 3 times with exponential backoff.
-- **Manual Review**: For persistent failures, a manual review process will be initiated to investigate and resolve the underlying issues.
-- **Data Correction**: Implement a process to correct data quality issues in the source or transformation stages, ensuring that bad data does not propagate to the Gold layer.
+### Remediation Steps
+- For ingestion failures, review error logs to identify issues (e.g., malformed CSV files) and correct them.
+- For validation failures, flag erroneous records for manual review and correction.
+- Implement a feedback loop to improve data quality checks based on failure patterns observed.
 
 ## 7. Assumptions & Risks
 ### Assumptions
 - The data sources will consistently provide data in the expected format and structure.
-- Data quality checks will be integrated into the ETL process without significant performance degradation.
-- The data engineering team will have the necessary resources to monitor and address data quality issues.
+- The team will adhere to data governance policies regarding PII handling and compliance.
 
 ### Risks
-- **Schema Changes**: Changes in the source data schema could lead to validation failures if not managed properly.
-- **Data Quality Issues**: Inaccurate data entry at the source could lead to significant data quality issues if not caught early in the pipeline.
-- **Dependency on AWS Services**: Outages or performance issues with AWS services could impact data ingestion and processing timelines.
+- **Data Collisions**: The reliance on `first_name` and `last_name` for uniqueness may lead to collisions; hence the introduction of `employee_id` mitigates this risk.
+- **Data Quality**: Inconsistent data from source systems may lead to validation failures.
+- **Regulatory Compliance**: Failure to comply with PII regulations could result in legal repercussions.
 
-This data quality strategy aims to ensure that the e-commerce analytics pipeline delivers reliable, accurate, and timely data for decision-making while minimizing the risk of bad data reaching dashboards.
+This data quality strategy is designed to ensure that the MLB employee data pipeline maintains high data integrity, enabling accurate and reliable analytics for decision-making.

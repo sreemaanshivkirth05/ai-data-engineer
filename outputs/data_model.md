@@ -1,68 +1,65 @@
-# Analytical Data Model Design for E-commerce Analytics
+# Analytical Data Model for MLB Employee Data
 
 ## 1. Overview of the Data Model
-The analytical data model for the e-commerce analytics pipeline is designed to support reporting and analysis of key business metrics such as revenue, order volume, customer demographics, and payment methods. The model follows a star schema architecture, which consists of fact tables that capture quantitative data and dimension tables that provide descriptive attributes related to the facts. This design ensures efficient querying and analysis, while also supporting data quality and performance requirements.
+The analytical data model is designed to support the analysis of MLB employee data, focusing on employee demographics, team affiliations, and performance metrics. The model follows a star schema architecture, which includes fact and dimension tables to facilitate efficient querying and reporting. The model aims to ensure data quality, performance, and compliance with regulations, particularly concerning PII.
 
 ## 2. Fact Tables
 
-### 2.1. Fact Table: `fact_orders`
-- **Grain**: Each record represents a single order placed by a customer on a specific date.
+### Employee Fact Table
+- **Table Name**: `fact_employee`
+- **Grain**: One record per employee per day (captures daily snapshots of employee data).
 - **Columns**:
-  - `order_id` (STRING, PK): Unique identifier for the order.
-  - `customer_id` (STRING, FK): Foreign key referencing the customer.
-  - `order_date` (DATE): Date when the order was placed.
-  - `total_amount` (DECIMAL): Total revenue generated from the order.
-  - `payment_id` (STRING, FK): Foreign key referencing the payment transaction.
-- **Primary Key**: `order_id`
+  - `employee_id` (INT, PK): Unique identifier for each employee.
+  - `first_name` (STRING): Employee's first name (PII).
+  - `last_name` (STRING): Employee's last name (PII).
+  - `team_id` (INT, FK): Foreign key referencing the `dim_team` table.
+  - `position_id` (INT, FK): Foreign key referencing the `dim_position` table.
+  - `height_inches` (INT): Height of the employee in inches.
+  - `weight_pounds` (INT): Weight of the employee in pounds.
+  - `age` (FLOAT): Age of the employee (in years).
+  - `record_date` (DATE): Date of the record (for daily snapshots).
+- **Primary Key**: `employee_id`
 - **Foreign Keys**: 
-  - `customer_id` references `dim_customers(customer_id)`
-  - `payment_id` references `dim_payments(payment_id)`
-
-### 2.2. Fact Table: `fact_payments`
-- **Grain**: Each record represents a single payment transaction associated with an order.
-- **Columns**:
-  - `payment_id` (STRING, PK): Unique identifier for the payment transaction.
-  - `order_id` (STRING, FK): Foreign key referencing the order.
-  - `payment_date` (DATE): Date when the payment was processed.
-  - `payment_method` (STRING): Method used for payment (e.g., credit card, PayPal).
-  - `amount` (DECIMAL): Amount paid in the transaction.
-- **Primary Key**: `payment_id`
-- **Foreign Keys**: 
-  - `order_id` references `fact_orders(order_id)`
+  - `team_id` references `dim_team(team_id)`
+  - `position_id` references `dim_position(position_id)`
 
 ## 3. Dimension Tables
 
-### 3.1. Dimension Table: `dim_customers`
+### Team Dimension Table
+- **Table Name**: `dim_team`
 - **Columns**:
-  - `customer_id` (STRING, PK): Unique identifier for the customer.
-  - `first_name` (STRING): First name of the customer.
-  - `last_name` (STRING): Last name of the customer.
-  - `email` (STRING): Email address of the customer.
-  - `registration_date` (DATE): Date when the customer registered.
-  - `customer_region` (STRING): Geographic region of the customer.
-- **Primary Key**: `customer_id`
+  - `team_id` (INT, PK): Unique identifier for each team.
+  - `team_name` (STRING): Name of the team.
+  - `league` (STRING): League to which the team belongs (e.g., AL, NL).
+- **Primary Key**: `team_id`
 
-### 3.2. Dimension Table: `dim_products`
+### Position Dimension Table
+- **Table Name**: `dim_position`
 - **Columns**:
-  - `product_id` (STRING, PK): Unique identifier for the product.
-  - `product_name` (STRING): Name of the product.
-  - `category` (STRING): Category to which the product belongs.
-  - `price` (DECIMAL): Price of the product.
-- **Primary Key**: `product_id`
+  - `position_id` (INT, PK): Unique identifier for each position.
+  - `position_name` (STRING): Name of the position (e.g., Pitcher, Catcher).
+- **Primary Key**: `position_id`
 
 ## 4. Relationships (fact ↔ dimensions)
-- The `fact_orders` table is linked to:
-  - `dim_customers` via `customer_id`
-  - `dim_products` via a potential join table (if needed) for products associated with each order.
+- The `fact_employee` table is connected to the `dim_team` and `dim_position` tables through foreign keys:
+  - `fact_employee.team_id` → `dim_team.team_id`
+  - `fact_employee.position_id` → `dim_position.position_id`
   
-- The `fact_payments` table is linked to:
-  - `fact_orders` via `order_id`
+This relationship allows for detailed analysis of employee data by team and position, enabling metrics such as average height, weight, and age by team or position.
 
 ## 5. Design Decisions & Assumptions
-- **Star Schema**: The decision to use a star schema allows for simplified queries and improved performance for analytical workloads. Fact tables are denormalized to optimize read performance.
-- **Composite Keys**: The use of unique identifiers for primary keys ensures data integrity and supports efficient joins between fact and dimension tables.
-- **Data Quality**: The model assumes that data quality checks during the ETL process will ensure that only valid and complete records are loaded into the fact and dimension tables.
-- **Scalability**: The model is designed to accommodate growth in data volume as the e-commerce platform scales, particularly in the number of orders and customers.
-- **Business Metrics**: The model supports essential business metrics such as total revenue, order count, and payment methods, which are critical for business analysis and decision-making.
+### Design Decisions
+- **Grain Definition**: The grain of the `fact_employee` table is defined as one record per employee per day to capture daily snapshots, which allows for temporal analysis of employee data.
+- **Composite Key Handling**: Instead of relying on the composite key of `first_name` and `last_name`, a unique `employee_id` is introduced to ensure uniqueness and avoid collisions.
+- **Dimension Tables**: Separate dimension tables for team and position provide flexibility for analysis and reporting, allowing for easy aggregation and filtering.
 
-This analytical data model provides a robust framework for e-commerce analytics, enabling timely insights and effective reporting on key business metrics.
+### Assumptions
+- The dataset will maintain consistency in the naming conventions for teams and positions.
+- Employee data will be updated regularly, and the `record_date` will accurately reflect the date of the data snapshot.
+- PII data will be handled in compliance with relevant regulations, ensuring that sensitive information is protected.
+
+### Risks
+- The reliance on `first_name` and `last_name` for identity could lead to potential collisions; hence the introduction of a unique `employee_id` mitigates this risk.
+- Changes in team or position names may require updates to the dimension tables, which should be managed through a versioning strategy to maintain data integrity.
+
+This analytical data model provides a robust framework for analyzing MLB employee data, supporting various business metrics while ensuring data quality and compliance with regulations.

@@ -2,67 +2,87 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AI Data Engineer</title>
+    <title>AI Data Engineer — Platform Architect</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75,400;75,500;75,600;100,300;100,400;100,500;100,600;100,700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg: #F4F1EC;
-            --bg-card: #FDFCFA;
-            --ink: #1A1714;
-            --ink-muted: #6B6560;
-            --accent: #D4500A;
-            --accent-light: #F5E8DF;
-            --accent-2: #2D5A8E;
-            --border: #DDD8D0;
-            --shadow: 0 1px 3px rgba(26,23,20,0.08), 0 8px 24px rgba(26,23,20,0.06);
-            --radius: 12px;
-            --font-display: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
+            /* Core palette */
+            --white:        #FFFFFF;
+            --bg:           #F8F9FB;
+            --bg-subtle:    #F1F3F7;
+            --surface:      #FFFFFF;
+            --surface-2:    #F8F9FB;
+
+            /* Ink */
+            --ink:          #0D1117;
+            --ink-2:        #3D4756;
+            --ink-3:        #7B8696;
+            --ink-4:        #B8BEC8;
+            --ink-5:        #E2E6EC;
+
+            /* Accent — deep navy + coral */
+            --navy:         #0F2548;
+            --navy-light:   #EBF0F9;
+            --coral:        #E84C2B;
+            --coral-light:  #FEF2EF;
+            --coral-border: rgba(232,76,43,0.2);
+            --teal:         #0D7A6C;
+            --teal-light:   #EBF8F6;
+
+            /* Borders */
+            --border:       #E2E6EC;
+            --border-2:     #C8CED8;
+
+            /* Shadows */
+            --shadow-xs:    0 1px 2px rgba(13,17,23,0.05);
+            --shadow-sm:    0 1px 3px rgba(13,17,23,0.08), 0 1px 2px rgba(13,17,23,0.04);
+            --shadow-md:    0 4px 12px rgba(13,17,23,0.08), 0 2px 4px rgba(13,17,23,0.04);
+            --shadow-lg:    0 8px 32px rgba(13,17,23,0.1), 0 2px 8px rgba(13,17,23,0.06);
+
+            --radius-sm:    6px;
+            --radius:       10px;
+            --radius-lg:    14px;
+            --radius-xl:    20px;
+
+            --font-display: 'Instrument Serif', serif;
+            --font-body:    'Instrument Sans', sans-serif;
+
+            --nav-h: 64px;
         }
 
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; font-size: 16px; }
 
         body {
             background: var(--bg);
             color: var(--ink);
             font-family: var(--font-body);
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.6;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Subtle grid texture */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(var(--border) 1px, transparent 1px),
-                linear-gradient(90deg, var(--border) 1px, transparent 1px);
-            background-size: 40px 40px;
-            opacity: 0.35;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ---- NAV ---- */
-        nav {
+        /* ═══════════════════════════════
+           NAV
+        ═══════════════════════════════ */
+        .nav {
             position: sticky;
             top: 0;
-            z-index: 100;
-            background: rgba(244,241,236,0.92);
-            backdrop-filter: blur(12px);
+            z-index: 200;
+            height: var(--nav-h);
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
-            padding: 0 2rem;
-            height: 64px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            padding: 0 2.5rem;
+            gap: 2rem;
         }
 
         .nav-brand {
@@ -70,80 +90,170 @@
             align-items: center;
             gap: 10px;
             text-decoration: none;
-        }
-
-        .nav-icon {
-            width: 34px;
-            height: 34px;
-            background: var(--ink);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             flex-shrink: 0;
         }
 
-        .nav-icon svg {
-            width: 18px;
-            height: 18px;
-            fill: var(--bg);
+        .nav-mark {
+            width: 36px; height: 36px;
+            background: var(--navy);
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .nav-mark svg {
+            width: 18px; height: 18px;
+            stroke: white; fill: none;
+            stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
         }
 
-        .nav-title {
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 1.05rem;
+        .nav-name {
+            font-family: var(--font-body);
+            font-size: 15px;
+            font-weight: 600;
             color: var(--ink);
             letter-spacing: -0.01em;
         }
 
-        .nav-badge {
-            font-size: 0.65rem;
+        .nav-divider {
+            width: 1px; height: 20px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .nav-product {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--ink-3);
+            letter-spacing: 0.01em;
+        }
+
+        .nav-spacer { flex: 1; }
+
+        .nav-actions {
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .nav-link {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--ink-2);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            transition: background 0.15s, color 0.15s;
+        }
+        .nav-link:hover { background: var(--bg-subtle); color: var(--ink); }
+        .nav-link.active { color: var(--coral); }
+
+        .nav-btn {
+            font-size: 12px;
             font-weight: 600;
-            background: var(--accent);
-            color: white;
-            padding: 2px 7px;
-            border-radius: 20px;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
+            color: var(--white);
+            background: var(--navy);
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 7px 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.01em;
         }
+        .nav-btn:hover { background: var(--coral); box-shadow: 0 2px 8px rgba(232,76,43,0.3); }
+        .nav-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
-        /* ---- MAIN ---- */
-        .main-wrap {
-            position: relative;
-            z-index: 1;
-            max-width: 1100px;
+        /* ═══════════════════════════════
+           LAYOUT
+        ═══════════════════════════════ */
+        .page-wrap {
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 3rem 2rem 5rem;
+            padding: 3rem 2.5rem 6rem;
         }
 
-        @media (max-width: 640px) {
-            .main-wrap { padding: 2rem 1rem 4rem; }
-            nav { padding: 0 1rem; }
+        /* ═══════════════════════════════
+           UTILITIES
+        ═══════════════════════════════ */
+        .badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 11px; font-weight: 600;
+            padding: 3px 9px; border-radius: 20px;
+            letter-spacing: 0.02em;
+        }
+        .badge-navy { background: var(--navy-light); color: var(--navy); }
+        .badge-coral { background: var(--coral-light); color: var(--coral); }
+        .badge-teal { background: var(--teal-light); color: var(--teal); }
+        .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card-header {
+            padding: 1.125rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .card-title {
+            font-size: 13px; font-weight: 600;
+            color: var(--ink); letter-spacing: -0.01em;
+        }
+
+        .card-body { padding: 1.5rem; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; } to { opacity: 1; }
+        }
+        @keyframes slideRight {
+            from { transform: scaleX(0); } to { transform: scaleX(1); }
+        }
+
+        @media (max-width: 768px) {
+            .page-wrap { padding: 2rem 1.25rem 4rem; }
+            .nav { padding: 0 1.25rem; }
         }
     </style>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <nav>
-        <a class="nav-brand" href="/">
-            <div class="nav-icon">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-            </div>
-            <span class="nav-title">AI Data Engineer</span>
-        </a>
-        <div style="display:flex;align-items:center;gap:12px;">
-            <a href="/history" style="font-family:var(--font-display);font-size:0.75rem;font-weight:700;color:var(--ink-muted);text-decoration:none;letter-spacing:0.02em;transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-muted)'">History</a>
-            <span class="nav-badge">Beta</span>
+
+<header class="nav">
+    <a class="nav-brand" href="/">
+        <div class="nav-mark">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
+        <span class="nav-name">AI Data Engineer</span>
+    </a>
+
+    <div class="nav-divider"></div>
+    <span class="nav-product">Platform Architect</span>
+
+    <div class="nav-spacer"></div>
+
+    <nav class="nav-actions">
+        <a href="/history" class="nav-link">Run History</a>
+        <a href="/" class="nav-btn">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Run
+        </a>
     </nav>
+</header>
 
-    <div class="main-wrap">
-        {% block content %}{% endblock %}
-    </div>
+<main class="page-wrap">
+    {% block content %}{% endblock %}
+</main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

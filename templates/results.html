@@ -1,47 +1,402 @@
-{% extends "base.html" %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Blueprint — AI Data Engineer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75,400;75,500;75,600;100,300;100,400;100,500;100,600;100,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        :root{
+            --white:#FFFFFF; --bg:#F8F9FB; --bg-subtle:#F1F3F7; --surface:#FFFFFF;
+            --ink:#0D1117; --ink-2:#3D4756; --ink-3:#7B8696; --ink-4:#B8BEC8; --ink-5:#E2E6EC;
+            --navy:#0F2548; --navy-light:#EBF0F9;
+            --coral:#E84C2B; --coral-light:#FEF2EF; --coral-border:rgba(232,76,43,0.2);
+            --teal:#0D7A6C; --teal-light:#EBF8F6;
+            --success:#16A34A; --success-light:#DCFCE7;
+            --border:#E2E6EC; --border-2:#C8CED8;
+            --shadow-xs:0 1px 2px rgba(13,17,23,0.05);
+            --shadow-sm:0 1px 3px rgba(13,17,23,0.08),0 1px 2px rgba(13,17,23,0.04);
+            --shadow-md:0 4px 12px rgba(13,17,23,0.08),0 2px 4px rgba(13,17,23,0.04);
+            --shadow-lg:0 8px 32px rgba(13,17,23,0.1),0 2px 8px rgba(13,17,23,0.06);
+            --radius-sm:6px; --radius:10px; --radius-lg:14px; --radius-xl:20px;
+            --font-display:'Instrument Serif',serif; --font-body:'Instrument Sans',sans-serif;
+            --nav-h:64px;
+        }
+        html{scroll-behavior:smooth;}
+        body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased;}
 
-<h1>🚀 Your Data Platform Blueprint</h1>
+        /* Nav */
+        .nav{position:sticky;top:0;z-index:200;height:var(--nav-h);background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 2.5rem;gap:2rem;}
+        .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;}
+        .nav-mark{width:36px;height:36px;background:var(--navy);border-radius:9px;display:flex;align-items:center;justify-content:center;}
+        .nav-mark svg{width:18px;height:18px;stroke:white;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+        .nav-name{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-0.01em;}
+        .nav-divider{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+        .nav-product{font-size:12px;font-weight:500;color:var(--ink-3);}
+        .nav-spacer{flex:1;}
+        .nav-actions{display:flex;align-items:center;gap:8px;}
+        .nav-link{font-size:13px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:var(--radius-sm);transition:background 0.15s,color 0.15s;}
+        .nav-link:hover{background:var(--bg-subtle);color:var(--ink);}
+        .nav-btn{font-size:12px;font-weight:600;color:var(--white);background:var(--navy);border:none;border-radius:var(--radius-sm);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s,box-shadow 0.15s;}
+        .nav-btn:hover{background:var(--coral);box-shadow:0 2px 8px rgba(232,76,43,0.3);}
+        .nav-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
 
-<div style="margin-bottom: 20px;">
-  <button onclick="showTab('architecture')">01 Architecture</button>
-  <button onclick="showTab('pipeline')">02 Pipeline</button>
-  <button onclick="showTab('data_model')">03 Data Model</button>
-  <button onclick="showTab('data_quality')">04 Data Quality</button>
-  <button onclick="showTab('performance')">05 Performance</button>
-</div>
+        .page-wrap{max-width:1200px;margin:0 auto;padding:3rem 2.5rem 6rem;}
 
-<div id="architecture" class="tab">
-  <h2>Architecture</h2>
-  <pre>{{ architecture }}</pre>
-</div>
+        /* Success banner */
+        .success-banner{
+            background:linear-gradient(135deg, var(--navy) 0%, #1A3A6B 100%);
+            border-radius:var(--radius-xl); padding:2rem 2.5rem;
+            display:flex; align-items:center; justify-content:space-between; gap:2rem;
+            flex-wrap:wrap; margin-bottom:2rem;
+            animation:fadeUp 0.5s ease both;
+            box-shadow:var(--shadow-md);
+        }
+        .sb-left{display:flex;align-items:center;gap:1.25rem;}
+        .sb-icon{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+        .sb-icon svg{width:24px;height:24px;stroke:white;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+        .sb-title{font-family:var(--font-display);font-size:1.75rem;font-weight:400;color:white;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px;}
+        .sb-title em{font-style:italic;color:rgba(255,255,255,0.65);}
+        .sb-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+        .sb-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:3px 10px;}
+        .sb-chip-dot{width:5px;height:5px;border-radius:50%;background:#4ADE80;}
+        .sb-right{display:flex;align-items:center;gap:8px;}
+        .btn-export{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink);background:white;border:none;border-radius:var(--radius);padding:0.625rem 1.25rem;cursor:pointer;transition:all 0.15s;box-shadow:var(--shadow-sm);}
+        .btn-export:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
+        .btn-export svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+        .btn-ghost{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius);padding:0.625rem 1.25rem;cursor:pointer;transition:all 0.15s;text-decoration:none;}
+        .btn-ghost:hover{background:rgba(255,255,255,0.15);color:white;}
+        .btn-ghost svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
 
-<div id="pipeline" class="tab" style="display:none;">
-  <h2>Pipeline Design</h2>
-  <pre>{{ pipeline }}</pre>
-</div>
+        /* Two-column layout */
+        .results-layout{display:grid;grid-template-columns:220px 1fr;gap:1.5rem;align-items:start;}
+        @media(max-width:860px){.results-layout{grid-template-columns:1fr;}}
 
-<div id="data_model" class="tab" style="display:none;">
-  <h2>Data Model</h2>
-  <pre>{{ data_model }}</pre>
-</div>
+        /* ── Sidebar Nav ── */
+        .results-nav{
+            position:sticky; top:calc(var(--nav-h) + 1.25rem);
+            background:var(--surface); border:1px solid var(--border);
+            border-radius:var(--radius-lg); overflow:hidden;
+            box-shadow:var(--shadow-xs); animation:fadeUp 0.5s 0.05s ease both;
+        }
+        .rn-header{padding:0.875rem 1.125rem;background:var(--bg-subtle);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;}
+        .rn-list{padding:0.375rem 0;}
+        .rn-item{
+            display:flex;align-items:center;gap:9px;
+            width:100%;padding:0.5rem 1rem;border:none;background:transparent;
+            cursor:pointer;text-align:left;transition:background 0.12s;
+            font-family:var(--font-body);
+        }
+        .rn-item:hover{background:var(--bg-subtle);}
+        .rn-item.active{background:var(--navy-light);}
+        .rn-item.active .rn-num{background:var(--navy);color:white;border-color:var(--navy);}
+        .rn-item.active .rn-label{color:var(--navy);font-weight:600;}
+        .rn-num{width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:700;color:var(--ink-3);background:var(--bg-subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+        .rn-label{font-size:12px;font-weight:500;color:var(--ink-2);}
+        .rn-divider{height:1px;background:var(--border);margin:4px 0;}
 
-<div id="data_quality" class="tab" style="display:none;">
-  <h2>Data Quality</h2>
-  <pre>{{ data_quality }}</pre>
-</div>
+        /* ── Result Panels ── */
+        .results-main{animation:fadeUp 0.5s 0.1s ease both;}
 
-<div id="performance" class="tab" style="display:none;">
-  <h2>Performance & Cost Optimization</h2>
-  <pre>{{ performance }}</pre>
-</div>
+        .result-panel{display:none;}
+        .result-panel.active{display:block;animation:fadeIn 0.25s ease;}
+
+        .result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--shadow-sm);overflow:hidden;}
+
+        .rc-header{
+            padding:1.125rem 1.5rem;
+            background:var(--bg-subtle); border-bottom:1px solid var(--border);
+            display:flex;align-items:center;justify-content:space-between;gap:1rem;
+        }
+        .rc-header-left{display:flex;align-items:center;gap:10px;}
+        .rc-num{width:30px;height:30px;border-radius:50%;background:var(--navy);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+        .rc-num.img{background:var(--teal);}
+        .rc-title{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;}
+        .rc-subtitle{font-size:11px;color:var(--ink-3);margin-top:1px;}
+        .rc-actions{display:flex;align-items:center;gap:6px;}
+        .copy-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--ink-2);background:white;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;cursor:pointer;transition:all 0.15s;}
+        .copy-btn:hover{border-color:var(--coral);color:var(--coral);}
+        .copy-btn.copied{border-color:var(--success);color:var(--success);background:var(--success-light);}
+        .copy-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+        .rc-body{padding:2rem;max-height:70vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+        .rc-body::-webkit-scrollbar{width:5px;}
+        .rc-body::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:5px;}
+
+        /* Image panels */
+        .img-panel-body{padding:1.5rem;background:var(--bg-subtle);}
+        .img-panel-body img{width:100%;border-radius:var(--radius);border:1px solid var(--border);display:block;box-shadow:var(--shadow-sm);}
+        .charts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+        .chart-card{background:white;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-xs);}
+        .chart-card img{width:100%;display:block;}
+        .img-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:160px;border-radius:var(--radius);border:1px dashed var(--border-2);color:var(--ink-4);}
+        .img-empty svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+        .img-empty span{font-size:12px;}
+
+        /* Markdown content */
+        .md-content{font-size:14px;line-height:1.8;color:var(--ink-2);}
+        .md-content h1,.md-content h2,.md-content h3,.md-content h4{font-family:var(--font-display);color:var(--ink);margin:1.5em 0 0.5em;letter-spacing:-0.02em;font-weight:400;}
+        .md-content h1{font-size:1.75rem;}
+        .md-content h2{font-size:1.35rem;padding-bottom:0.5em;border-bottom:1px solid var(--border);}
+        .md-content h3{font-size:1.1rem;font-style:italic;color:var(--coral);}
+        .md-content h4{font-size:1rem;font-weight:600;font-family:var(--font-body);}
+        .md-content p{margin:0.65em 0;}
+        .md-content ul,.md-content ol{padding-left:1.5em;margin:0.6em 0;}
+        .md-content li{margin:0.3em 0;}
+        .md-content strong{font-weight:700;color:var(--ink);}
+        .md-content code{font-family:'SF Mono','Cascadia Code',monospace;font-size:0.82em;background:var(--bg-subtle);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--navy);}
+        .md-content pre{background:var(--navy);border-radius:var(--radius);padding:1.25rem 1.5rem;overflow-x:auto;margin:1em 0;box-shadow:var(--shadow-sm);}
+        .md-content pre code{background:none;border:none;color:#C8D8F0;padding:0;font-size:0.8rem;}
+        .md-content blockquote{border-left:3px solid var(--coral);margin:1em 0;padding:0.75em 1em;background:var(--coral-light);border-radius:0 var(--radius-sm) var(--radius-sm) 0;color:var(--ink-2);}
+        .md-content table{width:100%;border-collapse:collapse;margin:1em 0;font-size:13px;}
+        .md-content th{background:var(--bg-subtle);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:0.625rem 0.875rem;border:1px solid var(--border);text-align:left;color:var(--ink-2);}
+        .md-content td{padding:0.5rem 0.875rem;border:1px solid var(--border);color:var(--ink-2);}
+        .md-content tr:nth-child(even) td{background:var(--bg-subtle);}
+        .md-content a{color:var(--navy);text-decoration:underline;text-underline-offset:2px;}
+        .md-content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+        @media(max-width:640px){.page-wrap{padding:1.5rem 1rem 4rem;}.nav{padding:0 1rem;}}
+    </style>
+</head>
+<body>
+
+<header class="nav">
+    <a class="nav-brand" href="/">
+        <div class="nav-mark"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <span class="nav-name">AI Data Engineer</span>
+    </a>
+    <div class="nav-divider"></div>
+    <span class="nav-product">Platform Architect</span>
+    <div class="nav-spacer"></div>
+    <nav class="nav-actions">
+        <a href="/history" class="nav-link">Run History</a>
+        <a href="/" class="nav-btn">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Run
+        </a>
+    </nav>
+</header>
+
+<main class="page-wrap">
+
+    <!-- Success banner -->
+    <div class="success-banner">
+        <div class="sb-left">
+            <div class="sb-icon">
+                <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div>
+                <div class="sb-title">Data Platform <em>Blueprint</em></div>
+                <div class="sb-meta">
+                    <span class="sb-chip"><span class="sb-chip-dot"></span> 7 agents completed</span>
+                    <span class="sb-chip">Architecture &amp; documentation ready</span>
+                    <span class="sb-chip">Export available</span>
+                </div>
+            </div>
+        </div>
+        <div class="sb-right">
+            <a href="/" class="btn-ghost">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Run
+            </a>
+            <button class="btn-export" onclick="exportAll()">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Markdown
+            </button>
+        </div>
+    </div>
+
+    <!-- Two-col layout -->
+    <div class="results-layout">
+
+        <!-- Sidebar nav -->
+        <div class="results-nav">
+            <div class="rn-header">Sections</div>
+            <div class="rn-list">
+                <button class="rn-item active" onclick="showPanel('diagram', this)">
+                    <div class="rn-num">▣</div><span class="rn-label">Architecture Diagram</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('charts', this)">
+                    <div class="rn-num">▤</div><span class="rn-label">Dataset Charts</span>
+                </button>
+                <div class="rn-divider"></div>
+                <button class="rn-item" onclick="showPanel('arch', this)">
+                    <div class="rn-num">01</div><span class="rn-label">Architecture</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('pipe', this)">
+                    <div class="rn-num">02</div><span class="rn-label">Pipeline Design</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('model', this)">
+                    <div class="rn-num">03</div><span class="rn-label">Data Model</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('dq', this)">
+                    <div class="rn-num">04</div><span class="rn-label">Data Quality</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('perf', this)">
+                    <div class="rn-num">05</div><span class="rn-label">Performance</span>
+                </button>
+                <div class="rn-divider"></div>
+                <button class="rn-item" onclick="showPanel('cost', this)">
+                    <div class="rn-num">$</div><span class="rn-label">Cost Estimate</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('validation', this)">
+                    <div class="rn-num">✓</div><span class="rn-label">Validation</span>
+                </button>
+                <button class="rn-item" onclick="showPanel('docs', this)">
+                    <div class="rn-num">06</div><span class="rn-label">Documentation</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Result panels -->
+        <div class="results-main">
+
+            <!-- Diagram -->
+            <div class="result-panel active" id="panel-diagram">
+                <div class="result-card">
+                    <div class="rc-header">
+                        <div class="rc-header-left">
+                            <div class="rc-num img">▣</div>
+                            <div>
+                                <div class="rc-title">Architecture Diagram</div>
+                                <div class="rc-subtitle">Auto-generated visual overview of your data platform</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="img-panel-body">
+                        {% if diagram_path %}
+                        <img src="{{ diagram_path }}" alt="Architecture Diagram"
+                             onerror="this.parentElement.innerHTML='<div class=\'img-empty\'><svg viewBox=\'0 0 24 24\'><rect x=\'3\' y=\'3\' width=\'18\' height=\'18\' rx=\'2\'/><circle cx=\'8.5\' cy=\'8.5\' r=\'1.5\'/><polyline points=\'21 15 16 10 5 21\'/></svg><span>Diagram not generated</span></div>'">
+                        {% else %}
+                        <div class="img-empty">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <span>No diagram generated</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="result-panel" id="panel-charts">
+                <div class="result-card">
+                    <div class="rc-header">
+                        <div class="rc-header-left">
+                            <div class="rc-num img">▤</div>
+                            <div>
+                                <div class="rc-title">Dataset Visualisations</div>
+                                <div class="rc-subtitle">Charts automatically generated from your uploaded CSV</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="img-panel-body">
+                        {% if charts and charts|length > 0 %}
+                        <div class="charts-grid">
+                            {% for c in charts %}<div class="chart-card"><img src="{{ c }}" alt="Chart"></div>{% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="img-empty">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                            <span>No charts generated</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% macro text_panel(id, num, title, subtitle, content) %}
+            <div class="result-panel" id="panel-{{ id }}">
+                <div class="result-card">
+                    <div class="rc-header">
+                        <div class="rc-header-left">
+                            <div class="rc-num">{{ num }}</div>
+                            <div>
+                                <div class="rc-title">{{ title }}</div>
+                                <div class="rc-subtitle">{{ subtitle }}</div>
+                            </div>
+                        </div>
+                        <div class="rc-actions">
+                            <button class="copy-btn" id="copy-{{ id }}" onclick="copySection('{{ id }}')">
+                                <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="rc-body">
+                        <div class="md-content" id="content-{{ id }}">{{ content }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endmacro %}
+
+            {{ text_panel("arch",       "01", "Architecture Analysis",      "Cloud infrastructure and system design",               architecture) }}
+            {{ text_panel("pipe",       "02", "Pipeline Design",            "Data ingestion, transformation and orchestration",     pipeline) }}
+            {{ text_panel("model",      "03", "Data Model",                 "Dimensional model, fact and dimension tables",         data_model) }}
+            {{ text_panel("dq",         "04", "Data Quality Plan",          "Validation rules, SLA monitoring and alerts",          data_quality) }}
+            {{ text_panel("perf",       "05", "Performance Review",         "Query optimisation and infrastructure sizing",         performance) }}
+            {{ text_panel("cost",       "$",  "Cost Estimate",              "Estimated monthly and annual infrastructure costs",    cost) }}
+            {{ text_panel("validation", "✓",  "Validation Report",          "Automated validation results and recommendations",     validation) }}
+            {{ text_panel("docs",       "06", "Project Documentation",      "Technical README and implementation guide",            documentation) }}
+
+        </div>
+    </div>
+
+</main>
 
 <script>
-function showTab(id) {
-  const tabs = document.querySelectorAll(".tab");
-  tabs.forEach(t => t.style.display = "none");
-  document.getElementById(id).style.display = "block";
+function showPanel(id, btn) {
+    document.querySelectorAll('.result-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.rn-item').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + id).classList.add('active');
+    btn.classList.add('active');
 }
-</script>
 
-{% endblock %}
+function copySection(id) {
+    const el = document.getElementById('content-' + id);
+    const text = el.dataset.raw || el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-' + id);
+        btn.classList.add('copied');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = `<svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+        }, 2200);
+    });
+}
+
+function exportAll() {
+    const sections = [
+        {id:'arch',title:'# Architecture Analysis'}, {id:'pipe',title:'# Pipeline Design'},
+        {id:'model',title:'# Data Model'}, {id:'dq',title:'# Data Quality Plan'},
+        {id:'perf',title:'# Performance Review'}, {id:'cost',title:'# Cost Estimate'},
+        {id:'validation',title:'# Validation Report'}, {id:'docs',title:'# Project Documentation'},
+    ];
+    let md = '# AI Data Engineer — Data Platform Blueprint\n\nGenerated by AI Data Engineer · Platform Architect\n\n---\n\n';
+    sections.forEach(s => {
+        const el = document.getElementById('content-' + s.id);
+        if (el) md += s.title + '\n\n' + (el.dataset.raw || el.innerText).trim() + '\n\n---\n\n';
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([md], {type:'text/markdown'}));
+    a.download = 'data-platform-blueprint.md'; a.click();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    marked.setOptions({breaks: true, gfm: true});
+    document.querySelectorAll('.md-content').forEach(function(el) {
+        const raw = el.textContent;
+        el.dataset.raw = raw;
+        el.innerHTML = marked.parse(raw);
+    });
+});
+</script>
+</body>
+</html>

@@ -1,57 +1,82 @@
-```mermaid
-graph TD
-    A[Sources] -->|CSV Files| B[Ingestion]
-    B -->|Batch Processing| C[Storage Layers]
-    C -->|Bronze Layer| D[Raw Data]
-    C -->|Silver Layer| E[Processed Data]
-    C -->|Gold Layer| F[Data Warehouse]
-    F -->|Aggregated Data| G[BI Layer]
-    
-    subgraph Ingestion
-        B1[AWS Lambda]
-        B2[AWS Glue]
-        B3[Amazon S3]
-        B4[Amazon EventBridge]
-        B --> B1
-        B --> B2
-        B --> B3
-        B --> B4
+flowchart TD
+    subgraph DataSources
+        A1[Player Dataset]
+        A2[Game Dataset]
+        A3[Team Dataset]
+        A4[Injury Reports]
     end
 
-    subgraph Storage_Layers
-        C1[Bronze Layer: Raw CSV]
-        C2[Silver Layer: Parquet]
-        C3[Gold Layer: Aggregated Tables]
-        C --> C1
-        C --> C2
-        C --> C3
+    subgraph IngestionLayer
+        B1[Batch Ingestion]
+        B2[Amazon S3]
+        B3[AWS Glue]
+        B4[AWS Lambda]
+        B5[Amazon EventBridge]
+    end
+
+    subgraph StorageLayers
+        subgraph BronzeLayer
+            C1[Raw Data]
+            C2[CSV Format]
+        end
+        subgraph SilverLayer
+            D1[Cleaned Data]
+            D2[Parquet Format]
+        end
+        subgraph GoldLayer
+            E1[Aggregated Data]
+            E2[Data Warehouse]
+        end
     end
 
     subgraph Orchestration
-        O1[Apache Airflow]
-        O2[Task Dependencies]
-        O3[Monitoring & Alerts]
-        O1 --> O2
-        O1 --> O3
+        F1[Apache Airflow]
+        F2[Scheduled Jobs]
     end
 
-    subgraph BI
-        G1[Tableau]
-        G2[Looker]
-        G3[Amazon QuickSight]
-        G --> G1
-        G --> G2
-        G --> G3
+    subgraph DataQualityGovernance
+        G1[Data Quality Checks]
+        G2[Access Control]
+        G3[Audit Logging]
     end
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px;
-    style B fill:#bbf,stroke:#333,stroke-width:2px;
-    style C fill:#bbf,stroke:#333,stroke-width:2px;
-    style D fill:#fff,stroke:#333,stroke-width:2px;
-    style E fill:#fff,stroke:#333,stroke-width:2px;
-    style F fill:#fff,stroke:#333,stroke-width:2px;
-    style G fill:#bbf,stroke:#333,stroke-width:2px;
-    style O1 fill:#ffb,stroke:#333,stroke-width:2px;
-    style O2 fill:#ffb,stroke:#333,stroke-width:2px;
-    style O3 fill:#ffb,stroke:#333,stroke-width:2px;
-```
+    subgraph AnalyticsBI
+        H1[Dashboards]
+        H2[Reports]
+        H3[Ad-hoc Analysis]
+    end
+
+    A1 -->|Ingest| B1
+    A2 -->|Ingest| B1
+    A3 -->|Ingest| B1
+    A4 -->|Ingest| B1
+
+    B1 -->|Store| B2
+    B2 -->|Process| B3
+    B3 -->|Trigger| B4
+    B4 -->|Schedule| B5
+
+    B2 -->|Store| C1
+    C1 -->|Transform| B3
+    B3 -->|Store| D1
+    D1 -->|Aggregate| E1
+    E1 -->|Store| E2
+
+    F1 -->|Manage| B1
+    F1 -->|Manage| B3
+    F1 -->|Manage| E1
+
+    G1 -->|Ensure| D1
+    G2 -->|Control| E2
+    G3 -->|Log| E2
+
+    E2 -->|Visualize| H1
+    E2 -->|Generate| H2
+    E2 -->|Explore| H3
+
+    style DataSources fill:#f9f,stroke:#333,stroke-width:2px
+    style IngestionLayer fill:#ccf,stroke:#333,stroke-width:2px
+    style StorageLayers fill:#cfc,stroke:#333,stroke-width:2px
+    style Orchestration fill:#fcf,stroke:#333,stroke-width:2px
+    style DataQualityGovernance fill:#ffc,stroke:#333,stroke-width:2px
+    style AnalyticsBI fill:#cff,stroke:#333,stroke-width:2px
