@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+        animation: fadeUp 0.5s ease both;
+    }
+    .page-header h1 {
+        font-family: var(--font-display);
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin-bottom: 0.3rem;
+    }
+    .page-header p { color: var(--ink-muted); font-size: 0.9rem; font-weight: 300; }
+
+    .history-empty {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--ink-muted);
+        background: var(--bg-card);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        animation: fadeUp 0.5s 0.1s ease both;
+    }
+    .history-empty h3 {
+        font-family: var(--font-display);
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 0.5rem;
+    }
+
+    .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        animation: fadeUp 0.5s 0.1s ease both;
+    }
+
+    .history-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .history-card:hover {
+        border-color: var(--accent);
+        box-shadow: var(--shadow);
+    }
+
+    .history-card-left { flex: 1; min-width: 0; }
+
+    .history-meta {
+        font-size: 0.72rem;
+        color: var(--accent);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .history-preview {
+        font-family: var(--font-display);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 4px;
+    }
+
+    .history-snippet {
+        font-size: 0.78rem;
+        color: var(--ink-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .history-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .btn-view {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-family: var(--font-display);
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--ink);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 5px 10px;
+        text-decoration: none;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .btn-view:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px; height: 28px;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        color: var(--ink-muted);
+        transition: all 0.2s;
+    }
+    .btn-delete:hover { border-color: #dc3545; color: #dc3545; background: #fff0f0; }
+    .btn-delete svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+    .new-run-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-display);
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--bg);
+        background: var(--ink);
+        border: none;
+        border-radius: 8px;
+        padding: 0.55rem 1rem;
+        text-decoration: none;
+        transition: background 0.2s;
+        margin-top: 1.5rem;
+        cursor: pointer;
+    }
+    .new-run-btn:hover { background: var(--accent); }
+
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="page-header">
+    <h1>Run History</h1>
+    <p>Your previous AI Data Engineer sessions</p>
+</div>
+
+{% if runs %}
+<div class="history-list">
+    {% for run in runs %}
+    <div class="history-card" style="animation: fadeUp 0.4s {{ loop.index * 0.05 }}s ease both; opacity:0;">
+        <div class="history-card-left">
+            <div class="history-meta">
+                Run #{{ run.id }} &nbsp;·&nbsp;
+                <span id="ts-{{ run.id }}" data-ts="{{ run.created_at }}">{{ run.created_at }}</span>
+            </div>
+            <div class="history-preview">{{ run.requirements[:80] }}{% if run.requirements|length > 80 %}…{% endif %}</div>
+            <div class="history-snippet">Schema: {{ run.schemas[:60] }}{% if run.schemas|length > 60 %}…{% endif %}</div>
+        </div>
+        <div class="history-actions">
+            <a href="/history/{{ run.id }}" class="btn-view">
+                View Results →
+            </a>
+            <button class="btn-delete" onclick="deleteRun({{ run.id }}, this)" title="Delete">
+                <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="history-empty">
+    <h3>No runs yet</h3>
+    <p>Your completed AI Data Engineer sessions will appear here.</p>
+</div>
+{% endif %}
+
+<a href="/" class="new-run-btn">+ New Run</a>
+
+<script>
+// Format timestamps nicely
+document.querySelectorAll('[data-ts]').forEach(el => {
+    const ts = parseInt(el.dataset.ts) * 1000;
+    el.textContent = new Date(ts).toLocaleString();
+});
+
+async function deleteRun(id, btn) {
+    if (!confirm('Delete this run?')) return;
+    const res = await fetch('/history/' + id, { method: 'DELETE' });
+    if (res.ok) {
+        btn.closest('.history-card').remove();
+    }
+}
+</script>
+
+{% endblock %}

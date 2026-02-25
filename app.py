@@ -1,169 +1,100 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
-
-from llm.openai_client import OpenAIClient
+from fastapi.staticfiles import StaticFiles
+import subprocess
+import os
+import sys
 
 app = FastAPI()
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+INPUTS_DIR = os.path.join(BASE_DIR, "inputs")
 
-# Mount static files
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# Templates
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+# Optional static folder (only if you have one)
+if os.path.exists(os.path.join(BASE_DIR, "static")):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-def read_file(path: str) -> str:
+def read_output(filename: str) -> str:
+    path = os.path.join(OUTPUTS_DIR, filename)
+    if not os.path.exists(path):
+        return "No output generated yet."
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
 
-def run_all_agents(requirements: str, schemas: str):
-    llm = OpenAIClient()
-
-    # Load shared system rules
-    system_rules = read_file("system/SYSTEM.md")
-
-    # ===== Agent 1: Requirements Interpreter =====
-    req_agent = read_file("agents/requirements_interpreter.txt")
-    skill_pipeline = read_file("skills/good_pipeline_design.md")
-    skill_model = read_file("skills/good_data_model.md")
-
-    prompt_1 = f"""
-SYSTEM RULES:
-{system_rules}
-
-AGENT ROLE:
-{req_agent}
-
-SKILL: GOOD PIPELINE DESIGN:
-{skill_pipeline}
-
-SKILL: GOOD DATA MODEL:
-{skill_model}
-
-BUSINESS REQUIREMENTS:
-{requirements}
-
-SOURCE SCHEMAS:
-{schemas}
-
-TASK:
-Produce the structured requirements analysis as instructed.
-"""
-    architecture = llm.generate(prompt_1)
-
-    # ===== Agent 2: Pipeline Architect =====
-    pipeline_agent = read_file("agents/pipeline_architect.txt")
-
-    prompt_2 = f"""
-SYSTEM RULES:
-{system_rules}
-
-AGENT ROLE:
-{pipeline_agent}
-
-INPUT: REQUIREMENTS ANALYSIS:
-{architecture}
-
-TASK:
-Design the data pipeline architecture as instructed.
-"""
-    pipeline_design = llm.generate(prompt_2)
-
-    # ===== Agent 3: Data Modeler =====
-    data_modeler_agent = read_file("agents/data_modeler.txt")
-
-    prompt_3 = f"""
-SYSTEM RULES:
-{system_rules}
-
-AGENT ROLE:
-{data_modeler_agent}
-
-INPUT: PIPELINE DESIGN:
-{pipeline_design}
-
-TASK:
-Design the analytical data model as instructed.
-"""
-    data_model = llm.generate(prompt_3)
-
-    # ===== Agent 4: Data Quality Engineer =====
-    dq_agent = read_file("agents/data_quality_engineer.txt")
-
-    prompt_4 = f"""
-SYSTEM RULES:
-{system_rules}
-
-AGENT ROLE:
-{dq_agent}
-
-INPUT: PIPELINE DESIGN:
-{pipeline_design}
-
-INPUT: DATA MODEL:
-{data_model}
-
-TASK:
-Design the data quality strategy and checks as instructed.
-"""
-    data_quality = llm.generate(prompt_4)
-
-    # ===== Agent 5: Performance & Cost Optimizer =====
-    perf_agent = read_file("agents/performance_cost_optimizer.txt")
-
-    prompt_5 = f"""
-SYSTEM RULES:
-{system_rules}
-
-AGENT ROLE:
-{perf_agent}
-
-INPUT: PIPELINE DESIGN:
-{pipeline_design}
-
-INPUT: DATA MODEL:
-{data_model}
-
-INPUT: DATA QUALITY PLAN:
-{data_quality}
-
-TASK:
-Review the system and propose performance and cost optimizations as instructed.
-"""
-    performance = llm.generate(prompt_5)
-
-    return {
-        "architecture": architecture,
-        "pipeline": pipeline_design,
-        "data_model": data_model,
-        "data_quality": data_quality,
-        "performance": performance,
-    }
-
-
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.post("/run", response_class=HTMLResponse)
-def run(request: Request, requirements: str = Form(...), schemas: str = Form(...)):
-    results = run_all_agents(requirements, schemas)
+@app.post("/run")
+def run_pipeline(
+    request: Request,
+    business_requirements: str = Form(...),
+    source_schemas: str = Form(...),
+    dataset: UploadFile = File(...)
+):
+    # Create folders if not exist
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    os.makedirs(INPUTS_DIR, exist_ok=True)
+    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+    # Save uploaded dataset
+    dataset_path = os.path.join(UPLOADS_DIR, dataset.filename)
+    with open(dataset_path, "wb") as f:
+        f.write(dataset.file.read())
+
+    # Save text inputs
+    with open(os.path.join(INPUTS_DIR, "requirements.md"), "w", encoding="utf-8") as f:
+        f.write(business_requirements)
+
+    with open(os.path.join(INPUTS_DIR, "schemas.md"), "w", encoding="utf-8") as f:
+        f.write(source_schemas)
+
+    # Save dataset path (optional, for future agents)
+    with open(os.path.join(INPUTS_DIR, "dataset_path.txt"), "w", encoding="utf-8") as f:
+        f.write(dataset_path)
+
+    # Run orchestrator
+    import sys
+    subprocess.run([sys.executable, "orchestrator.py"], check=True)
+    return RedirectResponse(url="/results", status_code=303)
+
+
+@app.get("/results", response_class=HTMLResponse)
+def results(request: Request):
+    architecture = read_output("architecture.md")
+    pipeline = read_output("pipeline_design.md")
+    data_model = read_output("data_model.md")
+    data_quality = read_output("data_quality_plan.md")
+    performance = read_output("performance_review.md")
 
     return templates.TemplateResponse(
         "results.html",
         {
             "request": request,
-            "architecture": results["architecture"],
-            "pipeline": results["pipeline"],
-            "data_model": results["data_model"],
-            "data_quality": results["data_quality"],
-            "performance": results["performance"],
+            "architecture": architecture,
+            "pipeline": pipeline,
+            "data_model": data_model,
+            "data_quality": data_quality,
+            "performance": performance,
         },
+    )
+
+
+@app.get("/history", response_class=HTMLResponse)
+def history(request: Request):
+    files = []
+    if os.path.exists(OUTPUTS_DIR):
+        files = os.listdir(OUTPUTS_DIR)
+    return templates.TemplateResponse(
+        "history.html",
+        {"request": request, "files": files}
     )

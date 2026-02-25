@@ -1,100 +1,74 @@
-# E-Commerce Analytics Data Pipeline
+# E-commerce Analytics Data Pipeline
 
-## Project Overview
-This project aims to build a robust analytics solution for an e-commerce company, providing daily dashboards focused on key performance indicators (KPIs) such as revenue, orders, customer metrics, and retention rates. The solution facilitates data-driven decision-making and enhances visibility into business performance.
+## 1. Project Overview
+This project outlines the design and implementation of a robust data pipeline for an e-commerce analytics platform. The primary focus is on capturing and analyzing key business metrics related to revenue, orders, customers, and payments. The architecture is built on AWS, ensuring scalability, performance, and compliance with data governance policies.
 
-## Problem Statement
-E-commerce businesses require timely and accurate insights into their operations to make informed decisions. The challenge is to create a data pipeline that efficiently ingests, processes, and presents data from various sources while ensuring data quality and performance. The solution must support daily reporting needs and provide a clear view of business metrics.
+## 2. Problem Statement
+The e-commerce company requires a reliable analytics framework to monitor key performance indicators (KPIs) and gain insights into business operations. The current system lacks the ability to efficiently process and analyze data, leading to delays in reporting and decision-making. The goal is to establish a scalable data pipeline that supports daily dashboards and provides accurate, timely insights.
 
-## System Architecture
-The architecture consists of four main layers: Data Ingestion, Staging & Transformation, Data Warehouse, and Data Marts. This design ensures scalability, reliability, and data freshness.
+## 3. System Architecture
+The architecture consists of a layered data storage approach (Bronze, Silver, Gold) utilizing various AWS services:
+- **Ingestion**: Data is ingested from source systems into Amazon S3.
+- **Transformation**: AWS Glue is used for ETL processes to clean and transform data.
+- **Storage**: Data is stored in S3 and queried using Amazon Redshift or Snowflake.
+- **Orchestration**: AWS Step Functions manage the workflow of data ingestion, transformation, and quality checks.
+- **Monitoring**: AWS CloudWatch is used for monitoring and alerting on data pipeline performance.
 
-```
-+-------------------+       +---------------------+       +-------------------+
-|                   |       |                     |       |                   |
-|  Data Ingestion   | ----> | Staging &           | ----> |   Data Warehouse  |
-|                   |       | Transformation      |       |                   |
-+-------------------+       +---------------------+       +-------------------+
-                                |                     |
-                                |                     |
-                                v                     v
-                        +-------------------+   +-------------------+
-                        |                   |   |                   |
-                        |    Data Marts     |   |   BI Tools        |
-                        |                   |   |                   |
-                        +-------------------+   +-------------------+
-```
+## 4. Data Pipeline Design
+The data pipeline is designed with the following components:
+- **Ingestion**: Batch ingestion scheduled daily at 2 AM UTC.
+- **ETL Process**: Data is transformed from raw to structured formats, with quality checks at each stage.
+- **Storage Layers**:
+  - **Bronze Layer**: Raw data storage in CSV or JSON format.
+  - **Silver Layer**: Cleaned and structured data in Parquet format.
+  - **Gold Layer**: Aggregated data optimized for BI tools.
+- **Data Warehouse**: Amazon Redshift or Snowflake for analytical queries.
 
-## Data Pipeline Design
-### Data Ingestion Layer
-- **Technologies**: Apache Kafka or AWS Kinesis for real-time streaming; Apache NiFi or AWS Glue for batch ingestion.
-- **Strategy**: Use Change Data Capture (CDC) for real-time updates from the transactional database and schedule daily batch jobs for payment data.
+## 5. Data Model
+The data model follows a star schema design, consisting of:
+- **Fact Tables**:
+  - `FactOrders`: Captures order metrics.
+  - `FactPayments`: Captures payment transactions.
+- **Dimension Tables**:
+  - `DimCustomers`: Contains customer details.
+  - `DimProducts`: Contains product information.
+  - `DimTime`: Provides time-related dimensions for analysis.
 
-### Staging & Transformation Layer
-- **Technologies**: Apache Spark or AWS Glue for data transformation.
-- **Strategy**: Store raw data in a staging area, perform data cleaning, validation, and aggregation to prepare for the data warehouse.
+## 6. Data Quality & Reliability
+A comprehensive data quality strategy is implemented to ensure:
+- **Accuracy**: Data reflects source systems accurately.
+- **Completeness**: All required fields are populated.
+- **Consistency**: Data is consistent across tables.
+- **Timeliness**: Data is available within defined SLAs.
+- **Uniqueness**: Records are unique where required.
 
-### Warehouse & Data Marts
-- **Technologies**: Amazon Redshift, Snowflake, or Google BigQuery.
-- **Strategy**: Store aggregated and historical data, create data marts for specific business areas to optimize query performance.
+## 7. Performance & Cost Considerations
+Performance goals include low latency, high throughput, and optimized query performance. Cost optimization strategies include:
+- Utilizing AWS spot instances for ETL jobs.
+- Implementing S3 lifecycle policies for data retention.
+- Regularly reviewing and adjusting resource usage.
 
-### Orchestration & Scheduling
-- **Technologies**: Apache Airflow or AWS Step Functions.
-- **Strategy**: Define workflows for data ingestion, transformation, and loading processes with error handling and retries.
+## 8. How the System Works (Agent Workflow)
+1. **Data Ingestion**: Data is ingested from source systems into the Bronze layer in S3.
+2. **Data Validation**: Quality checks are performed on the ingested data.
+3. **Data Transformation**: Data is transformed into the Silver layer using AWS Glue.
+4. **Data Aggregation**: Aggregated data is stored in the Gold layer.
+5. **Data Quality Checks**: Final checks are performed on the Gold layer data.
+6. **Notification**: Alerts are sent on success or failure of the workflow.
 
-## Data Model
-The analytical data model follows a star schema architecture, consisting of fact tables for transactional data and dimension tables for context.
+## 9. How to Run the Project
+To run the project:
+1. Set up an AWS account and configure IAM roles and policies.
+2. Create an S3 bucket for data storage.
+3. Deploy AWS Glue jobs for ETL processes.
+4. Set up AWS Step Functions for orchestration.
+5. Schedule ingestion using Amazon EventBridge.
+6. Monitor the pipeline using AWS CloudWatch.
 
-### Fact Tables
-1. **Fact Orders**: Captures order details.
-2. **Fact Payments**: Tracks payment transactions.
-3. **Fact Customer Retention**: Records monthly retention metrics.
+## 10. Future Improvements
+- **Real-Time Analytics**: Explore options for real-time data ingestion and processing.
+- **Enhanced BI Tools**: Integrate additional BI tools for improved data visualization.
+- **Data Governance Enhancements**: Implement more robust data governance practices.
+- **User Training**: Provide training for stakeholders on using BI tools and interpreting data insights.
 
-### Dimension Tables
-1. **Dimension Customers**: Contains customer information.
-2. **Dimension Products**: Details about products.
-3. **Dimension Time**: Time-related information for analysis.
-
-## Data Quality & Reliability
-### Goals
-- **Accuracy**: Data must reflect source data accurately.
-- **Completeness**: All required data should be present.
-- **Consistency**: Data must be consistent across systems.
-- **Timeliness**: Data should be up-to-date as per SLAs.
-- **Uniqueness**: No duplicate records should exist.
-
-### Validation Rules
-- Completeness, accuracy, consistency, uniqueness, and timeliness checks are implemented during the ETL process.
-
-### Monitoring & Alerting
-- Use Great Expectations or Apache Deequ for data quality checks and Prometheus with Grafana for monitoring pipeline performance.
-
-## Performance & Cost Considerations
-### Performance Goals
-- Low latency for data availability.
-- High throughput for growing data volumes.
-- Efficient query performance for dashboards.
-
-### Optimization Strategies
-- **Storage**: Implement partitioning, use columnar storage formats, and establish data retention policies.
-- **Compute**: Optimize resource allocation for processing jobs and manage query performance through indexing and caching.
-- **Cost**: Utilize serverless options, spot instances, and data compression to minimize costs.
-
-## How the System Works (Agent Workflow)
-1. **Data Ingestion**: Data is streamed from the transactional database and payments API.
-2. **Staging**: Raw data is stored, cleaned, and transformed.
-3. **Loading**: Transformed data is loaded into the data warehouse.
-4. **Reporting**: BI tools access the data marts for dashboard generation.
-
-## How to Run the Project
-1. **Prerequisites**: Ensure you have access to the necessary cloud resources (AWS, GCP, etc.) and required software (Apache Kafka, Spark, etc.).
-2. **Setup**: Clone the repository and configure environment variables for data sources and destinations.
-3. **Run**: Execute the orchestration workflows using Apache Airflow or AWS Step Functions to start the data pipeline.
-
-## Future Improvements
-- **Real-Time Analytics**: Enhance the pipeline to support real-time analytics.
-- **Additional Data Sources**: Integrate more data sources for comprehensive analysis.
-- **Advanced Analytics**: Implement machine learning models for predictive analytics.
-- **User Interface**: Develop a user-friendly interface for non-technical users to access insights.
-
-This documentation provides a comprehensive overview of the e-commerce analytics data pipeline, detailing its architecture, design, and operational considerations, suitable for both technical and non-technical stakeholders.
+This documentation provides a comprehensive overview of the e-commerce analytics data pipeline project, ensuring clarity for both technical and non-technical stakeholders. The design prioritizes data quality, performance, and compliance, laying a strong foundation for future growth and analytics capabilities.

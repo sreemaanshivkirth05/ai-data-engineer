@@ -1,40 +1,43 @@
 # Requirements Analysis
 
 ## 1. Business Goals
-The primary objective is to build a robust analytics solution for an e-commerce company that provides daily dashboards focused on key performance indicators (KPIs) such as revenue, orders, customer metrics, and retention rates. The solution should facilitate data-driven decision-making and enhance visibility into business performance.
+The primary business goal is to establish a robust analytics framework for an e-commerce company that focuses on revenue, orders, customers, and payments. The company aims to create daily dashboards to monitor key performance indicators (KPIs) and gain insights into business operations. The architecture should be scalable and based on AWS to accommodate future growth and data processing needs.
 
 ## 2. Key Metrics
-- **Total Revenue**: Sum of `total_amount` from the `orders` table.
-- **Total Orders**: Count of distinct `order_id` from the `orders` table.
-- **Total Customers**: Count of distinct `customer_id` from the `customers` table.
-- **Customer Retention Rate**: Percentage of returning customers over a defined period.
-- **Payment Success Rate**: Ratio of successful payments to total payments processed.
+- **Total Revenue**: Sum of all `total_amount` from the orders.
+- **Total Orders**: Count of all orders placed.
+- **Total Customers**: Count of unique customers based on `customer_id`.
+- **Payment Status**: Breakdown of payment statuses (e.g., successful, failed).
+- **Daily Active Users**: Count of unique customers who made purchases on a given day.
 
 ## 3. Core Entities
-- **Orders**: Represents customer transactions, including order details and status.
-- **Customers**: Contains information about customers, including their contact details and account creation date.
-- **Payments**: Tracks payment transactions associated with orders, including payment status and method.
+- **Orders**: Represents individual orders placed by customers.
+- **Customers**: Represents customers who place orders, including their details.
+- **Payments**: Represents payment transactions related to orders.
 
 ## 4. Data Sources
-- **Transactional Database**: 
-  - **Orders Table**: `orders(order_id, customer_id, order_date, total_amount, status)`
-  - **Customers Table**: `customers(customer_id, name, email, created_at)`
-- **Payments API**: 
-  - **Payments Table**: `payments(payment_id, order_id, payment_date, amount, method, status)`
+- **Orders Table**: 
+  - Schema: `orders(id, customer_id, total_amount, created_at, status)`
+- **Customers Table**: 
+  - Schema: `customers(id, email, region, signup_date)`
+- **Payments Table**: 
+  - Schema: `payments(id, order_id, amount, status, paid_at)`
 
 ## 5. Data Granularity
-- **Orders**: Daily granularity based on `order_date`.
-- **Customers**: Daily snapshots based on `created_at` for new customers.
-- **Payments**: Daily granularity based on `payment_date`.
+- **Orders**: Daily granularity based on the `created_at` timestamp. Each row represents a single order.
+- **Customers**: Data is captured at the time of signup, with unique entries for each customer.
+- **Payments**: Daily granularity based on the `paid_at` timestamp. Each row represents a single payment transaction.
 
 ## 6. Assumptions & Open Questions
 - **Assumptions**:
-  - The transactional database is updated in real-time or near real-time, allowing for daily data extraction.
-  - The payments API provides reliable and consistent data for payment transactions.
-  - Customer retention calculations will be based on a defined time period (e.g., monthly, quarterly).
+  - The data from the source systems is reliable and updated regularly.
+  - There will be no significant changes to the structure of the source schemas in the near term.
+  - Data governance policies will be in place to manage PII effectively.
 
 - **Open Questions**:
-  - What is the definition of a "returning customer" for retention calculations?
-  - Are there any specific data quality checks required for the incoming data from the transactional database and payments API?
-  - What are the expected response times for the dashboards, and how will they be accessed (e.g., web application, BI tool)?
-  - Are there any additional data sources or metrics that should be considered for a more comprehensive analysis?
+  - What is the expected frequency of updates to the source data? Is it real-time or batch?
+  - Are there any additional data sources that need to be integrated (e.g., product details, shipping information)?
+  - What specific compliance requirements exist regarding PII handling and data retention?
+  - How will data quality be monitored and enforced in the pipeline?
+
+This structured analysis provides a clear overview of the requirements needed to design a production-grade data pipeline for the e-commerce company, ensuring that it meets business goals while maintaining data quality and performance.

@@ -1,108 +1,113 @@
-# Data Quality Strategy for E-Commerce Data Pipeline
+# Data Quality Strategy for E-commerce Analytics Pipeline
 
 ## 1. Data Quality Goals
-The primary goals for data quality in the e-commerce data pipeline are:
-- **Accuracy**: Ensure that data accurately reflects the source data and business rules.
-- **Completeness**: Ensure that all required data is present and accounted for.
-- **Consistency**: Ensure that data is consistent across different tables and systems.
-- **Timeliness**: Ensure that data is up-to-date and available for reporting as per defined SLAs.
-- **Uniqueness**: Ensure that there are no duplicate records in the fact and dimension tables.
+The primary goals for data quality in the e-commerce analytics pipeline are:
+- **Accuracy**: Ensure that the data accurately reflects the source data and business logic.
+- **Completeness**: All required fields must be populated, with no missing values.
+- **Consistency**: Data must be consistent across different tables and layers, adhering to defined relationships and constraints.
+- **Timeliness**: Data should be up-to-date and available for analysis as per the defined SLAs.
+- **Uniqueness**: Ensure that records are unique where required, particularly in fact tables.
 
 ## 2. Critical Tables & Columns
 The following tables and columns are critical for maintaining data quality:
-- **Fact Orders**
-  - `order_id` (Primary Key)
-  - `customer_id` (Foreign Key)
-  - `order_date`
-  - `total_amount`
-  - `payment_status`
-  - `order_status`
-
-- **Fact Payments**
-  - `payment_id` (Primary Key)
-  - `order_id` (Foreign Key)
-  - `payment_date`
-  - `payment_amount`
-  - `payment_status`
-
-- **Fact Customer Retention**
-  - `retention_id` (Primary Key)
-  - `customer_id` (Foreign Key)
-  - `month`
-  - `retained`
-
-- **Dimension Customers**
-  - `customer_id` (Primary Key)
-  - `email`
-  - `signup_date`
-
-- **Dimension Products**
-  - `product_id` (Primary Key)
-  - `price`
-  - `stock_quantity`
-
-- **Dimension Time**
-  - `time_id` (Primary Key)
-  - `date`
+- **Fact Tables**:
+  - `FactOrders`
+    - `OrderID`: Unique identifier for each order.
+    - `CustomerID`: Must reference a valid customer in `DimCustomers`.
+    - `PaymentID`: Must reference a valid payment in `FactPayments`.
+  - `FactPayments`
+    - `PaymentID`: Unique identifier for each payment.
+    - `OrderID`: Must reference a valid order in `FactOrders`.
+  
+- **Dimension Tables**:
+  - `DimCustomers`
+    - `CustomerID`: Unique identifier for each customer.
+    - `Email`: Must be unique and valid format.
+  - `DimProducts`
+    - `ProductID`: Unique identifier for each product.
+  - `DimTime`
+    - `OrderDate`: Must be a valid date.
 
 ## 3. Validation Rules & Checks
-The following validation rules and checks will be implemented during the transformation process:
+To ensure data quality, the following validation rules and checks will be implemented:
 
-### 3.1. Completeness Checks
-- **Fact Orders**: Check that all records have non-null values for `order_id`, `customer_id`, `order_date`, and `total_amount`.
-- **Fact Payments**: Ensure that all records have non-null values for `payment_id`, `order_id`, `payment_date`, and `payment_amount`.
-- **Fact Customer Retention**: Ensure that `customer_id` and `month` are not null.
+### For `FactOrders`:
+- **Uniqueness Check**: Ensure `OrderID` is unique.
+- **Foreign Key Validation**: 
+  - Check that `CustomerID` exists in `DimCustomers`.
+  - Check that `PaymentID` exists in `FactPayments`.
+- **Completeness Check**: Ensure `OrderDate`, `TotalAmount`, and `OrderStatus` are not null.
+- **Value Range Check**: Ensure `TotalAmount` is greater than 0.
 
-### 3.2. Accuracy Checks
-- Validate that `payment_status` in both `Fact Payments` and `Fact Orders` matches expected values (e.g., 'Completed', 'Pending', 'Failed').
-- Validate that `total_amount` in `Fact Orders` matches the sum of `payment_amount` in `Fact Payments` for each order.
+### For `FactPayments`:
+- **Uniqueness Check**: Ensure `PaymentID` is unique.
+- **Foreign Key Validation**: Check that `OrderID` exists in `FactOrders`.
+- **Completeness Check**: Ensure `PaymentDate` and `PaymentAmount` are not null.
+- **Value Range Check**: Ensure `PaymentAmount` is greater than 0.
 
-### 3.3. Consistency Checks
-- Ensure that `customer_id` in `Fact Orders` and `Fact Customer Retention` exists in `Dimension Customers`.
-- Ensure that `order_id` in `Fact Payments` exists in `Fact Orders`.
+### For `DimCustomers`:
+- **Uniqueness Check**: Ensure `CustomerID` and `Email` are unique.
+- **Completeness Check**: Ensure `FirstName`, `LastName`, and `Country` are not null.
+- **Email Format Check**: Validate that `Email` follows a standard email format.
 
-### 3.4. Uniqueness Checks
-- Check for duplicate `order_id` in `Fact Orders`.
-- Check for duplicate `payment_id` in `Fact Payments`.
-- Check for duplicate `customer_id` in `Dimension Customers`.
+### For `DimProducts`:
+- **Uniqueness Check**: Ensure `ProductID` is unique.
+- **Completeness Check**: Ensure `ProductName`, `Category`, and `Price` are not null.
+- **Value Range Check**: Ensure `Price` is greater than or equal to 0.
 
-### 3.5. Timeliness Checks
-- Ensure that data is ingested and transformed within the defined SLA (e.g., data should be available for reporting by 6 AM daily).
+### For `DimTime`:
+- **Completeness Check**: Ensure `OrderDate`, `Year`, `Month`, `Day`, and `Quarter` are not null.
+- **Date Validity Check**: Ensure `OrderDate` is a valid date.
 
 ## 4. Freshness & SLA Definitions
-- **Data Freshness**: Data from the transactional database should be available in the data warehouse within 1 hour of ingestion.
-- **SLA for Daily Dashboards**: Data must be refreshed and available by 6 AM every day to ensure that dashboards reflect the previous day's data.
+- **Data Freshness**: Data should be available for analysis within 1 hour of the completion of the ETL process.
+- **SLA Definitions**:
+  - **Ingestion SLA**: Data ingestion must complete by 3 AM UTC daily.
+  - **Transformation SLA**: Data transformation must complete by 4 AM UTC daily.
+  - **Quality Check SLA**: Data quality checks must complete by 4:30 AM UTC daily.
+  - **Availability SLA**: Data should be available for reporting and analytics by 5 AM UTC daily.
 
 ## 5. Monitoring & Alerting Strategy
-### 5.1. Monitoring
-- Implement monitoring using **Great Expectations** or **Apache Deequ** to run data quality checks automatically during the ETL process.
-- Use **Prometheus** to track metrics such as:
-  - Job execution time
-  - Data latency
-  - Number of records processed
-  - Number of records failing validation checks
+To ensure ongoing data quality, the following monitoring and alerting strategies will be implemented:
 
-### 5.2. Alerting
-- Set up alerts using **Grafana** or **Slack** to notify the data engineering team when:
-  - Data quality checks fail (e.g., if completeness or accuracy checks do not pass).
-  - Data freshness SLAs are not met (e.g., if data is not available by 6 AM).
-  - Significant changes in data volume are detected (e.g., sudden drops in records).
+- **AWS CloudWatch Metrics**:
+  - Monitor the success and failure rates of each step in the ETL process.
+  - Track the number of records processed and any discrepancies in expected vs. actual counts.
+
+- **Data Quality Metrics**:
+  - Create custom metrics for each validation rule (e.g., number of unique violations, completeness percentages).
+  - Set thresholds for acceptable data quality levels (e.g., 95% completeness).
+
+- **Alerts**:
+  - Configure CloudWatch alerts for:
+    - Failure of any ETL step.
+    - Breaches of data quality thresholds (e.g., completeness or uniqueness checks failing).
+    - Delays in data availability beyond defined SLAs.
 
 ## 6. Failure Handling & Remediation
-- **Automated Retries**: Implement automated retries for failed jobs in the orchestration layer (e.g., using Apache Airflow).
-- **Manual Intervention**: If data quality checks fail, trigger an alert to the data engineering team for manual investigation.
-- **Data Correction**: Establish a process for correcting bad data, which may involve reprocessing the affected data or rolling back to a previous state.
-- **Logging**: Maintain detailed logs of data quality checks and failures to facilitate root cause analysis.
+In the event of data quality failures, the following strategies will be employed:
+
+- **Automated Remediation**:
+  - Trigger reprocessing of data upon failure of validation checks.
+  - Implement retry logic for transient errors during ingestion and transformation.
+
+- **Manual Review**:
+  - For persistent issues, alert the data engineering team for manual investigation.
+  - Maintain a log of data quality issues for trend analysis and root cause identification.
+
+- **Feedback Loop**:
+  - Regularly review data quality metrics and adjust validation rules as needed.
+  - Conduct post-mortem analyses for significant data quality incidents to improve processes.
 
 ## 7. Assumptions & Risks
-### Assumptions
-- The source systems provide consistent and reliable data.
-- Data quality checks can be implemented without significant performance overhead.
-- The data engineering team is equipped to respond to alerts and resolve issues promptly.
+### Assumptions:
+- Data sources are reliable and provide consistent data formats.
+- Stakeholders are committed to maintaining data quality and addressing issues promptly.
+- The ETL processes are robust enough to handle expected data volumes and complexities.
 
-### Risks
-- **Data Source Changes**: Changes in the structure or format of source data could lead to validation failures.
-- **Performance Impact**: Extensive data quality checks may impact ETL performance, especially with large datasets.
-- **Alert Fatigue**: Frequent alerts due to minor issues may lead to alert fatigue, causing critical alerts to be overlooked.
+### Risks:
+- Inadequate validation rules may allow bad data to propagate through the pipeline.
+- Changes in source systems or data formats could lead to data quality issues if not managed properly.
+- Overhead from extensive validation checks may impact ETL performance, requiring careful balancing.
 
-This data quality strategy aims to ensure the integrity and reliability of the data pipeline, preventing bad data from reaching the dashboards and ultimately supporting informed decision-making for the e-commerce company.
+This data quality strategy is designed to ensure that the e-commerce analytics platform maintains high standards of data integrity, enabling accurate and reliable insights for stakeholders.

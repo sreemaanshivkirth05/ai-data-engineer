@@ -1,97 +1,83 @@
-# Analytical Data Model Design
+# Analytical Data Model for E-commerce Analytics Platform
 
 ## 1. Overview of the Data Model
-The analytical data model is designed to support the e-commerce company's reporting and analytics needs, focusing on key performance indicators (KPIs) such as total revenue, customer retention, and payment success rates. The model follows a star schema architecture, consisting of fact tables that capture transactional data and dimension tables that provide context to these transactions. 
+The analytical data model for the e-commerce analytics platform is designed to facilitate reporting and analysis of key business metrics related to revenue, orders, customers, and payments. The model follows a star schema architecture, consisting of fact tables that capture measurable events and dimension tables that provide context to these events. This design supports efficient querying and analysis, ensuring data quality and performance.
 
 ## 2. Fact Tables
 
-### 2.1. Fact Orders
-- **Grain**: Each record represents a single order placed by a customer.
+### Fact Table: `FactOrders`
+- **Grain**: One record per order (each order placed by a customer).
 - **Columns**:
-  - `order_id` (Primary Key)
-  - `customer_id` (Foreign Key)
-  - `order_date` (Date of the order)
-  - `total_amount` (Total revenue from the order)
-  - `payment_status` (Status of the payment)
-  - `order_status` (Current status of the order)
-- **Keys**:
-  - Primary Key: `order_id`
-  - Foreign Key: `customer_id` references `dim_customers(customer_id)`
+  - `OrderID` (INT, PK): Unique identifier for each order.
+  - `CustomerID` (INT, FK): Foreign key referencing `DimCustomers`.
+  - `OrderDate` (DATE): Date when the order was placed.
+  - `TotalAmount` (DECIMAL): Total revenue generated from the order.
+  - `PaymentID` (INT, FK): Foreign key referencing `FactPayments`.
+  - `OrderStatus` (STRING): Status of the order (e.g., Completed, Pending, Canceled).
+- **Primary Key**: `OrderID`
+- **Foreign Keys**: 
+  - `CustomerID` references `DimCustomers(CustomerID)`
+  - `PaymentID` references `FactPayments(PaymentID)`
 
-### 2.2. Fact Payments
-- **Grain**: Each record represents a single payment transaction associated with an order.
+### Fact Table: `FactPayments`
+- **Grain**: One record per payment transaction.
 - **Columns**:
-  - `payment_id` (Primary Key)
-  - `order_id` (Foreign Key)
-  - `payment_date` (Date of the payment)
-  - `payment_amount` (Amount paid)
-  - `payment_status` (Status of the payment)
-- **Keys**:
-  - Primary Key: `payment_id`
-  - Foreign Key: `order_id` references `fact_orders(order_id)`
-
-### 2.3. Fact Customer Retention
-- **Grain**: Each record represents a monthly retention metric for customers.
-- **Columns**:
-  - `retention_id` (Primary Key)
-  - `customer_id` (Foreign Key)
-  - `month` (Month of the retention metric)
-  - `retained` (Boolean indicating if the customer made a purchase in the month)
-- **Keys**:
-  - Primary Key: `retention_id`
-  - Foreign Key: `customer_id` references `dim_customers(customer_id)`
+  - `PaymentID` (INT, PK): Unique identifier for each payment.
+  - `OrderID` (INT, FK): Foreign key referencing `FactOrders`.
+  - `PaymentDate` (DATE): Date when the payment was made.
+  - `PaymentAmount` (DECIMAL): Amount paid.
+  - `PaymentMethod` (STRING): Method of payment (e.g., Credit Card, PayPal).
+- **Primary Key**: `PaymentID`
+- **Foreign Keys**: 
+  - `OrderID` references `FactOrders(OrderID)`
 
 ## 3. Dimension Tables
 
-### 3.1. Dimension Customers
+### Dimension Table: `DimCustomers`
 - **Columns**:
-  - `customer_id` (Primary Key)
-  - `first_name` (Customer's first name)
-  - `last_name` (Customer's last name)
-  - `email` (Customer's email address)
-  - `signup_date` (Date the customer signed up)
-  - `country` (Country of the customer)
-- **Keys**:
-  - Primary Key: `customer_id`
+  - `CustomerID` (INT, PK): Unique identifier for each customer.
+  - `FirstName` (STRING): Customer's first name.
+  - `LastName` (STRING): Customer's last name.
+  - `Email` (STRING): Customer's email address.
+  - `JoinDate` (DATE): Date when the customer joined.
+  - `Country` (STRING): Country of residence.
+- **Primary Key**: `CustomerID`
 
-### 3.2. Dimension Products
+### Dimension Table: `DimProducts`
 - **Columns**:
-  - `product_id` (Primary Key)
-  - `product_name` (Name of the product)
-  - `category` (Category of the product)
-  - `price` (Price of the product)
-  - `stock_quantity` (Current stock level)
-- **Keys**:
-  - Primary Key: `product_id`
+  - `ProductID` (INT, PK): Unique identifier for each product.
+  - `ProductName` (STRING): Name of the product.
+  - `Category` (STRING): Product category (e.g., Electronics, Apparel).
+  - `Price` (DECIMAL): Price of the product.
+  - `StockQuantity` (INT): Available stock for the product.
+- **Primary Key**: `ProductID`
 
-### 3.3. Dimension Time
+### Dimension Table: `DimTime`
 - **Columns**:
-  - `time_id` (Primary Key)
-  - `date` (Date)
-  - `day` (Day of the month)
-  - `month` (Month of the year)
-  - `year` (Year)
-  - `quarter` (Quarter of the year)
-- **Keys**:
-  - Primary Key: `time_id`
+  - `TimeID` (INT, PK): Unique identifier for each time record.
+  - `OrderDate` (DATE): Date of the order.
+  - `Year` (INT): Year of the order.
+  - `Month` (INT): Month of the order.
+  - `Day` (INT): Day of the order.
+  - `Quarter` (INT): Quarter of the year.
+- **Primary Key**: `TimeID`
 
 ## 4. Relationships (fact ↔ dimensions)
-- **Fact Orders**:
-  - `customer_id` (FK) → `dim_customers(customer_id)`
-  - `order_date` (FK) → `dim_time(time_id)` (via a time dimension for date analysis)
-
-- **Fact Payments**:
-  - `order_id` (FK) → `fact_orders(order_id)`
-
-- **Fact Customer Retention**:
-  - `customer_id` (FK) → `dim_customers(customer_id)`
-  - `month` (FK) → `dim_time(time_id)` (to analyze retention over time)
+- `FactOrders` is related to:
+  - `DimCustomers` via `CustomerID`
+  - `DimTime` via `OrderDate` (can be linked through `DimTime` if a surrogate key is used)
+  
+- `FactPayments` is related to:
+  - `FactOrders` via `OrderID`
+  
+- `FactOrders` may also have a relationship with `DimProducts` if product details are included in the order fact (e.g., through a bridge table if multiple products per order).
 
 ## 5. Design Decisions & Assumptions
-- **Star Schema**: The star schema is chosen for its simplicity and efficiency in query performance, allowing for straightforward joins between fact and dimension tables.
-- **Grain Definition**: Each fact table's grain is defined to ensure that it captures the necessary level of detail for reporting while avoiding redundancy.
-- **Data Quality**: The model assumes that data quality checks are implemented during the ETL process to ensure that the data loaded into the warehouse is accurate and consistent.
-- **Performance**: Indexing strategies will be applied on foreign keys to optimize query performance, especially for large datasets.
-- **Scalability**: The model is designed to accommodate future growth, such as additional metrics or dimensions, without significant restructuring.
+- **Star Schema Design**: The star schema was chosen for its simplicity and efficiency in querying, making it suitable for BI tools and reporting.
+- **Fact Tables**: Separate fact tables for orders and payments allow for detailed analysis of both order and payment metrics independently.
+- **Dimension Tables**: Dimensions are designed to provide rich context for the facts, enabling detailed analysis of customer behavior, product performance, and time-based trends.
+- **Data Quality**: Assumptions include that data will be cleaned and validated during the ETL process, ensuring adherence to data quality standards.
+- **Performance Considerations**: The model is designed to optimize query performance by minimizing the number of joins and ensuring that fact tables are appropriately indexed.
+- **Scalability**: The model is designed to accommodate future growth in data volume and complexity, allowing for additional dimensions or facts as business needs evolve.
 
-This analytical data model provides a robust framework for reporting and analytics, enabling the e-commerce company to derive actionable insights from its data.
+This analytical data model provides a robust foundation for e-commerce analytics, enabling stakeholders to derive insights from key business metrics effectively.
