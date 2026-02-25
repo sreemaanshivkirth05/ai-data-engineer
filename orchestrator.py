@@ -11,6 +11,10 @@ from agents.security_governance_agent import SecurityGovernanceAgent
 from agents.analytics_bi_agent import AnalyticsBIAgent
 from agents.architecture_diagram_agent import ArchitectureDiagramAgent
 from agents.reviewer_agent import ReviewerAgent
+from agents.validator_agent import ValidatorAgent
+from agents.cost_estimation_agent import CostEstimationAgent
+from agents.dataset_visualization_agent import DatasetVisualizationAgent
+from agents.mermaid_ai_agent import MermaidAIAgent
 
 # Diagram renderer (API-based)
 from utils.diagram_renderer import render_mermaid_via_api
@@ -71,6 +75,17 @@ def run():
     write_output("dataset_profile.md", profile_result["markdown"])
     context["dataset_profile"] = profile_result["profile"]
     log("✅ Dataset Profiler Agent completed.")
+
+    # =========================================================
+    # Agent 0.5: Dataset Visualization Agent
+    # =========================================================
+    log("▶️ Running Dataset Visualization Agent...")
+    viz_agent = DatasetVisualizationAgent(dataset_path)
+    viz_result = viz_agent.run()
+
+    write_output("dataset_charts.md", viz_result["markdown"])
+    context["dataset_charts"] = viz_result["charts"]
+    log("✅ Dataset Visualization Agent completed.")
 
     # =========================================================
     # Agent 1: Schema & Data Contracts
@@ -310,12 +325,13 @@ Review the system and propose performance and cost optimizations as instructed.
     # =========================================================
     # Agent 12: Architecture Diagram Agent
     # =========================================================
-    log("▶️ Running Architecture Diagram Agent...")
-    diagram_agent = ArchitectureDiagramAgent(context)
-    diagram_result = diagram_agent.run()
+    log("▶️ Running Mermaid AI Diagram Agent...")
+    mermaid_agent = MermaidAIAgent(context)
+    diagram_result = mermaid_agent.run()
+
     write_output("architecture_diagram.md", diagram_result["markdown"])
     context["architecture_diagram"] = diagram_result["markdown"]
-    log("✅ Architecture Diagram Agent completed.")
+    log("✅ Mermaid AI Diagram Agent completed.")
 
     # Render Mermaid -> PNG
     log("🖼️ Rendering architecture diagram via Mermaid API...")
@@ -392,6 +408,28 @@ Generate a complete, professional README-style documentation for this project.
     write_output("reviewer_report.md", review_result["markdown"])
     context["reviewer_report"] = review_result["markdown"]
     log("✅ Reviewer / Validator Agent completed.")
+
+    # =========================================================
+    # Agent 15: Rule-Based Validator / Consistency Checker
+    # =========================================================
+    log("▶️ Running Rule-Based Validator Agent...")
+    validator_agent = ValidatorAgent(context)
+    validation_result = validator_agent.run()
+
+    write_output("validation_report.md", validation_result["markdown"])
+    context["validation_report"] = validation_result["markdown"]
+    log("✅ Rule-Based Validator Agent completed.")
+
+    # =========================================================
+    # Agent 16: Cost Estimation Agent
+    # =========================================================
+    log("▶️ Running Cost Estimation Agent...")
+    cost_agent = CostEstimationAgent(context)
+    cost_result = cost_agent.run()
+
+    write_output("cost_estimate.md", cost_result["markdown"])
+    context["cost_estimate"] = cost_result
+    log("✅ Cost Estimation Agent completed.")
 
     log("🎉 Multi-agent AI Data Engineer pipeline completed successfully.")
 

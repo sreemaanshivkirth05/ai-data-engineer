@@ -1,67 +1,57 @@
 # Data Ingestion Strategy for E-commerce Analytics
 
 ## 1. Overview
-This document outlines the data ingestion strategy for an e-commerce company requiring analytics on revenue, orders, customers, and payments. The strategy is designed to ensure a scalable architecture on AWS, facilitating daily dashboards and compliance with data governance policies, particularly concerning PII.
+This document outlines the data ingestion strategy for an e-commerce company that requires analytics for revenue, orders, customers, and payments. The strategy focuses on building a production-grade architecture on AWS to support daily dashboards, scalability, and efficient data processing.
 
 ## 2. Ingestion Sources
-The primary ingestion sources for this strategy include:
-- Employee dataset (as described in the dataset profile)
-- Additional datasets related to orders, payments, and customer interactions, which may also contain PII.
+The primary ingestion source for this strategy is a CSV file containing employee data, which includes personal and professional information. The dataset profile indicates that it has 1,034 rows and 7 columns, with no null values and potential PII (Personally Identifiable Information) in the first and last name fields.
 
 ## 3. Ingestion Approach (Batch / CDC / Streaming)
-Given the dataset profile and business requirements, a **Batch ingestion approach** is recommended. This approach is suitable due to:
-- The manageable size of the dataset (1034 rows).
+Given the dataset profile and business requirements, the ingestion approach will be **Batch**. This is appropriate due to:
+- The manageable size of the dataset (1,034 rows).
 - The requirement for daily dashboards, which aligns well with batch processing.
-- Simplicity in implementation and maintenance compared to CDC or streaming for this dataset.
+- The absence of real-time data requirements for the employee dataset.
 
 ## 4. AWS Services & Components
 The following AWS services will be utilized for the ingestion strategy:
-- **Amazon S3**: For data storage and landing zone.
-- **AWS Glue**: For ETL processes, schema management, and data cataloging.
-- **AWS Lambda**: For serverless processing and triggering ETL jobs.
+- **Amazon S3**: For storing raw CSV files and processed data.
+- **AWS Glue**: For ETL (Extract, Transform, Load) processes to clean and transform the data.
+- **Amazon Athena**: For querying the data stored in S3.
+- **AWS Lambda**: For serverless functions to trigger processing jobs based on events (e.g., new files in S3).
 - **Amazon EventBridge**: To schedule and trigger ingestion workflows.
-- **AWS Identity and Access Management (IAM)**: For managing access and permissions, especially concerning PII.
 
 ## 5. Load Frequency & Scheduling
-The ingestion frequency will be set to **daily**, with a scheduled job running during off-peak hours (e.g., 2 AM UTC) to minimize impact on system performance. This aligns with the need for daily dashboards and allows for adequate processing time.
+The ingestion frequency will be set to **daily**. A scheduled job will run every night to:
+- Ingest the latest CSV file.
+- Process and transform the data.
+- Load it into a structured format in S3 for analytics.
 
 ## 6. Data Landing & File Formats
-Data will be landed in **Amazon S3** in **Parquet format** due to its efficient storage and query performance. The landing zone structure will be organized as follows:
-```
-s3://your-bucket-name/landing/
-    ├── employee/
-    │   ├── year=2023/
-    │   │   ├── month=10/
-    │   │   │   ├── day=01/
-    │   │   │   │   └── employee_data.parquet
-```
-This structure allows for easy partitioning and querying.
+- **Landing Zone**: Raw CSV files will be stored in an S3 bucket (e.g., `s3://ecommerce-data/raw/employee/`).
+- **Processed Data**: After ETL, the cleaned data will be stored in a structured format (e.g., Parquet or ORC) in a different S3 bucket (e.g., `s3://ecommerce-data/processed/employee/`).
+- **File Formats**: The raw data will remain in CSV format, while the processed data will use Parquet for efficient querying and storage.
 
 ## 7. Idempotency, Deduplication & Backfills
-To ensure idempotency and deduplication:
-- Use a composite key formed by `First Name`, `Last Name`, and `Age` to identify unique records.
-- Implement a deduplication step in the ETL process to filter out duplicate records based on the composite key.
-- For backfills, maintain a versioning strategy in S3 to allow reprocessing of historical data without overwriting current datasets.
+- **Idempotency**: The ingestion process will ensure that reprocessing the same file does not create duplicate records. This can be achieved by checking for existing records based on the composite key `(first_name, last_name, age)`.
+- **Deduplication**: During the ETL process, records will be checked against existing entries in the target dataset to prevent duplicates.
+- **Backfills**: If historical data needs to be ingested, a separate process will be created to handle backfills, ensuring that existing records are not overwritten.
 
 ## 8. Failure Handling & Retries
-Failure handling will be implemented through:
-- **AWS Lambda**: Automatically retries failed ETL jobs up to three times with exponential backoff.
-- **AWS CloudWatch**: Monitor and alert on failures, allowing for manual intervention if necessary.
-- Error logs will be stored in S3 for troubleshooting and auditing.
+- **Failure Handling**: If an ingestion job fails, an alert will be sent via Amazon SNS (Simple Notification Service) to notify the data engineering team.
+- **Retries**: The ingestion job will be retried up to three times with exponential backoff. If it fails after three attempts, it will be logged for manual intervention.
 
 ## 9. SLAs & Freshness Guarantees
-The SLAs for this ingestion strategy include:
-- Data availability within **24 hours** of the last ingestion.
-- Data freshness guarantees ensuring that the dashboards reflect the most recent data from the previous day’s ingestion.
+- **SLA**: The ingestion process will have a Service Level Agreement (SLA) of 99.9% uptime, ensuring that data is ingested and processed daily.
+- **Freshness Guarantees**: Data will be available for analytics within 24 hours of ingestion, providing timely insights for daily dashboards.
 
 ## 10. Risks & Tradeoffs
-### Risks:
-- **Data Quality**: Potential issues if constraints are not enforced during data entry.
-- **PII Management**: Risks associated with handling personal data, necessitating strict compliance with data governance policies.
-- **Schema Evolution**: Changes in business requirements may lead to frequent updates in the schema, risking backward compatibility.
+- **Risks**:
+  - Changes in the dataset structure may lead to breaking changes in the ingestion process.
+  - Inaccurate data entry could lead to violations of uniqueness and range constraints.
+  - Potential exposure of PII if not properly managed and secured.
 
-### Tradeoffs:
-- **Batch vs. Real-Time**: While batch processing is simpler and sufficient for daily dashboards, it may not support near-real-time analytics if business needs evolve.
-- **Cost vs. Performance**: Using services like AWS Glue and Lambda incurs costs, but they provide scalability and ease of use compared to self-managed solutions.
+- **Tradeoffs**:
+  - While batch processing is simpler and sufficient for daily analytics, it may not support real-time insights if needed in the future.
+  - Using Parquet format optimizes storage and query performance but requires additional processing during the ETL phase.
 
-This ingestion strategy aims to provide a robust, scalable, and compliant framework for managing the e-commerce analytics dataset effectively.
+This strategy provides a comprehensive approach to ingesting and processing employee data for analytics in an e-commerce context, ensuring scalability and adherence to business requirements.

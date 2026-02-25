@@ -1,58 +1,52 @@
 # Data Orchestration and Scheduling for E-commerce Analytics
 
 ## 1. Overview
-This document outlines the orchestration and scheduling design for the data ingestion and processing workflow of an e-commerce analytics platform. The design leverages AWS services to ensure efficient data processing, compliance with data quality requirements, and effective monitoring of the data pipeline.
+This document outlines the orchestration and scheduling design for a production data platform focused on e-commerce analytics. The architecture is designed to handle daily ingestion of employee data, ensuring data quality, efficient processing, and timely availability for analytics. The orchestration will leverage AWS services to automate the ETL process and manage dependencies effectively.
 
 ## 2. Orchestration Tool Choice
-For this workflow, **AWS Step Functions** is chosen as the orchestration tool due to its ability to manage complex workflows with multiple steps, integrate seamlessly with other AWS services, and provide visual representations of the workflow. Step Functions also support error handling and retries out of the box, making it suitable for this use case.
+For this data orchestration, **Apache Airflow** is chosen due to its flexibility, rich scheduling capabilities, and strong community support. Airflow allows for complex DAG (Directed Acyclic Graph) designs, making it suitable for managing dependencies and workflows in a data pipeline.
 
 ## 3. DAG / Workflow Design
-The workflow consists of the following steps:
-1. **Data Ingestion**: Triggered by an event (e.g., a scheduled event from Amazon EventBridge).
-2. **Data Validation**: Validate the ingested data for quality checks.
-3. **Data Transformation**: Execute ETL processes using AWS Glue to transform the data from the Bronze layer to the Silver layer.
-4. **Data Aggregation**: Aggregate data from the Silver layer to the Gold layer.
-5. **Data Quality Checks**: Perform final checks on the Gold layer data.
-6. **Notification**: Send notifications on success or failure.
+The DAG for the e-commerce analytics ingestion process will consist of the following tasks:
 
-The workflow can be visualized as follows:
+1. **Ingest Raw Data**: Load the latest CSV file from S3 to the Bronze layer.
+2. **Transform Data**: Clean and transform the data using AWS Glue, converting it to Parquet format for the Silver layer.
+3. **Load Processed Data**: Store the transformed data in the Silver layer in S3.
+4. **Aggregate Data**: Perform aggregation and load the data into the Gold layer (data warehouse).
+5. **Notify Completion**: Send a notification upon successful completion of the workflow.
 
-```
-[Start] -> [Data Ingestion] -> [Data Validation] -> [Data Transformation] -> [Data Aggregation] -> [Data Quality Checks] -> [Notification] -> [End]
-```
+The DAG will be triggered daily to ensure data freshness.
 
 ## 4. Task Dependencies
-The task dependencies are defined as follows:
-- **Data Ingestion** must complete before **Data Validation** can start.
-- **Data Validation** must succeed before **Data Transformation** can begin.
-- **Data Transformation** must complete before **Data Aggregation** can start.
-- **Data Aggregation** must complete before **Data Quality Checks** can begin.
-- **Data Quality Checks** must complete before sending a **Notification**.
+The task dependencies will be defined as follows:
+
+- **Ingest Raw Data** → **Transform Data** → **Load Processed Data** → **Aggregate Data** → **Notify Completion**
+
+This linear dependency ensures that each task is completed before the next one begins, maintaining data integrity throughout the process.
 
 ## 5. Scheduling & SLAs
-The workflow is scheduled to run **daily at 2 AM UTC** using Amazon EventBridge. The SLAs for the workflow are:
-- **Data availability**: Data should be available within **24 hours** of the last ingestion.
-- **Data freshness**: Dashboards should reflect the most recent data from the previous day's ingestion.
+- **Scheduling**: The DAG will be scheduled to run daily at 2 AM UTC to allow for overnight processing of the latest CSV file.
+- **SLAs**: Each task will have an SLA of 2 hours, ensuring that the entire workflow completes within this timeframe. If any task exceeds this duration, alerts will be triggered.
 
 ## 6. Retries, Backfills & Recovery
-- **Retries**: Each task in the workflow will have a retry policy configured to attempt retries up to **three times** with exponential backoff.
-- **Backfills**: In case of missed runs, a backfill strategy will be implemented to allow reprocessing of historical data. This can be triggered manually or scheduled as needed.
-- **Recovery**: If a task fails after the maximum retries, the workflow will transition to a failure state, and a notification will be sent to the data engineering team for manual intervention.
+- **Retries**: Each task will be configured to retry up to 3 times with exponential backoff in case of failure. This will help to handle transient issues effectively.
+- **Backfills**: A separate backfill process will be implemented to handle historical data ingestion. This will allow for reprocessing of previous days' data without affecting the regular daily workflow.
+- **Recovery**: If a task fails after the maximum retries, it will log the error and send an alert via Amazon SNS for manual intervention.
 
 ## 7. Monitoring & Observability
-- **AWS CloudWatch** will be used to monitor the execution of the workflow. Custom metrics will be created to track the success and failure rates of each task.
-- **AWS Step Functions** provides built-in logging, which will be enabled to capture detailed execution history and error messages.
-- Alerts will be configured in CloudWatch to notify the data engineering team of any failures or performance issues.
+- **Monitoring Hooks**: Airflow's built-in monitoring capabilities will be utilized to track task execution times, success rates, and failure logs.
+- **Alerts**: Alerts will be configured to notify the data engineering team via email and Amazon SNS in case of task failures or SLA breaches.
+- **Dashboards**: A monitoring dashboard will be created using tools like Grafana or CloudWatch to visualize the performance of the DAG and track key metrics.
 
 ## 8. Risks & Tradeoffs
-### Risks:
-- **Data Quality**: If data quality checks are not properly implemented, it could lead to inaccurate analytics.
-- **PII Management**: Handling personal data requires strict compliance with data governance policies, posing risks if not managed correctly.
-- **Workflow Complexity**: As the workflow grows, it may become increasingly complex, making it harder to maintain.
+- **Risks**:
+  - Dependency on external services (e.g., S3, AWS Glue) may lead to failures if those services experience downtime.
+  - Changes in the data schema may require updates to the transformation logic, potentially causing downstream issues.
+  - Data quality issues may arise if the ingestion process fails, leading to incomplete or incorrect datasets.
 
-### Tradeoffs:
-- **Cost vs. Performance**: Using AWS managed services incurs costs but provides scalability and ease of use compared to self-managed solutions.
-- **Batch vs. Real-Time**: While batch processing is simpler and sufficient for daily dashboards, it may not support near-real-time analytics if business needs evolve.
-- **Simplicity vs. Flexibility**: A simpler workflow may be easier to maintain but could lack the flexibility needed to adapt to changing business requirements.
+- **Tradeoffs**:
+  - While Airflow provides flexibility, it may require additional overhead for maintenance and monitoring compared to simpler orchestration tools.
+  - The choice of batch processing limits real-time analytics capabilities, which may be a concern if business needs evolve.
+  - Using Parquet format optimizes storage and query performance but requires additional processing time during the ETL phase.
 
-This orchestration and scheduling design aims to provide a robust, scalable, and compliant framework for managing the e-commerce analytics dataset effectively while ensuring data integrity and optimizing for analytics and cost.
+This orchestration and scheduling design provides a robust framework for managing the data ingestion and processing workflow for e-commerce analytics, ensuring data quality and timely availability for analysis.

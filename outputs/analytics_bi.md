@@ -1,100 +1,86 @@
 # E-commerce Analytics and BI Layer Design
 
 ## 1. Overview
-This document outlines the design for the analytics and business intelligence (BI) layer of an e-commerce platform. The design is based on the provided data model, business requirements, and AWS storage layout. The goal is to create a scalable architecture that supports daily dashboards and self-service analytics for key business metrics related to revenue, orders, customers, and payments.
+This document outlines the design of the analytics and BI layer for an e-commerce company, focusing on revenue, orders, customers, and payments. The architecture is built on AWS, leveraging a layered data storage approach (Bronze, Silver, Gold) and a star schema data model to facilitate efficient querying and reporting. The goal is to provide daily dashboards, scalable architecture, and optimize for self-service analytics.
 
 ## 2. Data Marts Design
-### Data Marts
-- **Revenue Mart**: Focused on revenue metrics, aggregating data from `FactOrders` and `FactPayments`.
-- **Orders Mart**: Contains detailed order data, primarily from `FactOrders`, with dimensions for customers and time.
-- **Customers Mart**: Aggregates customer-related metrics from `DimCustomers` and `FactOrders`.
-- **Payments Mart**: Contains payment-related metrics from `FactPayments`, linked to orders.
+### 2.1. Revenue Data Mart
+- **Fact Table**: `fact_orders`
+- **Dimensions**:
+  - `dim_customers`
+  - `dim_products`
+- **Purpose**: Analyze total revenue, average order value, and revenue trends over time.
 
-### Data Mart Structure
-- **Revenue Mart**:
-  - Fact Table: `FactRevenue`
-  - Dimensions: `DimTime`, `DimCustomers`
-  
-- **Orders Mart**:
-  - Fact Table: `FactOrders`
-  - Dimensions: `DimCustomers`, `DimProducts`, `DimTime`
-  
-- **Customers Mart**:
-  - Fact Table: `FactCustomerMetrics`
-  - Dimensions: `DimCustomers`, `DimTime`
-  
-- **Payments Mart**:
-  - Fact Table: `FactPayments`
-  - Dimensions: `DimTime`, `DimCustomers`
+### 2.2. Orders Data Mart
+- **Fact Table**: `fact_orders`
+- **Dimensions**:
+  - `dim_customers`
+  - `dim_products`
+- **Purpose**: Track order volume, order trends, and customer purchasing behavior.
+
+### 2.3. Payments Data Mart
+- **Fact Table**: `fact_payments`
+- **Dimensions**:
+  - `dim_customers`
+- **Purpose**: Analyze payment methods, payment trends, and payment success rates.
+
+### 2.4. Customer Data Mart
+- **Dimension Table**: `dim_customers`
+- **Purpose**: Analyze customer demographics, registration trends, and customer retention metrics.
 
 ## 3. Metrics & KPIs
-### Key Metrics
-- **Revenue Metrics**:
-  - Total Revenue
-  - Average Order Value (AOV)
-  - Revenue Growth Rate
-  
-- **Order Metrics**:
-  - Total Orders
-  - Order Conversion Rate
-  - Average Order Size
-  
-- **Customer Metrics**:
-  - Total Customers
-  - Customer Retention Rate
-  - Average Customer Lifetime Value (CLV)
-  
-- **Payment Metrics**:
-  - Total Payments Processed
-  - Payment Success Rate
-  - Average Payment Processing Time
+### 3.1. Revenue Metrics
+- **Total Revenue**: Sum of `total_amount` from `fact_orders`.
+- **Average Order Value (AOV)**: Total Revenue / Total Orders.
+- **Revenue Growth Rate**: (Current Period Revenue - Previous Period Revenue) / Previous Period Revenue.
+
+### 3.2. Order Metrics
+- **Total Orders**: Count of `order_id` from `fact_orders`.
+- **Order Conversion Rate**: Total Orders / Total Visitors.
+
+### 3.3. Payment Metrics
+- **Total Payments**: Sum of `amount` from `fact_payments`.
+- **Payment Success Rate**: Successful Payments / Total Payment Attempts.
+
+### 3.4. Customer Metrics
+- **Customer Acquisition Rate**: New Customers / Total Customers.
+- **Customer Retention Rate**: Returning Customers / Total Customers.
 
 ## 4. Semantic / Metrics Layer
-### Semantic Layer Design
-- **Definition of Metrics**: Establish clear definitions for each metric to ensure consistency across reports.
-- **Business Logic**: Encapsulate business logic for calculating metrics in a centralized layer, allowing for easy updates and maintenance.
-- **Access Control**: Implement role-based access control to ensure users can only access the metrics relevant to their roles.
-
-### Example Metrics Definitions
-- **Total Revenue**: Sum of `TotalAmount` from `FactOrders`.
-- **Average Order Value**: Total Revenue / Total Orders.
-- **Customer Retention Rate**: (Customers Active in Current Period / Total Customers) * 100.
+The semantic layer will provide a unified view of metrics and KPIs across different data marts. This layer will include:
+- **Business Definitions**: Clear definitions of each metric and KPI.
+- **Calculated Fields**: Predefined calculations for common metrics (e.g., AOV, conversion rates).
+- **User-Friendly Names**: Business-friendly names for technical fields to enhance self-service analytics.
 
 ## 5. BI Tools & Access Patterns
-### Suggested BI Tools
-- **Tableau**: For interactive dashboards and visualizations.
-- **Looker**: For data exploration and self-service analytics.
-- **Amazon QuickSight**: For AWS-native BI capabilities and cost-effectiveness.
+### 5.1. Suggested BI Tools
+- **Tableau**: For interactive dashboards and visual analytics.
+- **Looker**: For embedded analytics and data exploration.
+- **Amazon QuickSight**: For cost-effective BI solutions integrated with AWS.
 
-### Access Patterns
-- **Daily Dashboards**: Scheduled refresh of dashboards to show daily metrics.
-- **Ad-hoc Reporting**: Allow users to create custom reports using self-service tools.
-- **Embedded Analytics**: Integrate analytics into the e-commerce platform for real-time insights.
+### 5.2. Access Patterns
+- **Dashboards**: Daily dashboards for executives and stakeholders focusing on key metrics.
+- **Ad-hoc Reporting**: Allow business users to create custom reports using drag-and-drop interfaces.
+- **Scheduled Reports**: Automated reports sent via email on a daily/weekly basis.
 
 ## 6. Performance Considerations
-- **Query Optimization**: Use indexing and partitioning strategies to optimize query performance on fact tables.
-- **Caching**: Implement caching mechanisms in BI tools to enhance performance for frequently accessed reports.
-- **Data Aggregation**: Pre-aggregate data in the Gold layer to speed up reporting and analysis.
+- **Query Optimization**: Utilize indexing and partitioning in the data warehouse to improve query performance.
+- **Caching**: Implement caching strategies in BI tools to reduce load times for frequently accessed reports.
+- **Concurrency**: Ensure the data warehouse can handle multiple concurrent queries by scaling resources as needed.
 
 ## 7. Governance & Metric Consistency
-### Data Governance
-- **Data Quality Checks**: Implement automated data quality checks during ETL processes to ensure data integrity.
-- **Documentation**: Maintain comprehensive documentation of data sources, metrics definitions, and data lineage.
-- **Change Management**: Establish a process for managing changes to metrics and data models to ensure consistency.
-
-### Metric Consistency
-- **Single Source of Truth**: Ensure all BI tools reference the same semantic layer to maintain consistency in metrics across reports.
-- **Version Control**: Use version control for metric definitions and calculations to track changes over time.
+- **Data Governance Framework**: Establish a governance framework to manage data quality, security, and compliance.
+- **Metric Documentation**: Maintain a centralized repository for metric definitions and calculations to ensure consistency across reports.
+- **Change Management**: Implement a change management process for updates to data models and metrics to prevent discrepancies.
 
 ## 8. Risks & Tradeoffs
-### Risks
-- **Data Quality Risks**: Inconsistent data quality could lead to inaccurate reporting and decision-making.
-- **Scalability Risks**: As data volume grows, performance may degrade if not properly managed.
-- **User Adoption**: Risk of low user adoption of self-service tools if not user-friendly.
+### 8.1. Risks
+- **Data Quality Issues**: Inaccurate or incomplete data may lead to misleading insights.
+- **Performance Bottlenecks**: Increased data volume may affect query performance if not properly managed.
+- **User Adoption**: Resistance to new BI tools may hinder self-service analytics initiatives.
 
-### Tradeoffs
-- **Complexity vs. Usability**: More complex data models may provide richer insights but can be harder for users to navigate.
-- **Cost vs. Performance**: Using high-performance tools may incur higher costs; balancing cost with performance needs is crucial.
-- **Real-Time vs. Batch Processing**: Real-time analytics may require more resources, while batch processing is simpler but may not meet all business needs.
+### 8.2. Tradeoffs
+- **Real-time vs. Batch Processing**: While real-time analytics provide immediate insights, they may increase complexity and costs.
+- **Complexity of the Semantic Layer**: A more complex semantic layer may provide richer insights but could also require more maintenance and user training.
 
-This design aims to establish a robust analytics and BI layer that meets the e-commerce company's needs for insightful reporting and self-service analytics, while ensuring scalability and performance on AWS.
+This design provides a comprehensive framework for the analytics and BI layer of the e-commerce company, ensuring scalability, performance, and user empowerment through self-service analytics.

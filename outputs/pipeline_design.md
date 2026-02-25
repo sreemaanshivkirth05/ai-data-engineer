@@ -1,74 +1,72 @@
 ## Overview
-- Design a data pipeline architecture for an e-commerce analytics platform.
-- Focus on revenue, orders, customers, and payments.
-- Utilize AWS services for scalability, performance, and compliance.
+- Design a production-grade data pipeline for e-commerce analytics on AWS.
+- Focus on daily ingestion of revenue, orders, customers, and payments data.
+- Ensure scalability, data quality, and timely availability for analytics.
 
 ## Ingestion
-- **Sources**: Orders, Customers, Payments tables.
-- **Approach**: Batch ingestion, scheduled daily at 2 AM UTC.
+- **Source**: Data from CSV files containing orders, customers, and payments.
+- **Approach**: Batch ingestion due to daily analytics requirements.
 - **AWS Services**:
-  - **Amazon S3**: Landing zone for raw data.
+  - **Amazon S3**: Store raw CSV files.
   - **AWS Glue**: ETL processes for data transformation.
-  - **AWS Lambda**: Trigger ETL jobs.
-  - **Amazon EventBridge**: Schedule ingestion workflows.
-- **File Format**: Parquet for efficient storage and querying.
+  - **AWS Lambda**: Trigger processing jobs based on S3 events.
+  - **Amazon EventBridge**: Schedule daily ingestion jobs.
+- **Frequency**: Daily ingestion at 2 AM UTC.
+- **Landing Zone**: 
+  - Raw data in `s3://ecommerce-data/raw/`.
+  - Processed data in `s3://ecommerce-data/processed/`.
 
 ## Transformation
-- **Layers**:
-  - **Bronze Layer**: Raw data storage in S3.
-    - Location: `s3://your-bucket-name/bronze/`
-    - Format: CSV or JSON.
-  - **Silver Layer**: Cleaned and structured data.
-    - Location: `s3://your-bucket-name/silver/`
-    - Format: Parquet.
-    - Partitioning: By `year`, `month`, `day`.
-  - **Gold Layer**: Aggregated data for BI.
-    - Location: `s3://your-bucket-name/gold/`
-    - Format: Delta Lake or Iceberg.
-    - Partitioning: By `Team`, `Position`.
+- **ETL Process**:
+  - Use AWS Glue to clean and transform data.
+  - Convert raw CSV files to Parquet format for efficient querying.
+- **Data Quality Checks**:
+  - Validate data integrity and completeness during transformation.
+  - Implement deduplication based on composite keys.
+- **Output**: Store transformed data in the Silver layer in S3.
 
 ## Storage
-- **S3 Storage Layout**:
-  ```
-  s3://your-bucket-name/
-      ├── bronze/
-      ├── silver/
-      │   └── year=2023/month=10/day=01/
-      └── gold/
-          └── Team=Sales/Position=Manager/
-  ```
-- **Data Retention**:
-  - Bronze: 30 days.
-  - Silver: 1 year.
-  - Gold: 3 years.
-- **Data Warehouse**: Use Amazon Redshift or Snowflake for analytics.
+- **Layered Architecture**:
+  - **Bronze Layer**: 
+    - Raw data in CSV format.
+    - Path: `s3://ecommerce-data/raw/`.
+    - Retention: 30 days.
+  - **Silver Layer**: 
+    - Processed data in Parquet format.
+    - Path: `s3://ecommerce-data/processed/`.
+    - Retention: 365 days.
+  - **Gold Layer**: 
+    - Aggregated data in Amazon Redshift.
+    - Path: `s3://ecommerce-data/gold/`.
+    - Retention: 5 years.
+- **Partitioning**:
+  - Silver Layer: Partition by `order_date` and `customer_region`.
+  - Gold Layer: Partition by `month` for time-based analytics.
 
 ## Orchestration
-- **Tool**: AWS Step Functions for workflow management.
-- **Workflow Steps**:
-  1. Data Ingestion
-  2. Data Validation
-  3. Data Transformation
-  4. Data Aggregation
-  5. Data Quality Checks
-  6. Notification
-- **Scheduling**: Daily at 2 AM UTC via Amazon EventBridge.
+- **Tool**: Apache Airflow for orchestration.
+- **DAG Design**:
+  - Tasks: Ingest Raw Data → Transform Data → Load Processed Data → Aggregate Data → Notify Completion.
+- **Scheduling**: Daily at 2 AM UTC.
+- **SLAs**: Each task has a 2-hour SLA.
+- **Retries**: Configure up to 3 retries with exponential backoff.
+- **Backfills**: Separate process for historical data ingestion.
 
 ## Monitoring & Alerts
-- **AWS CloudWatch**: Monitor workflow execution.
-- **Metrics**: Success and failure rates for each task.
-- **Logging**: Enable logging in AWS Step Functions for execution history.
-- **Alerts**: Configure CloudWatch alerts for failures or performance issues.
+- **Monitoring**:
+  - Use Airflow's built-in monitoring for task execution.
+  - Create dashboards in Grafana or CloudWatch for performance tracking.
+- **Alerts**:
+  - Configure alerts via Amazon SNS for task failures and SLA breaches.
+  - Notify the data engineering team via email.
 
 ## Risks & Tradeoffs
-### Risks:
-- Data quality issues if checks are insufficient.
-- PII management compliance risks.
-- Workflow complexity may hinder maintenance.
+- **Risks**:
+  - Dependency on AWS services may lead to failures during downtime.
+  - Schema changes could disrupt the ETL process.
+  - Data quality issues may arise if ingestion fails.
+- **Tradeoffs**:
+  - Batch processing limits real-time analytics capabilities.
+  - Using Parquet format requires additional processing time but optimizes storage and query performance.
 
-### Tradeoffs:
-- Cost vs. performance with AWS managed services.
-- Batch processing simplicity vs. real-time analytics needs.
-- Simplicity vs. flexibility in workflow design. 
-
-This architecture provides a robust framework for managing e-commerce analytics, ensuring data integrity, scalability, and compliance with governance policies.
+This architecture provides a comprehensive and scalable solution for managing e-commerce analytics data on AWS, ensuring data quality and timely insights for decision-making.
