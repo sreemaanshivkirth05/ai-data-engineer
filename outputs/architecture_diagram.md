@@ -1,82 +1,69 @@
 flowchart TD
     subgraph DataSources
-        A1[Player Dataset]
-        A2[Game Dataset]
-        A3[Team Dataset]
-        A4[Injury Reports]
+        A1[Orders Table]
+        A2[Customers Table]
+        A3[Order Items Table]
+        A4[Products Table]
     end
 
     subgraph IngestionLayer
         B1[Batch Ingestion]
-        B2[Amazon S3]
-        B3[AWS Glue]
-        B4[AWS Lambda]
-        B5[Amazon EventBridge]
+        B2[CDC Ingestion]
     end
 
-    subgraph StorageLayers
+    subgraph StorageLayer
         subgraph BronzeLayer
             C1[Raw Data]
-            C2[CSV Format]
         end
         subgraph SilverLayer
-            D1[Cleaned Data]
-            D2[Parquet Format]
+            C2[Processed Data]
         end
         subgraph GoldLayer
-            E1[Aggregated Data]
-            E2[Data Warehouse]
+            C3[Aggregated Data]
         end
     end
 
     subgraph Orchestration
-        F1[Apache Airflow]
-        F2[Scheduled Jobs]
+        D1[Apache Airflow]
     end
 
     subgraph DataQualityGovernance
-        G1[Data Quality Checks]
-        G2[Access Control]
-        G3[Audit Logging]
+        E1[Data Quality Checks]
+        E2[Data Governance]
     end
 
     subgraph AnalyticsBI
-        H1[Dashboards]
-        H2[Reports]
-        H3[Ad-hoc Analysis]
+        F1[Sales Dashboard]
+        F2[Customer Insights]
+        F3[Inventory Alerts]
+        F4[Marketing Attribution]
     end
 
-    A1 -->|Ingest| B1
-    A2 -->|Ingest| B1
-    A3 -->|Ingest| B1
-    A4 -->|Ingest| B1
+    A1 -->|Ingests| B1
+    A2 -->|Ingests| B1
+    A3 -->|Ingests| B1
+    A4 -->|Ingests| B1
 
-    B1 -->|Store| B2
-    B2 -->|Process| B3
-    B3 -->|Trigger| B4
-    B4 -->|Schedule| B5
+    A1 -->|CDC| B2
+    A2 -->|CDC| B2
 
-    B2 -->|Store| C1
-    C1 -->|Transform| B3
-    B3 -->|Store| D1
-    D1 -->|Aggregate| E1
-    E1 -->|Store| E2
+    B1 --> C1
+    B2 --> C1
+    C1 --> C2
+    C2 --> C3
 
-    F1 -->|Manage| B1
-    F1 -->|Manage| B3
-    F1 -->|Manage| E1
+    C3 --> D1
+    D1 --> E1
+    D1 --> E2
 
-    G1 -->|Ensure| D1
-    G2 -->|Control| E2
-    G3 -->|Log| E2
+    C3 --> F1
+    C3 --> F2
+    C3 --> F3
+    C3 --> F4
 
-    E2 -->|Visualize| H1
-    E2 -->|Generate| H2
-    E2 -->|Explore| H3
-
-    style DataSources fill:#f9f,stroke:#333,stroke-width:2px
-    style IngestionLayer fill:#ccf,stroke:#333,stroke-width:2px
-    style StorageLayers fill:#cfc,stroke:#333,stroke-width:2px
-    style Orchestration fill:#fcf,stroke:#333,stroke-width:2px
-    style DataQualityGovernance fill:#ffc,stroke:#333,stroke-width:2px
-    style AnalyticsBI fill:#cff,stroke:#333,stroke-width:2px
+    style DataSources fill:#f9f,stroke:#333,stroke-width:2px;
+    style IngestionLayer fill:#bbf,stroke:#333,stroke-width:2px;
+    style StorageLayer fill:#bfb,stroke:#333,stroke-width:2px;
+    style Orchestration fill:#ffb,stroke:#333,stroke-width:2px;
+    style DataQualityGovernance fill:#fbf,stroke:#333,stroke-width:2px;
+    style AnalyticsBI fill:#ff9,stroke:#333,stroke-width:2px;

@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="card">
+
+<h2>⚙ AI Data Engineer</h2>
+
+<p>
+Upload a dataset to automatically clean and prepare it for analytics.
+The AI data engineering pipeline will detect issues and apply preprocessing.
+</p>
+
+<form action="/clean" method="post" enctype="multipart/form-data">
+
+<label><b>Upload Dataset</b></label>
+
+<br><br>
+
+<input type="file" name="dataset" required>
+
+<br><br>
+
+<label><b>Business Requirements (Optional)</b></label>
+
+<br><br>
+
+<textarea
+name="business_requirements"
+rows="4"
+placeholder="Example: Prepare the dataset for sales forecasting analysis">
+</textarea>
+
+<br><br>
+
+<button type="submit">Run Cleaning Pipeline</button>
+
+</form>
+
+</div>
+
+
+{% if result %}
+
+<!-- Pipeline Status -->
+
+<div class="card">
+
+<h3>🤖 Data Engineering Pipeline</h3>
+
+<div class="pipeline">
+
+✔ Dataset Profiling  
+<br>
+
+✔ Missing Value Handling  
+<br>
+
+✔ Duplicate Removal  
+<br>
+
+✔ Outlier Treatment  
+<br>
+
+✔ Data Quality Validation  
+<br>
+
+✔ Clean Dataset Generation  
+
+</div>
+
+</div>
+
+
+<!-- Cleaning Report -->
+
+<div class="card">
+
+<h3>📊 Cleaning Report</h3>
+
+<ul>
+
+<li><b>Status:</b> {{ result.status }}</li>
+
+<li><b>Rows Before Cleaning:</b> {{ result.report.rows_before }}</li>
+
+<li><b>Rows After Cleaning:</b> {{ result.report.rows_after }}</li>
+
+<li><b>Duplicates Removed:</b> {{ result.report.duplicates_removed }}</li>
+
+</ul>
+
+</div>
+
+
+<!-- Missing Values -->
+
+{% if result.report.missing_values %}
+
+<div class="card">
+
+<h3>⚠ Missing Values Detected</h3>
+
+<ul>
+
+{% for col, value in result.report.missing_values.items() %}
+
+<li>{{ col }} : {{ value }}</li>
+
+{% endfor %}
+
+</ul>
+
+</div>
+
+{% endif %}
+
+
+<!-- Download Section -->
+
+<div class="card">
+
+<h3>📥 Cleaned Dataset</h3>
+
+<p>
+Your dataset has been cleaned and prepared for analysis.
+</p>
+
+<a href="/outputs/engineer/cleaned_dataset.csv">
+Download Cleaned Dataset
+</a>
+
+</div>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Data Analyst</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --primary:#2563eb;
+      --primary-2:#1d4ed8;
+      --blue-soft:#dbeafe;
+      --green-soft:#dcfce7;
+      --amber-soft:#fef3c7;
+      --purple-soft:#ede9fe;
+      --shadow:0 10px 30px rgba(15, 23, 42, 0.08);
+      --radius:18px;
+    }
+
+    *{ box-sizing:border-box; }
+
+    html, body{
+      margin:0;
+      padding:0;
+      background:linear-gradient(180deg, var(--bg) 0%, #fbfcfe 100%);
+      color:var(--text);
+      font-family:Inter, Arial, Helvetica, sans-serif;
+    }
+
+    .container{
+      max-width:1280px;
+      margin:0 auto;
+      padding:32px 20px 64px;
+    }
+
+    .hero{ margin-bottom:24px; }
+
+    .page-eyebrow{
+      display:inline-block;
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:var(--primary-2);
+      background:var(--blue-soft);
+      padding:8px 12px;
+      border-radius:999px;
+      margin-bottom:14px;
+    }
+
+    .page-title{
+      font-size:38px;
+      line-height:1.15;
+      font-weight:800;
+      margin:0 0 10px 0;
+      max-width:980px;
+    }
+
+    .page-subtitle{
+      font-size:16px;
+      color:var(--muted);
+      line-height:1.7;
+      max-width:900px;
+      margin:0;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:24px;
+      margin-bottom:20px;
+    }
+
+    .card-header{ margin-bottom:18px; }
+
+    .card-title{
+      font-size:22px;
+      font-weight:800;
+      margin:0 0 8px 0;
+    }
+
+    .card-subtitle{
+      font-size:14px;
+      color:var(--muted);
+      line-height:1.6;
+      margin:0;
+    }
+
+    .section-badge{
+      display:inline-block;
+      font-size:12px;
+      font-weight:700;
+      padding:6px 10px;
+      border-radius:999px;
+      margin-bottom:12px;
+    }
+
+    .badge-blue{ background:var(--blue-soft); color:#1d4ed8; }
+    .badge-green{ background:var(--green-soft); color:#15803d; }
+    .badge-amber{ background:var(--amber-soft); color:#b45309; }
+    .badge-purple{ background:var(--purple-soft); color:#6d28d9; }
+
+    label{
+      display:block;
+      font-size:14px;
+      font-weight:700;
+      margin-bottom:10px;
+    }
+
+    input[type="file"]{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      padding:14px;
+      font-size:14px;
+    }
+
+    textarea{
+      width:100%;
+      min-height:110px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      padding:14px 16px;
+      font-size:15px;
+      line-height:1.6;
+      resize:vertical;
+      color:var(--text);
+    }
+
+    textarea:focus,
+    input[type="file"]:focus{
+      outline:none;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 4px rgba(37,99,235,.08);
+    }
+
+    .actions{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      background:linear-gradient(180deg, var(--primary) 0%, var(--primary-2) 100%);
+      color:#fff;
+      border:none;
+      border-radius:14px;
+      padding:12px 18px;
+      font-size:14px;
+      font-weight:700;
+      cursor:pointer;
+      transition:.18s ease;
+      box-shadow:0 8px 20px rgba(37,99,235,.18);
+    }
+
+    .btn:hover{
+      transform:translateY(-1px);
+      opacity:.96;
+    }
+
+    .helper{
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .loading{
+      display:none;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:22px;
+      margin-bottom:20px;
+    }
+
+    .loading.active{ display:block; }
+
+    .loading-title{
+      font-size:16px;
+      font-weight:800;
+      margin-bottom:12px;
+    }
+
+    .loading-step{
+      font-size:14px;
+      color:var(--muted);
+      margin-bottom:8px;
+    }
+
+    .meta-grid{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:14px;
+      margin-top:16px;
+    }
+
+    .meta-item{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+    }
+
+    .meta-label{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+      margin-bottom:8px;
+    }
+
+    .meta-value{
+      font-size:18px;
+      font-weight:800;
+      line-height:1.35;
+    }
+
+    .kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:14px;
+    }
+
+    .kpi-card{
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:18px;
+      background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      min-height:118px;
+    }
+
+    .kpi-title{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      letter-spacing:.03em;
+      margin-bottom:10px;
+    }
+
+    .kpi-value{
+      font-size:28px;
+      font-weight:800;
+      line-height:1.1;
+      color:var(--text);
+      word-break:break-word;
+    }
+
+    .kpi-footnote{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+
+    .chart-box-large{
+      width:100%;
+      height:580px;
+      border-radius:14px;
+      background:#fff;
+    }
+
+    .chart-grid{
+      display:grid;
+      grid-template-columns:repeat(2, 1fr);
+      gap:18px;
+    }
+
+    .chart-card{
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:16px;
+      background:#fff;
+    }
+
+    .chart-box{
+      width:100%;
+      height:380px;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .chart-title{
+      font-size:18px;
+      font-weight:800;
+      margin:0 0 10px 0;
+      line-height:1.35;
+    }
+
+    .chart-caption{
+      margin-top:12px;
+      font-size:14px;
+      color:var(--muted);
+      line-height:1.6;
+    }
+
+    .takeaway-list{
+      margin:0;
+      padding-left:20px;
+    }
+
+    .takeaway-list li{
+      margin-bottom:10px;
+      line-height:1.7;
+      font-size:15px;
+    }
+
+    .text-layout{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:20px;
+    }
+
+    .text-panel{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:20px;
+      height:100%;
+    }
+
+    .text-headline{
+      font-size:24px;
+      line-height:1.4;
+      font-weight:800;
+      margin-bottom:14px;
+    }
+
+    .text-summary{
+      font-size:15px;
+      color:var(--muted);
+      line-height:1.7;
+      margin-bottom:16px;
+    }
+
+    .text-paragraph{
+      font-size:15px;
+      line-height:1.85;
+      color:var(--text);
+      margin-bottom:14px;
+    }
+
+    .story-points{
+      margin:0 0 16px 0;
+      padding-left:20px;
+    }
+
+    .story-points li{
+      margin-bottom:10px;
+      line-height:1.7;
+      font-size:15px;
+    }
+
+    .empty-state{
+      font-size:15px;
+      color:var(--muted);
+      line-height:1.7;
+    }
+
+    .footer{
+      text-align:center;
+      color:var(--muted);
+      font-size:13px;
+      margin-top:18px;
+    }
+
+    @media (max-width: 1100px){
+      .kpi-grid{ grid-template-columns:repeat(2, 1fr); }
+      .meta-grid{ grid-template-columns:repeat(2, 1fr); }
+      .chart-grid{ grid-template-columns:1fr; }
+      .text-layout{ grid-template-columns:1fr; }
+    }
+
+    @media (max-width: 760px){
+      .container{ padding:24px 14px 42px; }
+      .page-title{ font-size:30px; }
+      .meta-grid{ grid-template-columns:1fr; }
+      .kpi-grid{ grid-template-columns:1fr; }
+      .chart-box-large{ height:440px; }
+      .chart-box{ height:320px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div class="page-eyebrow">AI Analytics Workspace</div>
+      <h1 class="page-title">Ask a business question. Get the answer, the visuals, and the story.</h1>
+      <p class="page-subtitle">
+        Upload a dataset, ask a natural-language question, and get KPI summaries, Apache ECharts visuals,
+        and detailed explanations designed for real business understanding.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="section-badge badge-blue">Analysis setup</div>
+        <div class="card-title">Run analysis</div>
+        <p class="card-subtitle">
+          Upload a dataset and ask a question the way a stakeholder, analyst, or product manager would.
+        </p>
+      </div>
+
+      <label for="dataset">Dataset</label>
+      <input type="file" id="dataset" />
+
+      <div style="height:16px;"></div>
+
+      <label for="question">Question</label>
+      <textarea id="question" placeholder="Example: Tell me the story behind product performance by country"></textarea>
+
+      <div style="height:16px;"></div>
+
+      <div class="actions">
+        <button class="btn" onclick="runAnalysis()">Run Analysis</button>
+        <span class="helper">Each answer includes KPI context, 4 charts, detailed narrative, and a business story.</span>
+      </div>
+    </div>
+
+    <div id="loadingBox" class="loading">
+      <div class="section-badge badge-purple">Processing</div>
+      <div class="loading-title">Your analysis is being prepared</div>
+      <div class="loading-step">Understanding your question...</div>
+      <div class="loading-step">Selecting the target metric and KPIs...</div>
+      <div class="loading-step">Choosing the best chart plan...</div>
+      <div class="loading-step">Generating visualizations...</div>
+      <div class="loading-step">Writing the narrative and data story...</div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="footer">
+      AI Data Analyst · Multi-agent analytics workspace
+    </div>
+  </div>
+
+  <script>
+    let mountedCharts = [];
+
+    async function runAnalysis(){
+      const fileInput = document.getElementById("dataset");
+      const question = document.getElementById("question").value;
+      const loadingBox = document.getElementById("loadingBox");
+      const results = document.getElementById("results");
+
+      if(fileInput.files.length === 0){
+        alert("Please upload a dataset first");
+        return;
+      }
+
+      if(question.trim() === ""){
+        alert("Please enter a question");
+        return;
+      }
+
+      disposeCharts();
+      results.innerHTML = "";
+      loadingBox.classList.add("active");
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("question", question);
+
+      try{
+        const response = await fetch("/analyze", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+        loadingBox.classList.remove("active");
+
+        if(data.error){
+          alert(data.error);
+          return;
+        }
+
+        displayResults(data);
+
+      }catch(err){
+        loadingBox.classList.remove("active");
+        alert("Server error occurred");
+        console.error(err);
+      }
+    }
+
+    function disposeCharts(){
+      mountedCharts.forEach(chart => {
+        try { chart.dispose(); } catch(e) {}
+      });
+      mountedCharts = [];
+    }
+
+    function formatLabel(value) {
+      if (!value) return "N/A";
+      return String(value)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatValue(value, label = "") {
+      if (value === null || value === undefined) return "N/A";
+
+      const lowerLabel = String(label).toLowerCase();
+
+      if (typeof value === "number") {
+        const isMoney =
+          lowerLabel.includes("amount") ||
+          lowerLabel.includes("revenue") ||
+          lowerLabel.includes("price") ||
+          lowerLabel.includes("profit") ||
+          lowerLabel.includes("cost") ||
+          lowerLabel.includes("metric");
+
+        if (isMoney) {
+          return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 2
+          }).format(value);
+        }
+
+        return new Intl.NumberFormat("en-US", {
+          maximumFractionDigits: 2
+        }).format(value);
+      }
+
+      return value;
+    }
+
+    function buildKPIHtml(data){
+      const kpis = data.kpis || {};
+
+      const kpiItems = [
+        { title: `Total ${formatLabel(data.target)}`, value: kpis.total_target, footnote: "Overall total across the analysis scope" },
+        { title: `Average ${formatLabel(data.target)}`, value: kpis.average_target, footnote: "Average value per analyzed row" },
+        { title: `Median ${formatLabel(data.target)}`, value: kpis.median_target, footnote: "Middle value after sorting the metric" },
+        { title: "Rows Analyzed", value: kpis.row_count, footnote: "Total records included in the analysis" },
+        { title: `Top ${formatLabel(kpis.top_dimension_name || "Group")}`, value: kpis.top_dimension_value, footnote: "Leading group for the target metric" },
+        { title: `Top ${formatLabel(kpis.top_dimension_name || "Group")} Metric`, value: kpis.top_dimension_metric, footnote: "Contribution from the leading group" },
+        { title: "Date Range Start", value: kpis.date_range_start, footnote: "Earliest available date in the dataset" },
+        { title: "Date Range End", value: kpis.date_range_end, footnote: "Latest available date in the dataset" }
+      ].filter(item => item.value !== undefined);
+
+      if(kpiItems.length === 0){
+        return "";
+      }
+
+      let html = `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-green">KPIs</div>
+            <div class="card-title">KPI overview</div>
+            <p class="card-subtitle">High-level metrics that summarize the dataset and anchor the rest of the analysis.</p>
+          </div>
+          <div class="kpi-grid">
+      `;
+
+      kpiItems.forEach(item => {
+        html += `
+          <div class="kpi-card">
+            <div class="kpi-title">${item.title}</div>
+            <div class="kpi-value">${formatValue(item.value, item.title)}</div>
+            <div class="kpi-footnote">${item.footnote}</div>
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+      return html;
+    }
+
+    function buildTakeaways(data){
+      const takeaways = [];
+      const kpis = data.kpis || {};
+
+      if(data.target){
+        takeaways.push(`This analysis is centered on ${formatLabel(data.target)} as the primary business metric.`);
+      }
+
+      if(kpis.top_dimension_name && kpis.top_dimension_value){
+        takeaways.push(`The leading ${String(kpis.top_dimension_name).toLowerCase()} is ${kpis.top_dimension_value}, making it the strongest visible contributor in the current analysis.`);
+      }
+
+      if(kpis.total_target !== undefined){
+        takeaways.push(`The total ${String(data.target || "target").toLowerCase()} across the analyzed data is ${formatValue(kpis.total_target, data.target)}.`);
+      }
+
+      if(data.charts && data.charts.length >= 4){
+        takeaways.push(`The visual answer set combines ranking, trend, distribution, and supporting context so the question can be understood from multiple angles.`);
+      }
+
+      if(takeaways.length === 0){
+        takeaways.push("The main chart below represents the clearest visual answer to your question.");
+      }
+
+      let html = `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-amber">Summary</div>
+            <div class="card-title">Key takeaways</div>
+            <p class="card-subtitle">A quick readout of the most important conclusions before exploring the full visuals and written interpretation.</p>
+          </div>
+          <ul class="takeaway-list">
+      `;
+
+      takeaways.slice(0, 4).forEach(item => {
+        html += `<li>${item}</li>`;
+      });
+
+      html += `</ul></div>`;
+      return html;
+    }
+
+    function renderNarrative(narrative){
+      if (!narrative || (!narrative.summary && !narrative.paragraphs?.length)) {
+        return `
+          <div class="text-panel">
+            <div class="empty-state">
+              No strong analytical narrative was generated for this query, but the KPIs and charts above still summarize the result.
+            </div>
+          </div>
+        `;
+      }
+
+      let html = `<div class="text-panel">`;
+
+      if(narrative.summary){
+        html += `<div class="text-summary">${narrative.summary}</div>`;
+      }
+
+      if(narrative.paragraphs && narrative.paragraphs.length > 0){
+        narrative.paragraphs.forEach(p => {
+          html += `<div class="text-paragraph">${p}</div>`;
+        });
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    function renderStory(story){
+      if (!story || (!story.headline && !story.key_points?.length && !story.business_view?.length)) {
+        return `
+          <div class="text-panel">
+            <div class="empty-state">
+              No broader data story was generated for this query.
+            </div>
+          </div>
+        `;
+      }
+
+      let html = `<div class="text-panel">`;
+
+      if(story.headline){
+        html += `<div class="text-headline">${story.headline}</div>`;
+      }
+
+      if(story.key_points && story.key_points.length > 0){
+        html += `<ul class="story-points">`;
+        story.key_points.forEach(point => {
+          html += `<li>${point}</li>`;
+        });
+        html += `</ul>`;
+      }
+
+      if(story.business_view && story.business_view.length > 0){
+        story.business_view.forEach(line => {
+          html += `<div class="text-paragraph">${line}</div>`;
+        });
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    function renderMainChart(chart){
+      if(!chart) return "";
+
+      return `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-green">Primary visual</div>
+            <div class="card-title">Main visualization</div>
+            <p class="card-subtitle">This chart is the clearest direct answer to your question.</p>
+          </div>
+          <div class="chart-title">${chart.title || "Main Chart"}</div>
+          <div id="primary-chart" class="chart-box-large"></div>
+          <div class="chart-caption">${chart.description || ""}</div>
+        </div>
+      `;
+    }
+
+    function renderSupportingCharts(charts){
+      if(!charts || charts.length === 0) return "";
+
+      let html = `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-blue">Supporting visuals</div>
+            <div class="card-title">Supporting visualizations</div>
+            <p class="card-subtitle">These additional views explain the same question from different analytical angles so the user can understand both pattern and context.</p>
+          </div>
+          <div class="chart-grid">
+      `;
+
+      charts.forEach((chart, idx) => {
+        html += `
+          <div class="chart-card">
+            <div class="chart-title">${chart.title || "Supporting Chart"}</div>
+            <div id="supporting-chart-${idx}" class="chart-box"></div>
+            <div class="chart-caption">${chart.description || ""}</div>
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+      return html;
+    }
+
+    function renderTextSection(data){
+      return `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-purple">Interpretation</div>
+            <div class="card-title">Narrative and data story</div>
+            <p class="card-subtitle">The sections below explain what the charts mean, what stands out, and how the user should interpret the dataset in the context of the question asked.</p>
+          </div>
+          <div class="text-layout">
+            <div>
+              <div class="card-title" style="font-size:20px; margin-bottom:12px;">Analyst narrative</div>
+              ${renderNarrative(data.narrative)}
+            </div>
+            <div>
+              <div class="card-title" style="font-size:20px; margin-bottom:12px;">Data story</div>
+              ${renderStory(data.story)}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function mountCharts(data){
+      if(!data.charts || data.charts.length === 0) return;
+
+      const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
+      const supportingCharts = data.charts.filter(c => c !== primaryChart);
+
+      const primaryDom = document.getElementById("primary-chart");
+      if(primaryDom && primaryChart.option){
+        const primaryInstance = echarts.init(primaryDom);
+        primaryInstance.setOption(primaryChart.option);
+        mountedCharts.push(primaryInstance);
+      }
+
+      supportingCharts.forEach((chart, idx) => {
+        const dom = document.getElementById(`supporting-chart-${idx}`);
+        if(dom && chart.option){
+          const chartInstance = echarts.init(dom);
+          chartInstance.setOption(chart.option);
+          mountedCharts.push(chartInstance);
+        }
+      });
+
+      window.addEventListener("resize", resizeAllCharts, { once: true });
+    }
+
+    function resizeAllCharts(){
+      mountedCharts.forEach(chart => {
+        try { chart.resize(); } catch(e) {}
+      });
+    }
+
+    function displayResults(data){
+      const results = document.getElementById("results");
+      results.innerHTML = "";
+
+      results.innerHTML += `
+        <div class="card">
+          <div class="card-header">
+            <div class="section-badge badge-blue">Analysis summary</div>
+            <div class="card-title">Your question</div>
+            <p class="card-subtitle">
+              We identified the primary metric, selected the most relevant supporting dimensions, and built a 4-chart answer set with detailed written interpretation.
+            </p>
+          </div>
+
+          <div style="font-size:22px; font-weight:800; line-height:1.5; margin-bottom:18px;">
+            ${data.question || "No question returned"}
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="meta-label">Intent</div>
+              <div class="meta-value">${formatLabel(data.intent) || "Not detected"}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Target Metric</div>
+              <div class="meta-value">${formatLabel(data.target) || "Not detected"}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">KPI Mode</div>
+              <div class="meta-value">${data.show_kpis ? "Enabled" : "Not needed"}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Charts Returned</div>
+              <div class="meta-value">${data.charts ? data.charts.length : 0}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if(data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0){
+        results.innerHTML += buildKPIHtml(data);
+      }
+
+      results.innerHTML += buildTakeaways(data);
+
+      if(data.charts && data.charts.length > 0){
+        const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
+        const supportingCharts = data.charts.filter(c => c !== primaryChart);
+
+        results.innerHTML += renderMainChart(primaryChart);
+        results.innerHTML += renderSupportingCharts(supportingCharts);
+      }
+
+      results.innerHTML += renderTextSection(data);
+
+      mountCharts(data);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>AI Data Platform</title>
+
+<style>
+
+/* Base page */
+
+body{
+margin:0;
+font-family:Arial, Helvetica, sans-serif;
+background:#f5f6fa;
+}
+
+
+/* Sidebar */
+
+.sidebar{
+position:fixed;
+left:0;
+top:0;
+width:220px;
+height:100%;
+background:#111;
+padding-top:20px;
+}
+
+.sidebar h2{
+color:white;
+text-align:center;
+margin-bottom:40px;
+}
+
+.sidebar a{
+display:block;
+color:white;
+padding:15px 20px;
+text-decoration:none;
+font-size:15px;
+}
+
+.sidebar a:hover{
+background:#333;
+}
+
+
+/* Main content */
+
+.main{
+margin-left:220px;
+padding:40px;
+}
+
+
+/* Card layout */
+
+.card{
+background:white;
+padding:25px;
+border-radius:10px;
+box-shadow:0 6px 15px rgba(0,0,0,0.1);
+margin-bottom:25px;
+}
+
+
+/* Buttons */
+
+button{
+background:#2f80ed;
+color:white;
+padding:12px 22px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+font-size:14px;
+}
+
+button:hover{
+background:#1c6ed5;
+}
+
+
+/* Inputs */
+
+textarea{
+width:100%;
+padding:10px;
+border-radius:6px;
+border:1px solid #ccc;
+font-size:14px;
+}
+
+input[type=file]{
+padding:10px;
+font-size:14px;
+}
+
+
+/* Chart container */
+
+.chart img{
+margin-top:15px;
+border-radius:6px;
+}
+
+
+/* Interactive charts iframe */
+
+iframe{
+border-radius:8px;
+margin-top:10px;
+}
+
+
+/* Agent pipeline UI */
+
+.pipeline{
+background:#f7f7f7;
+padding:15px;
+border-radius:6px;
+margin-top:10px;
+}
+
+
+/* Pipeline animation */
+
+.step{
+padding:8px;
+font-size:14px;
+animation:pulse 2s infinite;
+}
+
+@keyframes pulse{
+
+0%{
+opacity:0.6;
+}
+
+50%{
+opacity:1;
+}
+
+100%{
+opacity:0.6;
+}
+
+}
+
+
+/* Lists */
+
+ul{
+padding-left:20px;
+}
+
+li{
+margin-bottom:5px;
+}
+
+
+/* Code blocks */
+
+pre{
+background:#f4f4f4;
+padding:15px;
+border-radius:6px;
+overflow-x:auto;
+white-space:pre-wrap;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- Sidebar Navigation -->
+
+<div class="sidebar">
+
+<h2>AI Platform</h2>
+
+<a href="/">🏠 Dashboard</a>
+
+<a href="/engineer">⚙ Data Engineer</a>
+
+<a href="/analyst">📊 Data Analyst</a>
+
+<a href="/architect">🏗 Data Architect</a>
+
+</div>
+
+
+<!-- Main Content -->
+
+<div class="main">
+
+{% block content %}
+
+{% endblock %}
+
+</div>
+
+</body>
+
+</html>

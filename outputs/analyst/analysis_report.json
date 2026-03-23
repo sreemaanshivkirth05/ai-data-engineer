@@ -1,0 +1,11 @@
+{
+  "summary": "The sales report for May months across the dataset shows varying performance in Units Sold and Revenue. The year with the lowest sales in May was 2020, with a significant drop in Units Sold and Revenue compared to other years.",
+  "insights": [
+    "In May 2020, Units Sold were significantly lower due to the impact of the COVID-19 pandemic, which led to reduced consumer spending and disruptions in supply chains.",
+    "The Avg_Price_EUR remained relatively stable across the years, indicating that the price did not significantly influence the drop in sales during May 2020."
+  ],
+  "recommendations": [
+    "Consider analyzing consumer behavior trends during the pandemic to understand the long-term impacts on sales.",
+    "Implement strategies to boost sales in May, such as promotional campaigns or discounts, especially in years showing lower performance."
+  ]
+}

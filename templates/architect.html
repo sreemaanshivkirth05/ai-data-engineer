@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="card">
+
+<h2>🏗 AI Data Architect</h2>
+
+<p>
+Design a complete data architecture by describing your business requirements
+and the structure of your data sources.
+The AI architect agents will generate a full pipeline design.
+</p>
+
+<form action="/design" method="post">
+
+<label><b>Business Requirements</b></label>
+
+<br><br>
+
+<textarea
+name="requirements"
+rows="6"
+placeholder="Example: Build a data platform for analyzing sales data from multiple regions">
+</textarea>
+
+<br><br>
+
+<label><b>Source Schemas</b></label>
+
+<br><br>
+
+<textarea
+name="schemas"
+rows="6"
+placeholder="Example: Sales(id, region, product, revenue, date)">
+</textarea>
+
+<br><br>
+
+<button type="submit">Generate Architecture</button>
+
+</form>
+
+</div>
+
+
+{% if result %}
+
+<!-- Pipeline Architecture -->
+
+<div class="card">
+
+<h3>📊 Pipeline Architecture</h3>
+
+<pre>{{ result.pipeline_architecture }}</pre>
+
+</div>
+
+
+<!-- Security -->
+
+<div class="card">
+
+<h3>🔐 Security & Governance</h3>
+
+<pre>{{ result.security }}</pre>
+
+</div>
+
+
+<!-- Cost -->
+
+<div class="card">
+
+<h3>💰 Cost Estimation</h3>
+
+<pre>{{ result.cost }}</pre>
+
+</div>
+
+
+<!-- Diagram -->
+
+<div class="card">
+
+<h3>📐 Architecture Diagram</h3>
+
+<pre>{{ result.diagram }}</pre>
+
+</div>
+
+{% endif %}
+
+{% endblock %}

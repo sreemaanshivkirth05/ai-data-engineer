@@ -1,0 +1,118 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="card">
+
+<h1>AI Data Platform</h1>
+
+<p>
+An agentic platform for automating the data lifecycle using AI agents.
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h2>Platform Overview</h2>
+
+<p>
+This system combines AI agents with data workflows to automate key tasks across
+data engineering, analytics, and architecture design.
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h2>Available Modules</h2>
+
+<ul>
+
+<li>
+⚙ <b>Data Engineer</b><br>
+Clean datasets, handle missing values, remove duplicates,
+and prepare structured data for downstream analytics.
+</li>
+
+<br>
+
+<li>
+📊 <b>AI Data Analyst</b><br>
+Ask business questions and automatically generate insights,
+charts, and analysis using an AI-driven pipeline.
+</li>
+
+<br>
+
+<li>
+🏗 <b>Data Architect</b><br>
+Generate end‑to‑end data pipeline architectures including
+ingestion strategy, storage design, security governance,
+and cost estimation.
+</li>
+
+</ul>
+
+</div>
+
+
+<div class="card">
+
+<h2>System Architecture</h2>
+
+<p>
+The platform is built using modular agent pipelines.
+Each role uses a dedicated runtime pipeline orchestrating specialized AI agents.
+</p>
+
+<pre>
+
+AI Data Platform
+│
+├── Data Engineer Pipeline
+│       dataset_profiler_agent
+│       schema_contract_agent
+│       storage_layout_agent
+│       orchestration_agent
+│
+├── Data Analyst Pipeline
+│       question_framing_agent
+│       hypothesis_agent
+│       driver_analysis_agent
+│       chart_selection_agent
+│       visualization_agent
+│       narrative_agent
+│
+└── Data Architect Pipeline
+        pipeline_architect_agent
+        security_governance_agent
+        cost_estimation_agent
+        architecture_diagram_agent
+
+</pre>
+
+</div>
+
+
+<div class="card">
+
+<h2>How to Use</h2>
+
+<ol>
+
+<li>Select a module from the left sidebar.</li>
+
+<li>Upload a dataset or provide requirements.</li>
+
+<li>The system runs the relevant AI agent pipeline.</li>
+
+<li>Results are displayed as reports, insights, or architecture designs.</li>
+
+</ol>
+
+</div>
+
+{% endblock %}

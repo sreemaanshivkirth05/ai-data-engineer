@@ -1,139 +1,218 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, PlainTextResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-import subprocess
 import os
-import sys
+import shutil
+
+from fastapi import FastAPI, UploadFile, File, Form, Request
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from analyst_runtime.analysis_pipeline import run_analysis_pipeline
+from engineer_runtime.cleaning_pipeline import run_cleaning_pipeline
+from architect_runtime.architecture_pipeline import run_architecture_pipeline
+from orchestrator import run_full_pipeline
+
+
+# ======================================================
+# APP SETUP
+# ======================================================
 
 app = FastAPI()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
-UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-INPUTS_DIR = os.path.join(BASE_DIR, "inputs")
+templates = Jinja2Templates(directory="templates")
 
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+os.makedirs("outputs", exist_ok=True)
+os.makedirs("datasets", exist_ok=True)
 
-# Serve outputs (images, charts, etc.)
-os.makedirs(OUTPUTS_DIR, exist_ok=True)
-app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
-
-# Optional static folder
-if os.path.exists(os.path.join(BASE_DIR, "static")):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+# Serve output files
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 
-def read_output(filename: str) -> str:
-    path = os.path.join(OUTPUTS_DIR, filename)
-    if not os.path.exists(path):
-        return "No output generated yet."
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+# ======================================================
+# HELPERS
+# ======================================================
+
+def save_upload_file(upload_file: UploadFile, folder: str = "datasets") -> str:
+    os.makedirs(folder, exist_ok=True)
+    dataset_path = os.path.join(folder, upload_file.filename)
+
+    with open(dataset_path, "wb") as buffer:
+        shutil.copyfileobj(upload_file.file, buffer)
+
+    return dataset_path
 
 
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+# ======================================================
+# PAGES
+# ======================================================
+
+@app.get("/")
+async def home(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request}
+    )
 
 
-@app.post("/run")
-def run_pipeline(
-    request: Request,
-    business_requirements: str = Form(...),
-    source_schemas: str = Form(...),
-    dataset: UploadFile = File(...)
+@app.get("/home")
+async def home_alt(request: Request):
+    return templates.TemplateResponse(
+        "home.html",
+        {"request": request}
+    )
+
+
+@app.get("/analyst")
+async def analyst_page(request: Request):
+    return templates.TemplateResponse(
+        "analyst.html",
+        {"request": request}
+    )
+
+
+@app.get("/engineer")
+async def engineer_page(request: Request):
+    return templates.TemplateResponse(
+        "engineer.html",
+        {"request": request, "result": None}
+    )
+
+
+@app.get("/architect")
+async def architect_page(request: Request):
+    return templates.TemplateResponse(
+        "architect.html",
+        {"request": request, "result": None}
+    )
+
+
+# ======================================================
+# ANALYST ENDPOINT
+# ======================================================
+
+@app.post("/analyze")
+async def analyze_dataset(
+    file: UploadFile = File(...),
+    question: str = Form(...)
 ):
-    # Create folders if not exist
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
-    os.makedirs(INPUTS_DIR, exist_ok=True)
-    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    try:
+        dataset_path = save_upload_file(file)
 
-    # Save uploaded dataset
-    dataset_path = os.path.join(UPLOADS_DIR, dataset.filename)
-    with open(dataset_path, "wb") as f:
-        f.write(dataset.file.read())
+        report = run_analysis_pipeline(
+            dataset_path,
+            question
+        )
 
-    # Save text inputs
-    with open(os.path.join(INPUTS_DIR, "requirements.md"), "w", encoding="utf-8") as f:
-        f.write(business_requirements)
+        return JSONResponse(report)
 
-    with open(os.path.join(INPUTS_DIR, "schemas.md"), "w", encoding="utf-8") as f:
-        f.write(source_schemas)
-
-    # Save dataset path
-    with open(os.path.join(INPUTS_DIR, "dataset_path.txt"), "w", encoding="utf-8") as f:
-        f.write(dataset_path)
-
-    # Run orchestrator
-    subprocess.run([sys.executable, "orchestrator.py"], check=True)
-
-    return RedirectResponse(url="/results", status_code=303)
+    except Exception as e:
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
 
 
-@app.get("/results", response_class=HTMLResponse)
-def results(request: Request):
-    # Text outputs
-    architecture = read_output("architecture.md")
-    pipeline = read_output("pipeline_design.md")
-    data_model = read_output("data_model.md")
-    data_quality = read_output("data_quality_plan.md")
-    performance = read_output("performance_review.md")
-    validation = read_output("validation_report.md")
-    cost = read_output("cost_estimate.md")
-    documentation = read_output("README.md")
+# ======================================================
+# ENGINEER ENDPOINT
+# ======================================================
 
-    # Image paths (served via /outputs)
-    diagram_path = "/outputs/architecture_diagram.png"
+@app.post("/clean")
+async def clean_dataset(
+    request: Request,
+    dataset: UploadFile = File(...),
+    business_requirements: str = Form("")
+):
+    try:
+        dataset_path = save_upload_file(dataset)
 
-    charts_dir = os.path.join(OUTPUTS_DIR, "charts")
-    charts = []
-    if os.path.exists(charts_dir):
-        for f in os.listdir(charts_dir):
-            if f.lower().endswith(".png"):
-                charts.append(f"/outputs/charts/{f}")
+        result = run_cleaning_pipeline(
+            dataset_path=dataset_path,
+            business_requirements=business_requirements
+        )
 
-    return templates.TemplateResponse(
-        "results.html",
-        {
-            "request": request,
-            "architecture": architecture,
-            "pipeline": pipeline,
-            "data_model": data_model,
-            "data_quality": data_quality,
-            "performance": performance,
-            "validation": validation,
-            "cost": cost,
-            "documentation": documentation,
-            "diagram_path": diagram_path,
-            "charts": charts,
-        },
-    )
+        return templates.TemplateResponse(
+            "engineer.html",
+            {
+                "request": request,
+                "result": result
+            }
+        )
 
-
-@app.get("/view/{filename}")
-def view_file(filename: str):
-    path = os.path.join(OUTPUTS_DIR, filename)
-    if not os.path.exists(path):
-        return PlainTextResponse("File not found", status_code=404)
-
-    # If image, return file directly
-    if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-        return FileResponse(path)
-
-    # Otherwise return text
-    with open(path, "r", encoding="utf-8") as f:
-        return PlainTextResponse(f.read())
+    except Exception as e:
+        return templates.TemplateResponse(
+            "engineer.html",
+            {
+                "request": request,
+                "result": {
+                    "status": "error",
+                    "report": {"error": str(e)}
+                }
+            }
+        )
 
 
-@app.get("/history", response_class=HTMLResponse)
-def history(request: Request):
-    files = []
-    if os.path.exists(OUTPUTS_DIR):
-        files = os.listdir(OUTPUTS_DIR)
+# ======================================================
+# ARCHITECT ENDPOINT
+# ======================================================
 
-    return templates.TemplateResponse(
-        "history.html",
-        {"request": request, "files": files}
-    )
+@app.post("/design")
+async def design_architecture(
+    request: Request,
+    requirements: str = Form(""),
+    schemas: str = Form("")
+):
+    try:
+        result = run_architecture_pipeline(
+            requirements_text=requirements,
+            schemas_text=schemas
+        )
+
+        return templates.TemplateResponse(
+            "architect.html",
+            {
+                "request": request,
+                "result": result
+            }
+        )
+
+    except Exception as e:
+        return templates.TemplateResponse(
+            "architect.html",
+            {
+                "request": request,
+                "result": {
+                    "status": "error",
+                    "pipeline_architecture": f"Error: {str(e)}",
+                    "security": "",
+                    "cost": "",
+                    "diagram": ""
+                }
+            }
+        )
+
+
+# ======================================================
+# FULL AI DATA PLATFORM ENDPOINT
+# ======================================================
+
+@app.post("/run-full-system")
+async def run_full_system(
+    file: UploadFile = File(...),
+    requirements: str = Form(""),
+    schemas: str = Form("")
+):
+    try:
+        dataset_path = save_upload_file(file)
+
+        result = run_full_pipeline(
+            dataset_path=dataset_path,
+            requirements_text=requirements,
+            schemas_text=schemas
+        )
+
+        return JSONResponse(result)
+
+    except Exception as e:
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )

@@ -1,1 +1,1 @@
-C:\ai_data_engineer\uploads\MLB_cleaned.csv
+C:\ai_data_engineer\uploads\acs2017_census_tract_data.csv
