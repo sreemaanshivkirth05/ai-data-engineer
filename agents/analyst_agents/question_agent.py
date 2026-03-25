@@ -1,153 +1,95 @@
-class NarrativeAgent:
-    def run(self, question, analysis, kpis=None, target=None, business_layer=None):
-        kpis = kpis or {}
-        analysis = analysis or {}
-        business_layer = business_layer or {}
+class QuestionAgent:
+    def run(self, question):
+        q = (question or "").lower().strip()
 
-        correlations = analysis.get("correlations", {})
-        categorical_drivers = analysis.get("categorical_drivers", {})
-        target_summary = analysis.get("target_summary", {})
-        top_segments = analysis.get("top_segments", [])
-        bottom_segments = analysis.get("bottom_segments", [])
-        outlier_signals = analysis.get("outlier_signals", {})
+        intent = "general_analysis"
+        show_kpis = True
+        question_category = "general"
+        question_goal = "Understand the most important patterns in the dataset."
 
-        paragraphs = []
+        trend_terms = [
+            "trend", "over time", "monthly", "daily", "weekly", "yearly",
+            "timeline", "growth", "decline", "change over time", "seasonality"
+        ]
+        comparison_terms = [
+            "compare", "comparison", "versus", "vs", "higher than", "lower than",
+            "better than", "worse than", "difference between"
+        ]
+        distribution_terms = [
+            "distribution", "spread", "outlier", "variance", "histogram",
+            "range", "dispersion"
+        ]
+        relationship_terms = [
+            "relationship", "correlation", "impact", "influence", "driver",
+            "associated with", "linked to", "related to"
+        ]
+        ranking_terms = [
+            "top", "best", "highest", "lowest", "rank", "ranking",
+            "bottom", "leader", "laggard"
+        ]
+        summary_terms = [
+            "summary", "overview", "dashboard", "kpi", "performance", "report",
+            "snapshot"
+        ]
+        contribution_terms = [
+            "contribution", "share", "mix", "composition", "portion", "split"
+        ]
+        segment_terms = [
+            "segment", "group", "category", "region", "country", "channel",
+            "customer", "product"
+        ]
 
-        if target:
-            paragraphs.append(
-                f"This analysis is centered on {format_label(target).lower()} because it is the primary metric most relevant to the business question."
-            )
+        if any(term in q for term in trend_terms):
+            intent = "trend_analysis"
+            question_category = "trend"
+            question_goal = "Understand how performance changes over time."
 
-        if business_layer.get("direct_answer"):
-            paragraphs.append(business_layer["direct_answer"])
+        elif any(term in q for term in comparison_terms):
+            intent = "comparison"
+            question_category = "comparison"
+            question_goal = "Compare performance across groups and identify leaders and laggards."
 
-        if target_summary:
-            mean_value = format_number(target_summary.get("mean"))
-            median_value = format_number(target_summary.get("median"))
-            min_value = format_number(target_summary.get("min"))
-            max_value = format_number(target_summary.get("max"))
+        elif any(term in q for term in distribution_terms):
+            intent = "distribution_analysis"
+            question_category = "distribution"
+            question_goal = "Understand spread, concentration, and unusual values."
 
-            paragraphs.append(
-                f"At the overall level, the distribution of {format_label(target).lower()} shows an average of {mean_value}, a median of {median_value}, and a range from {min_value} to {max_value}. This helps establish the scale and spread of the metric before looking at segment-level differences."
-            )
+        elif any(term in q for term in relationship_terms):
+            intent = "relationship_analysis"
+            question_category = "relationship"
+            question_goal = "Identify which measurable factors move most strongly with the target."
 
-        elif kpis.get("total_target") is not None and kpis.get("average_target") is not None and target:
-            paragraphs.append(
-                f"At the overall level, total {format_label(target).lower()} is {format_number(kpis['total_target'])}, while the average per record is {format_number(kpis['average_target'])}. This gives a useful sense of scale before looking at which groups are driving the result."
-            )
+        elif any(term in q for term in contribution_terms):
+            intent = "contribution_analysis"
+            question_category = "contribution"
+            question_goal = "Understand which groups contribute the most to the overall result."
 
-        if top_segments:
-            top = top_segments[0]
-            paragraphs.append(
-                f"The strongest visible segment is {top['segment']} within {format_label(top['dimension']).lower()}, with an average {format_label(target).lower()} of {format_number(top.get('mean_target'))} and a total contribution of {format_number(top.get('total_target'))}. This makes it a strong benchmark against the rest of the dataset."
-            )
+        elif any(term in q for term in ranking_terms):
+            intent = "ranking_analysis"
+            question_category = "ranking"
+            question_goal = "Identify the top and bottom performers across the dataset."
 
-        elif kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
-            dim_name = str(kpis["top_dimension_name"]).lower()
-            dim_value = str(kpis["top_dimension_value"])
-            dim_metric = format_number(kpis.get("top_dimension_metric"))
+        elif any(term in q for term in segment_terms):
+            intent = "segment_analysis"
+            question_category = "segment"
+            question_goal = "Understand how performance differs across business segments."
 
-            paragraphs.append(
-                f"The strongest visible segment is {dim_value} within {dim_name}, contributing {dim_metric}. This makes it the clearest benchmark when comparing performance across the rest of the dataset."
-            )
+        elif any(term in q for term in summary_terms):
+            intent = "summary_analysis"
+            question_category = "summary"
+            question_goal = "Provide a business-friendly summary of overall performance."
 
-        if bottom_segments:
-            bottom = bottom_segments[0]
-            paragraphs.append(
-                f"At the lower end, {bottom['segment']} within {format_label(bottom['dimension']).lower()} appears weaker, which suggests that performance is not evenly distributed and that some groups may need closer investigation."
-            )
-
-        if correlations:
-            sorted_corr = sorted(
-                correlations.items(),
-                key=lambda x: abs(x[1]),
-                reverse=True
-            )[:2]
-
-            details = []
-            for col, val in sorted_corr:
-                direction = "moves in the same direction as" if val > 0 else "moves in the opposite direction to"
-                details.append(f"{format_label(col)} {direction} the target (correlation: {val})")
-
-            if details:
-                paragraphs.append(
-                    "The numeric analysis suggests that " + "; ".join(details) + ". These are useful directional signals for deeper investigation, even though they should not be treated as proof of causation."
-                )
-
-        if categorical_drivers:
-            sorted_cat = sorted(
-                categorical_drivers.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            top_fields = [format_label(col) for col, _ in sorted_cat[:2]]
-
-            if top_fields:
-                paragraphs.append(
-                    "The most meaningful group-level differences appear across " + ", ".join(top_fields) + ". This indicates that segment-level analysis is important and that overall averages alone may hide important variation."
-                )
-
-        if outlier_signals and outlier_signals.get("outlier_count"):
-            paragraphs.append(
-                f"The target also shows {outlier_signals['outlier_count']} outlier values ({outlier_signals.get('outlier_pct', 0)}% of usable records), which means some extreme observations may be influencing the overall pattern."
-            )
-
-        if business_layer.get("business_impact"):
-            paragraphs.append(
-                "From a business perspective, " + " ".join(business_layer["business_impact"])
-            )
-
-        if business_layer.get("risks_or_limitations"):
-            paragraphs.append(
-                "This analysis should still be read with context: " + " ".join(business_layer["risks_or_limitations"][:2])
-            )
-
-        paragraphs.append(
-            "Taken together, the results show not just what is happening in the dataset, but where performance is concentrated, which segments stand out, and where further action or deeper analysis would be most useful."
-        )
+        kpi_terms = [
+            "total", "average", "avg", "top", "best", "highest", "lowest",
+            "revenue", "sales", "profit", "performance", "summary", "overview",
+            "kpi", "metric"
+        ]
+        show_kpis = any(term in q for term in kpi_terms) or intent != "distribution_analysis"
 
         return {
-            "title": "Analyst Narrative",
-            "summary": build_summary_line(target, kpis, business_layer),
-            "paragraphs": paragraphs
+            "question": question,
+            "intent": intent,
+            "show_kpis": show_kpis,
+            "question_category": question_category,
+            "question_goal": question_goal
         }
-
-
-def build_summary_line(target, kpis, business_layer):
-    if business_layer.get("executive_summary"):
-        return business_layer["executive_summary"]
-
-    if target and kpis.get("top_dimension_value") and kpis.get("top_dimension_name"):
-        return (
-            f"At a high level, the leading {str(kpis['top_dimension_name']).lower()} "
-            f"is {kpis['top_dimension_value']}, and the analysis is centered on {format_label(target).lower()}."
-        )
-
-    if target:
-        return f"At a high level, this analysis is centered on {format_label(target).lower()}."
-
-    return "At a high level, the dataset was analyzed successfully."
-
-
-def format_number(value):
-    if value is None:
-        return "N/A"
-    try:
-        value = float(value)
-        abs_value = abs(value)
-
-        if abs_value >= 1_000_000_000:
-            return f"{value / 1_000_000_000:.2f}B"
-        if abs_value >= 1_000_000:
-            return f"{value / 1_000_000:.2f}M"
-        if abs_value >= 1_000:
-            return f"{value / 1_000:.2f}K"
-        if float(value).is_integer():
-            return f"{int(value):,}"
-        return f"{value:,.2f}"
-    except Exception:
-        return str(value)
-
-
-def format_label(value):
-    return str(value).replace("_", " ").strip()

@@ -420,6 +420,14 @@
       font-size:15px;
       line-height:1.7;
       font-weight:600;
+      width:100%;
+      color:var(--text);
+    }
+
+    .followup-card:hover{
+      border-color:#93c5fd;
+      background:#eff6ff;
+      transition:.2s ease;
     }
 
     .info-grid{
@@ -580,592 +588,630 @@
   </div>
 
   <script>
-    let mountedCharts = [];
+  let mountedCharts = [];
+  let analysisHistoryCount = 0;
 
-    async function runAnalysis(){
-      const fileInput = document.getElementById("dataset");
-      const question = document.getElementById("question").value.trim();
-      const loadingBox = document.getElementById("loadingBox");
-      const results = document.getElementById("results");
+  async function runAnalysis(questionOverride = null){
+    const fileInput = document.getElementById("dataset");
+    const questionInput = document.getElementById("question");
+    const question = (questionOverride || questionInput.value || "").trim();
+    const loadingBox = document.getElementById("loadingBox");
+    const results = document.getElementById("results");
 
-      if(!fileInput.files.length){
-        alert("Please upload a dataset first.");
-        return;
-      }
-
-      if(!question){
-        alert("Please enter a business question.");
-        return;
-      }
-
-      destroyCharts();
-      loadingBox.style.display = "block";
-      results.innerHTML = "";
-
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-      formData.append("question", question);
-
-      try{
-        const response = await fetch("/analyze", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await response.json();
-        loadingBox.style.display = "none";
-
-        if(!response.ok || data.error){
-          results.innerHTML = `
-            <div class="card">
-              <div class="section-badge badge-red">Error</div>
-              <div class="card-title">Analysis failed</div>
-              <p class="card-subtitle">${data.error || "Something went wrong while running the analysis."}</p>
-            </div>
-          `;
-          return;
-        }
-
-        displayResults(data);
-      }catch(error){
-        loadingBox.style.display = "none";
-        results.innerHTML = `
-          <div class="card">
-            <div class="section-badge badge-red">Error</div>
-            <div class="card-title">Analysis failed</div>
-            <p class="card-subtitle">${error.message}</p>
-          </div>
-        `;
-      }
+    if(!fileInput.files.length){
+      alert("Please upload a dataset first.");
+      return;
     }
 
-    function destroyCharts(){
-      mountedCharts.forEach(chart => {
-        try{ chart.dispose(); } catch(e){}
+    if(!question){
+      alert("Please enter a business question.");
+      return;
+    }
+
+    loadingBox.style.display = "block";
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("question", question);
+
+    try{
+      const response = await fetch("/analyze", {
+        method: "POST",
+        body: formData
       });
-      mountedCharts = [];
-    }
 
-    function formatLabel(value){
-      if(value === null || value === undefined || value === "") return "N/A";
-      return String(value).replaceAll("_", " ");
-    }
+      const data = await response.json();
+      loadingBox.style.display = "none";
 
-    function truncateLabel(value, maxLen = 18){
-      const str = String(value ?? "");
-      return str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str;
-    }
-
-    function compactAxis(value){
-      const num = Number(value);
-      if(Number.isNaN(num)) return value;
-      const abs = Math.abs(num);
-      if(abs >= 1e9) return (num / 1e9).toFixed(1) + "B";
-      if(abs >= 1e6) return (num / 1e6).toFixed(1) + "M";
-      if(abs >= 1e3) return (num / 1e3).toFixed(1) + "K";
-      return Number.isInteger(num) ? String(num) : num.toFixed(1);
-    }
-
-    function formatValue(value, label = ""){
-      if(value === null || value === undefined || value === "") return "N/A";
-
-      const num = Number(value);
-      if(Number.isNaN(num)) return String(value);
-
-      const lower = String(label || "").toLowerCase();
-      const isPercent = lower.includes("rate") || lower.includes("percent") || lower.includes("%") || lower.includes("missing");
-      const isMoney = ["revenue", "sales", "profit", "cost", "amount", "price"].some(word => lower.includes(word));
-
-      if(isPercent){
-        return `${num.toFixed(1)}%`;
+      if(!response.ok || data.error){
+        appendErrorResult(data.error || "Something went wrong while running the analysis.");
+        return;
       }
 
-      if(isMoney){
-        if(Math.abs(num) >= 1e9) return `$${(num/1e9).toFixed(2)}B`;
-        if(Math.abs(num) >= 1e6) return `$${(num/1e6).toFixed(2)}M`;
-        if(Math.abs(num) >= 1e3) return `$${(num/1e3).toFixed(2)}K`;
-        return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      analysisHistoryCount += 1;
+      displayResults(data, analysisHistoryCount);
+
+      if(!questionOverride){
+        questionInput.value = "";
+      }
+    }catch(error){
+      loadingBox.style.display = "none";
+      appendErrorResult(error.message);
+    }
+  }
+
+  function runFollowUp(questionText){
+    const textarea = document.getElementById("question");
+    textarea.value = questionText;
+    runAnalysis(questionText);
+  }
+
+  function appendErrorResult(message){
+    const results = document.getElementById("results");
+    const blockId = `result-error-${Date.now()}`;
+
+    results.insertAdjacentHTML("beforeend", `
+      <div id="${blockId}" class="analysis-history-block">
+        <div class="card">
+          <div class="section-badge badge-red">Error</div>
+          <div class="card-title">Analysis failed</div>
+          <p class="card-subtitle">${message}</p>
+        </div>
+      </div>
+    `);
+
+    const block = document.getElementById(blockId);
+    if(block){
+      block.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function formatLabel(value){
+    if(value === null || value === undefined || value === "") return "N/A";
+    return String(value).replaceAll("_", " ");
+  }
+
+  function truncateLabel(value, maxLen = 18){
+    const str = String(value ?? "");
+    return str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str;
+  }
+
+  function compactAxis(value){
+    const num = Number(value);
+    if(Number.isNaN(num)) return value;
+    const abs = Math.abs(num);
+    if(abs >= 1e9) return (num / 1e9).toFixed(1) + "B";
+    if(abs >= 1e6) return (num / 1e6).toFixed(1) + "M";
+    if(abs >= 1e3) return (num / 1e3).toFixed(1) + "K";
+    return Number.isInteger(num) ? String(num) : num.toFixed(1);
+  }
+
+  function formatValue(value, label = ""){
+    if(value === null || value === undefined || value === "") return "N/A";
+
+    const num = Number(value);
+    if(Number.isNaN(num)) return String(value);
+
+    const lower = String(label || "").toLowerCase();
+    const isPercent =
+      lower.includes("rate") ||
+      lower.includes("percent") ||
+      lower.includes("%") ||
+      lower.includes("missing") ||
+      lower.includes("coverage");
+    const isMoney = ["revenue", "sales", "profit", "cost", "amount", "price"].some(word => lower.includes(word));
+
+    if(isPercent){
+      return `${num.toFixed(1)}%`;
+    }
+
+    if(isMoney){
+      if(Math.abs(num) >= 1e9) return `$${(num/1e9).toFixed(2)}B`;
+      if(Math.abs(num) >= 1e6) return `$${(num/1e6).toFixed(2)}M`;
+      if(Math.abs(num) >= 1e3) return `$${(num/1e3).toFixed(2)}K`;
+      return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    }
+
+    if(Math.abs(num) >= 1e9) return `${(num/1e9).toFixed(2)}B`;
+    if(Math.abs(num) >= 1e6) return `${(num/1e6).toFixed(2)}M`;
+    if(Math.abs(num) >= 1e3) return `${(num/1e3).toFixed(2)}K`;
+
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function reviveOption(option){
+    if(Array.isArray(option)){
+      return option.map(reviveOption);
+    }
+
+    if(option && typeof option === "object"){
+      if(option.function){
+        return new Function(
+          "truncateLabel",
+          "compactAxis",
+          `return (${option.function});`
+        )(truncateLabel, compactAxis);
       }
 
-      if(Math.abs(num) >= 1e9) return `${(num/1e9).toFixed(2)}B`;
-      if(Math.abs(num) >= 1e6) return `${(num/1e6).toFixed(2)}M`;
-      if(Math.abs(num) >= 1e3) return `${(num/1e3).toFixed(2)}K`;
-
-      return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    }
-
-    function reviveOption(option){
-      if(Array.isArray(option)){
-        return option.map(reviveOption);
+      const revived = {};
+      for(const key in option){
+        revived[key] = reviveOption(option[key]);
       }
-
-      if(option && typeof option === "object"){
-        if(option.function){
-          return new Function(
-            "truncateLabel",
-            "compactAxis",
-            `return (${option.function});`
-          )(truncateLabel, compactAxis);
-        }
-
-        const revived = {};
-        for(const key in option){
-          revived[key] = reviveOption(option[key]);
-        }
-        return revived;
-      }
-
-      return option;
+      return revived;
     }
 
-    function buildExecutiveSection(data){
-      return `
-        <div class="executive-grid">
-          <div class="card">
-            <div class="card-header">
-              <div class="section-badge badge-blue">Executive answer</div>
-              <div class="card-title">Direct answer</div>
-              <p class="card-subtitle">The clearest business readout of the question, written for decision-making.</p>
-            </div>
-            <div class="executive-answer">${data.direct_answer || "No direct answer was generated."}</div>
-            <div class="executive-summary">${data.executive_summary || "No executive summary was generated."}</div>
-            <div class="pill-row">
-              <div class="pill">Intent: ${formatLabel(data.intent)}</div>
-              <div class="pill">Target: ${formatLabel(data.target)}</div>
-              <div class="pill">Question type: ${formatLabel(data.question_category || "general")}</div>
-            </div>
-          </div>
+    return option;
+  }
 
-          <div class="card">
-            <div class="card-header">
-              <div class="section-badge badge-purple">Decision support</div>
-              <div class="card-title">Business goal</div>
-              <p class="card-subtitle">Why this analysis matters and what decision it is helping support.</p>
-            </div>
-            <div class="executive-summary">${data.question_goal || "No business goal was generated."}</div>
-          </div>
-        </div>
-      `;
-    }
-
-    function buildDatasetSummarySection(data){
-      const ds = data.dataset_summary || {};
-      return `
+  function buildExecutiveSection(data){
+    return `
+      <div class="executive-grid">
         <div class="card">
           <div class="card-header">
-            <div class="section-badge badge-green">Dataset summary</div>
-            <div class="card-title">What the analyst understood about the dataset</div>
-            <p class="card-subtitle">A product-style readout of the uploaded data structure before deeper interpretation begins.</p>
+            <div class="section-badge badge-blue">Executive answer</div>
+            <div class="card-title">Direct answer</div>
+            <p class="card-subtitle">The clearest business readout of the question, written for decision-making.</p>
           </div>
-
-          <div class="summary-grid">
-            <div class="summary-card">
-              <div class="summary-title">Rows</div>
-              <div class="summary-value">${formatValue(ds.row_count, "rows")}</div>
-              <div class="summary-footnote">Total records available for analysis.</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-title">Columns</div>
-              <div class="summary-value">${formatValue(ds.column_count, "columns")}</div>
-              <div class="summary-footnote">Total fields detected in the uploaded dataset.</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-title">Target metric</div>
-              <div class="summary-value">${formatLabel(ds.target_metric)}</div>
-              <div class="summary-footnote">Primary metric selected by the analyst flow.</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-title">Analysis type</div>
-              <div class="summary-value">${formatLabel(ds.analysis_type)}</div>
-              <div class="summary-footnote">Detected analytical pattern for this question.</div>
-            </div>
-          </div>
-
-          <div style="height:18px;"></div>
-
-          <div class="info-grid">
-            <div class="summary-card">
-              <div class="summary-title">Column profile</div>
-              <ul class="mini-list">
-                <li>Numeric columns: ${formatValue(ds.numeric_column_count, "numeric columns")}</li>
-                <li>Categorical columns: ${formatValue(ds.categorical_column_count, "categorical columns")}</li>
-                <li>Date/time columns: ${formatValue(ds.datetime_column_count, "datetime columns")}</li>
-                ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} → ${ds.date_range_end}</li>` : ""}
-              </ul>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-title">Detected drivers</div>
-              ${
-                ds.driver_columns && ds.driver_columns.length
-                  ? `<ul class="driver-list">${ds.driver_columns.map(item => `<li>${formatLabel(item)}</li>`).join("")}</ul>`
-                  : `<div class="empty-state">No strong driver columns were identified for this question.</div>`
-              }
-            </div>
+          <div class="executive-answer">${data.direct_answer || "No direct answer was generated."}</div>
+          <div class="executive-summary">${data.executive_summary || "No executive summary was generated."}</div>
+          <div class="pill-row">
+            <div class="pill">Intent: ${formatLabel(data.intent)}</div>
+            <div class="pill">Target: ${formatLabel(data.target)}</div>
+            <div class="pill">Question type: ${formatLabel(data.question_category || "general")}</div>
           </div>
         </div>
-      `;
-    }
 
-    function buildInsightCards(data){
-      const insights = Array.isArray(data.top_insights) ? data.top_insights : [];
-      if(!insights.length) return "";
-
-      return `
         <div class="card">
           <div class="card-header">
-            <div class="section-badge badge-amber">Top insights</div>
-            <div class="card-title">What stands out first</div>
-            <p class="card-subtitle">The most important findings surfaced as quick product-style insight cards.</p>
+            <div class="section-badge badge-purple">Decision support</div>
+            <div class="card-title">Business goal</div>
+            <p class="card-subtitle">Why this analysis matters and what decision it is helping support.</p>
           </div>
-          <div class="insight-grid">
-            ${insights.map(item => `
-              <div class="insight-card insight-${item.type || 'info'}">
-                <div class="insight-label">${item.title || "Insight"}</div>
-                <div class="insight-value">${item.value || "N/A"}</div>
-                <div class="insight-detail">${item.detail || ""}</div>
-              </div>
-            `).join("")}
+          <div class="executive-summary">${data.question_goal || "No business goal was generated."}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildDatasetSummarySection(data){
+    const ds = data.dataset_summary || {};
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-green">Dataset summary</div>
+          <div class="card-title">What the analyst understood about the dataset</div>
+          <p class="card-subtitle">A product-style readout of the uploaded data structure before deeper interpretation begins.</p>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-title">Rows</div>
+            <div class="summary-value">${formatValue(ds.row_count, "rows")}</div>
+            <div class="summary-footnote">Total records available for analysis.</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Columns</div>
+            <div class="summary-value">${formatValue(ds.column_count, "columns")}</div>
+            <div class="summary-footnote">Total fields detected in the uploaded dataset.</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Target metric</div>
+            <div class="summary-value">${formatLabel(ds.target_metric)}</div>
+            <div class="summary-footnote">Primary metric selected by the analyst flow.</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Analysis type</div>
+            <div class="summary-value">${formatLabel(ds.analysis_type)}</div>
+            <div class="summary-footnote">Detected analytical pattern for this question.</div>
           </div>
         </div>
-      `;
-    }
 
-    function buildKPIHtml(data){
-      const kpis = data.kpis || {};
+        <div style="height:18px;"></div>
 
-      const kpiItems = [
-        { title: "Rows analyzed", value: kpis.row_count, footnote: "Records included after target validation and null handling." },
-        { title: "Columns available", value: kpis.column_count, footnote: "Total available fields in the loaded dataset." },
-        { title: `Total ${formatLabel(data.target || "target")}`, value: kpis.total_target, footnote: "Overall aggregate of the primary metric." },
-        { title: `Average ${formatLabel(data.target || "target")}`, value: kpis.average_target, footnote: "Average value per usable record." },
-        { title: `Median ${formatLabel(data.target || "target")}`, value: kpis.median_target, footnote: "Middle value for the selected target metric." },
-        { title: "Top segment", value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : "Leading category based on aggregate contribution." },
-        { title: "Top segment value", value: kpis.top_dimension_metric, footnote: "Measured contribution of the leading segment." },
-        { title: "Date coverage", value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: "Observed time range in the dataset." }
-      ].filter(item => item.value !== undefined);
-
-      if(!kpiItems.length) return "";
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-green">KPIs</div>
-            <div class="card-title">KPI overview</div>
-            <p class="card-subtitle">High-level metrics that summarize the dataset and anchor the rest of the analysis.</p>
-          </div>
-          <div class="kpi-grid">
-            ${kpiItems.map(item => `
-              <div class="kpi-card">
-                <div class="kpi-title">${item.title}</div>
-                <div class="kpi-value">${formatValue(item.value, item.title)}</div>
-                <div class="kpi-footnote">${item.footnote}</div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    function buildTakeaways(data){
-      const takeaways = [];
-      const kpis = data.kpis || {};
-
-      if(data.executive_summary) takeaways.push(data.executive_summary);
-
-      if(kpis.top_dimension_name && kpis.top_dimension_value){
-        takeaways.push(`The leading ${String(kpis.top_dimension_name).toLowerCase()} is ${kpis.top_dimension_value}, making it the strongest visible contributor in the current analysis.`);
-      }
-
-      if(kpis.total_target !== undefined){
-        takeaways.push(`The total ${String(data.target || "target").toLowerCase()} across the analyzed data is ${formatValue(kpis.total_target, data.target)}.`);
-      }
-
-      if(data.charts && data.charts.length >= 4){
-        takeaways.push(`The answer combines a primary chart, supporting views, and a diagnostic chart so the question can be understood from multiple angles.`);
-      }
-
-      if(!takeaways.length){
-        takeaways.push("The main chart below represents the clearest visual answer to your question.");
-      }
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-amber">Summary</div>
-            <div class="card-title">Key takeaways</div>
-            <p class="card-subtitle">A quick readout of the most important conclusions before exploring the full visuals and written interpretation.</p>
-          </div>
-          <ul class="takeaway-list">
-            ${takeaways.slice(0, 4).map(item => `<li>${item}</li>`).join("")}
-          </ul>
-        </div>
-      `;
-    }
-
-    function renderMainChart(chart){
-      if(!chart) return "";
-
-      const role = chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : "";
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-blue">Primary visualization</div>
-            <div class="card-title">${chart.title || "Main chart"} ${role}</div>
-            <p class="card-subtitle">The main visual answer to the business question.</p>
-          </div>
-          <div id="chart-main" class="chart-box-large"></div>
-          <div class="chart-caption">${chart.description || ""}</div>
-        </div>
-      `;
-    }
-
-    function renderSupportingCharts(charts){
-      if(!charts || !charts.length) return "";
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-purple">Supporting visualizations</div>
-            <div class="card-title">Supporting and diagnostic views</div>
-            <p class="card-subtitle">These charts provide supporting evidence, context, and trust checks for the main answer.</p>
-          </div>
-          <div class="chart-grid">
-            ${charts.map((chart, idx) => `
-              <div>
-                <div style="font-size:18px; font-weight:800; margin-bottom:10px;">
-                  ${chart.title || `Chart ${idx + 2}`}
-                  ${chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : ""}
-                </div>
-                <div id="chart-${idx}" class="chart-box"></div>
-                <div class="chart-caption">${chart.description || ""}</div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    function buildFollowUpQuestions(data){
-      const questions = Array.isArray(data.follow_up_questions) ? data.follow_up_questions : [];
-      if(!questions.length) return "";
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-purple">Follow-up questions</div>
-            <div class="card-title">Recommended next questions</div>
-            <p class="card-subtitle">Suggested follow-ups that make the analysis feel more interactive and decision-oriented.</p>
-          </div>
-          <div class="followup-grid">
-            ${questions.map(q => `<div class="followup-card">${q}</div>`).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    function buildDataQualitySection(data){
-      const dq = data.data_quality_summary || {};
-      const dateRange = dq.date_range
-        ? `${dq.date_range.start} → ${dq.date_range.end}`
-        : "Not available";
-
-      return `
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-red">Data quality summary</div>
-            <div class="card-title">Trust and reliability checks</div>
-            <p class="card-subtitle">A compact data-quality layer so the result feels serious, realistic, and decision-safe.</p>
-          </div>
-
-          <div class="quality-grid">
-            <div class="quality-card">
-              <div class="quality-title">Overall missingness</div>
-              <div class="quality-value">${formatValue(dq.overall_missing_pct, "missing percent")}</div>
-              <div class="quality-note">Average missing value rate across the dataset.</div>
-            </div>
-            <div class="quality-card">
-              <div class="quality-title">Duplicate rows</div>
-              <div class="quality-value">${formatValue(dq.duplicate_rows, "duplicate rows")}</div>
-              <div class="quality-note">Potential duplication affecting totals and aggregations.</div>
-            </div>
-            <div class="quality-card">
-              <div class="quality-title">Target null rate</div>
-              <div class="quality-value">${dq.target_null_pct !== null && dq.target_null_pct !== undefined ? formatValue(dq.target_null_pct, "target missing percent") : "N/A"}</div>
-              <div class="quality-note">Missingness specifically in the selected target metric.</div>
-            </div>
-            <div class="quality-card">
-              <div class="quality-title">Confidence level</div>
-              <div class="quality-value">${dq.confidence_level || "N/A"}</div>
-              <div class="quality-note">${dq.confidence_note || "No confidence note generated."}</div>
-            </div>
-          </div>
-
-          <div class="info-grid">
-            <div class="summary-card">
-              <div class="summary-title">Date coverage</div>
-              <div class="summary-value" style="font-size:20px;">${dateRange}</div>
-              <div class="summary-footnote">Detected date range from the first usable datetime column.</div>
-            </div>
-
-            <div class="summary-card">
-              <div class="summary-title">High-cardinality columns</div>
-              ${
-                dq.high_cardinality_columns && dq.high_cardinality_columns.length
-                  ? `<ul class="mini-list">${dq.high_cardinality_columns.map(item => `<li>${formatLabel(item.column)} · ${formatValue(item.unique_values, "unique values")} unique values</li>`).join("")}</ul>`
-                  : `<div class="empty-state">No major high-cardinality categorical columns were flagged.</div>`
-              }
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    function buildDecisionSupportSection(data){
-      const impact = Array.isArray(data.business_impact) ? data.business_impact : [];
-      const actions = Array.isArray(data.recommended_actions) ? data.recommended_actions : [];
-      const risks = Array.isArray(data.risks_or_limitations) ? data.risks_or_limitations : [];
-
-      return `
         <div class="info-grid">
-          <div class="card">
-            <div class="card-header">
-              <div class="section-badge badge-green">Business impact</div>
-              <div class="card-title">Why this matters</div>
-              <p class="card-subtitle">The practical business meaning of the result.</p>
-            </div>
-            ${
-              impact.length
-                ? `<ul class="info-list">${impact.map(item => `<li>${item}</li>`).join("")}</ul>`
-                : `<div class="empty-state">No business impact notes were generated.</div>`
-            }
+          <div class="summary-card">
+            <div class="summary-title">Column profile</div>
+            <ul class="mini-list">
+              <li>Numeric columns: ${formatValue(ds.numeric_column_count, "numeric columns")}</li>
+              <li>Categorical columns: ${formatValue(ds.categorical_column_count, "categorical columns")}</li>
+              <li>Date/time columns: ${formatValue(ds.datetime_column_count, "datetime columns")}</li>
+              ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} → ${ds.date_range_end}</li>` : ""}
+            </ul>
           </div>
 
-          <div class="card">
-            <div class="card-header">
-              <div class="section-badge badge-blue">Recommended actions</div>
-              <div class="card-title">What to do next</div>
-              <p class="card-subtitle">Suggested next steps based on the current evidence.</p>
-            </div>
+          <div class="summary-card">
+            <div class="summary-title">Detected drivers</div>
             ${
-              actions.length
-                ? `<ul class="info-list">${actions.map(item => `<li>${item}</li>`).join("")}</ul>`
-                : `<div class="empty-state">No recommended actions were generated.</div>`
+              ds.driver_columns && ds.driver_columns.length
+                ? `<ul class="driver-list">${ds.driver_columns.map(item => `<li>${formatLabel(item)}</li>`).join("")}</ul>`
+                : `<div class="empty-state">No strong driver columns were identified for this question.</div>`
             }
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  function buildInsightCards(data){
+    const insights = Array.isArray(data.top_insights) ? data.top_insights : [];
+    if(!insights.length) return "";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-amber">Top insights</div>
+          <div class="card-title">What stands out first</div>
+          <p class="card-subtitle">The most important findings surfaced as quick product-style insight cards.</p>
+        </div>
+        <div class="insight-grid">
+          ${insights.map(item => `
+            <div class="insight-card insight-${item.type || 'info'}">
+              <div class="insight-label">${item.title || "Insight"}</div>
+              <div class="insight-value">${item.value || "N/A"}</div>
+              <div class="insight-detail">${item.detail || ""}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function buildKPIHtml(data){
+    const kpis = data.kpis || {};
+
+    const kpiItems = [
+      { title: "Rows analyzed", value: kpis.row_count, footnote: "Records included after target validation and null handling." },
+      { title: "Columns available", value: kpis.column_count, footnote: "Total available fields in the loaded dataset." },
+      { title: `Total ${formatLabel(data.target || "target")}`, value: kpis.total_target, footnote: "Overall aggregate of the primary metric." },
+      { title: `Average ${formatLabel(data.target || "target")}`, value: kpis.average_target, footnote: "Average value per usable record." },
+      { title: `Median ${formatLabel(data.target || "target")}`, value: kpis.median_target, footnote: "Middle value for the selected target metric." },
+      { title: "Top segment", value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : "Leading category based on aggregate contribution." },
+      { title: "Top segment value", value: kpis.top_dimension_metric, footnote: "Measured contribution of the leading segment." },
+      { title: "Date coverage", value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: "Observed time range in the dataset." }
+    ].filter(item => item.value !== undefined);
+
+    if(!kpiItems.length) return "";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-green">KPIs</div>
+          <div class="card-title">KPI overview</div>
+          <p class="card-subtitle">High-level metrics that summarize the dataset and anchor the rest of the analysis.</p>
+        </div>
+        <div class="kpi-grid">
+          ${kpiItems.map(item => `
+            <div class="kpi-card">
+              <div class="kpi-title">${item.title}</div>
+              <div class="kpi-value">${formatValue(item.value, item.title)}</div>
+              <div class="kpi-footnote">${item.footnote}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function buildTakeaways(data){
+    const takeaways = [];
+    const kpis = data.kpis || {};
+
+    if(data.executive_summary) takeaways.push(data.executive_summary);
+
+    if(kpis.top_dimension_name && kpis.top_dimension_value){
+      takeaways.push(`The leading ${String(kpis.top_dimension_name).toLowerCase()} is ${kpis.top_dimension_value}, making it the strongest visible contributor in the current analysis.`);
+    }
+
+    if(kpis.total_target !== undefined){
+      takeaways.push(`The total ${String(data.target || "target").toLowerCase()} across the analyzed data is ${formatValue(kpis.total_target, data.target)}.`);
+    }
+
+    if(data.charts && data.charts.length >= 4){
+      takeaways.push(`The answer combines a primary chart, supporting views, and a diagnostic chart so the question can be understood from multiple angles.`);
+    }
+
+    if(!takeaways.length){
+      takeaways.push("The main chart below represents the clearest visual answer to your question.");
+    }
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-amber">Summary</div>
+          <div class="card-title">Key takeaways</div>
+          <p class="card-subtitle">A quick readout of the most important conclusions before exploring the full visuals and written interpretation.</p>
+        </div>
+        <ul class="takeaway-list">
+          ${takeaways.slice(0, 4).map(item => `<li>${item}</li>`).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  function renderMainChart(chart, blockId){
+    if(!chart) return "";
+
+    const role = chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : "";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-blue">Primary visualization</div>
+          <div class="card-title">${chart.title || "Main chart"} ${role}</div>
+          <p class="card-subtitle">The main visual answer to the business question.</p>
+        </div>
+        <div id="${blockId}-chart-main" class="chart-box-large"></div>
+        <div class="chart-caption">${chart.description || ""}</div>
+      </div>
+    `;
+  }
+
+  function renderSupportingCharts(charts, blockId){
+    if(!charts || !charts.length) return "";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-purple">Supporting visualizations</div>
+          <div class="card-title">Supporting and diagnostic views</div>
+          <p class="card-subtitle">These charts provide supporting evidence, context, and trust checks for the main answer.</p>
+        </div>
+        <div class="chart-grid">
+          ${charts.map((chart, idx) => `
+            <div>
+              <div style="font-size:18px; font-weight:800; margin-bottom:10px;">
+                ${chart.title || `Chart ${idx + 2}`}
+                ${chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : ""}
+              </div>
+              <div id="${blockId}-chart-${idx}" class="chart-box"></div>
+              <div class="chart-caption">${chart.description || ""}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function buildDataQualitySection(data){
+    const dq = data.data_quality_summary || {};
+    const dateRange = dq.date_range
+      ? `${dq.date_range.start} → ${dq.date_range.end}`
+      : "Not available";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-red">Data quality summary</div>
+          <div class="card-title">Trust and reliability checks</div>
+          <p class="card-subtitle">A compact data-quality layer so the result feels serious, realistic, and decision-safe.</p>
+        </div>
+
+        <div class="quality-grid">
+          <div class="quality-card">
+            <div class="quality-title">Overall missingness</div>
+            <div class="quality-value">${formatValue(dq.overall_missing_pct, "missing percent")}</div>
+            <div class="quality-note">Average missing value rate across the dataset.</div>
+          </div>
+          <div class="quality-card">
+            <div class="quality-title">Duplicate rows</div>
+            <div class="quality-value">${formatValue(dq.duplicate_rows, "duplicate rows")}</div>
+            <div class="quality-note">Potential duplication affecting totals and aggregations.</div>
+          </div>
+          <div class="quality-card">
+            <div class="quality-title">Target null rate</div>
+            <div class="quality-value">${dq.target_null_pct !== null && dq.target_null_pct !== undefined ? formatValue(dq.target_null_pct, "target missing percent") : "N/A"}</div>
+            <div class="quality-note">Missingness specifically in the selected target metric.</div>
+          </div>
+          <div class="quality-card">
+            <div class="quality-title">Confidence level</div>
+            <div class="quality-value">${dq.confidence_level || "N/A"}</div>
+            <div class="quality-note">${dq.confidence_note || "No confidence note generated."}</div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="summary-card">
+            <div class="summary-title">Date coverage</div>
+            <div class="summary-value" style="font-size:20px;">${dateRange}</div>
+            <div class="summary-footnote">Detected date range from the first usable datetime column.</div>
+          </div>
+
+          <div class="summary-card">
+            <div class="summary-title">High-cardinality columns</div>
+            ${
+              dq.high_cardinality_columns && dq.high_cardinality_columns.length
+                ? `<ul class="mini-list">${dq.high_cardinality_columns.map(item => `<li>${formatLabel(item.column)} · ${formatValue(item.unique_values, "unique values")} unique values</li>`).join("")}</ul>`
+                : `<div class="empty-state">No major high-cardinality categorical columns were flagged.</div>`
+            }
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildDecisionSupportSection(data){
+    const impact = Array.isArray(data.business_impact) ? data.business_impact : [];
+    const actions = Array.isArray(data.recommended_actions) ? data.recommended_actions : [];
+    const risks = Array.isArray(data.risks_or_limitations) ? data.risks_or_limitations : [];
+
+    return `
+      <div class="info-grid">
         <div class="card">
           <div class="card-header">
-            <div class="section-badge badge-red">Risks and limitations</div>
-            <div class="card-title">Read this result with context</div>
-            <p class="card-subtitle">Important caveats that help keep the analysis realistic and decision-safe.</p>
+            <div class="section-badge badge-green">Business impact</div>
+            <div class="card-title">Why this matters</div>
+            <p class="card-subtitle">The practical business meaning of the result.</p>
           </div>
           ${
-            risks.length
-              ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join("")}</ul>`
-              : `<div class="empty-state">No risks or limitations were generated.</div>`
+            impact.length
+              ? `<ul class="info-list">${impact.map(item => `<li>${item}</li>`).join("")}</ul>`
+              : `<div class="empty-state">No business impact notes were generated.</div>`
           }
         </div>
-      `;
-    }
 
-    function renderNarrative(narrative){
-      if (!narrative || (!narrative.summary && !narrative.paragraphs?.length)) {
-        return `
-          <div class="text-panel">
-            <div class="empty-state">
-              No strong analytical narrative was generated for this query, but the KPIs and charts above still summarize the result.
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="text-panel">
-          <div class="text-headline">${narrative.title || "Analyst Narrative"}</div>
-          <div class="text-summary">${narrative.summary || ""}</div>
-          ${(narrative.paragraphs || []).map(p => `<div class="text-paragraph">${p}</div>`).join("")}
-        </div>
-      `;
-    }
-
-    function renderStory(story){
-      if (!story || (!story.headline && !story.key_points?.length && !story.business_view?.length)) {
-        return `
-          <div class="text-panel">
-            <div class="empty-state">
-              No extended data story was generated for this query.
-            </div>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="text-panel">
-          <div class="text-headline">${story.title || "Data Story"}</div>
-          <div class="text-summary">${story.headline || ""}</div>
-          ${story.key_points?.length ? `<ul class="story-points">${story.key_points.map(item => `<li>${item}</li>`).join("")}</ul>` : ""}
-          ${story.business_view?.length ? story.business_view.map(p => `<div class="text-paragraph">${p}</div>`).join("") : ""}
-        </div>
-      `;
-    }
-
-    function renderTextSection(data){
-      return `
         <div class="card">
           <div class="card-header">
-            <div class="section-badge badge-purple">Interpretation</div>
-            <div class="card-title">Narrative and business story</div>
-            <p class="card-subtitle">A business-friendly explanation of what the charts mean and how to interpret the result.</p>
+            <div class="section-badge badge-blue">Recommended actions</div>
+            <div class="card-title">What to do next</div>
+            <p class="card-subtitle">Suggested next steps based on the current evidence.</p>
           </div>
-          <div class="text-layout">
-            ${renderNarrative(data.narrative)}
-            ${renderStory(data.story)}
+          ${
+            actions.length
+              ? `<ul class="info-list">${actions.map(item => `<li>${item}</li>`).join("")}</ul>`
+              : `<div class="empty-state">No recommended actions were generated.</div>`
+          }
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-red">Risks and limitations</div>
+          <div class="card-title">Read this result with context</div>
+          <p class="card-subtitle">Important caveats that help keep the analysis realistic and decision-safe.</p>
+        </div>
+        ${
+          risks.length
+            ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join("")}</ul>`
+            : `<div class="empty-state">No risks or limitations were generated.</div>`
+        }
+      </div>
+    `;
+  }
+
+  function renderNarrative(narrative){
+    if (!narrative || (!narrative.summary && !narrative.paragraphs?.length)) {
+      return `
+        <div class="text-panel">
+          <div class="empty-state">
+            No strong analytical narrative was generated for this query, but the KPIs and charts above still summarize the result.
           </div>
         </div>
       `;
     }
 
-    function mountCharts(data){
-      destroyCharts();
+    return `
+      <div class="text-panel">
+        <div class="text-headline">${narrative.title || "Analyst Narrative"}</div>
+        <div class="text-summary">${narrative.summary || ""}</div>
+        ${(narrative.paragraphs || []).map(p => `<div class="text-paragraph">${p}</div>`).join("")}
+      </div>
+    `;
+  }
 
-      if(data.charts && data.charts.length > 0){
-        const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
-        const supportingCharts = data.charts.filter(c => c !== primaryChart);
+  function renderStory(story){
+    if (!story || (!story.headline && !story.key_points?.length && !story.business_view?.length)) {
+      return `
+        <div class="text-panel">
+          <div class="empty-state">
+            No extended data story was generated for this query.
+          </div>
+        </div>
+      `;
+    }
 
-        const mainDom = document.getElementById("chart-main");
-        if(mainDom && primaryChart.option){
-          const chartInstance = echarts.init(mainDom);
-          chartInstance.setOption(reviveOption(primaryChart.option));
-          mountedCharts.push(chartInstance);
-        }
+    return `
+      <div class="text-panel">
+        <div class="text-headline">${story.title || "Data Story"}</div>
+        <div class="text-summary">${story.headline || ""}</div>
+        ${story.key_points?.length ? `<ul class="story-points">${story.key_points.map(item => `<li>${item}</li>`).join("")}</ul>` : ""}
+        ${story.business_view?.length ? story.business_view.map(p => `<div class="text-paragraph">${p}</div>`).join("") : ""}
+      </div>
+    `;
+  }
 
-        supportingCharts.forEach((chart, idx) => {
-          const dom = document.getElementById(`chart-${idx}`);
-          if(dom && chart.option){
-            const chartInstance = echarts.init(dom);
-            chartInstance.setOption(reviveOption(chart.option));
-            mountedCharts.push(chartInstance);
-          }
-        });
+  function renderTextSection(data){
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-purple">Interpretation</div>
+          <div class="card-title">Narrative and business story</div>
+          <p class="card-subtitle">A business-friendly explanation of what the charts mean and how to interpret the result.</p>
+        </div>
+        <div class="text-layout">
+          ${renderNarrative(data.narrative)}
+          ${renderStory(data.story)}
+        </div>
+      </div>
+    `;
+  }
+
+  function buildFollowUpQuestions(data){
+    const questions = Array.isArray(data.follow_up_questions) ? data.follow_up_questions : [];
+    if(!questions.length) return "";
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-purple">Follow-up questions</div>
+          <div class="card-title">Recommended next questions</div>
+          <p class="card-subtitle">Click any suggested question to continue the analysis, or type your own question above.</p>
+        </div>
+        <div class="followup-grid">
+          ${questions.map(q => `
+            <button
+              type="button"
+              class="followup-card"
+              style="cursor:pointer; text-align:left;"
+              onclick='runFollowUp(${JSON.stringify(q)})'
+            >
+              ${q}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function mountCharts(data, blockId){
+    if(!(data.charts && data.charts.length > 0)){
+      return;
+    }
+
+    const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
+    const supportingCharts = data.charts.filter(c => c !== primaryChart);
+
+    const mainDom = document.getElementById(`${blockId}-chart-main`);
+    if(mainDom && primaryChart.option){
+      const chartInstance = echarts.init(mainDom);
+      chartInstance.setOption(reviveOption(primaryChart.option));
+      mountedCharts.push(chartInstance);
+    }
+
+    supportingCharts.forEach((chart, idx) => {
+      const dom = document.getElementById(`${blockId}-chart-${idx}`);
+      if(dom && chart.option){
+        const chartInstance = echarts.init(dom);
+        chartInstance.setOption(reviveOption(chart.option));
+        mountedCharts.push(chartInstance);
       }
+    });
 
-      window.addEventListener("resize", resizeAllCharts, { once: true });
-    }
+    resizeAllCharts();
+  }
 
-    function resizeAllCharts(){
-      mountedCharts.forEach(chart => {
-        try{ chart.resize(); } catch(e){}
-      });
-    }
+  function resizeAllCharts(){
+    mountedCharts.forEach(chart => {
+      try{ chart.resize(); } catch(e){}
+    });
+  }
 
-    function displayResults(data){
-      const results = document.getElementById("results");
-      results.innerHTML = "";
+  function displayResults(data, questionNumber){
+    const results = document.getElementById("results");
+    const blockId = `result-${Date.now()}`;
 
-      results.innerHTML += `
-        <div class="card">
+    const primaryChart = data.charts && data.charts.length > 0
+      ? (data.charts.find(c => c.primary) || data.charts[0])
+      : null;
+
+    const supportingCharts = data.charts && data.charts.length > 0
+      ? data.charts.filter(c => c !== primaryChart)
+      : [];
+
+    const html = `
+      <div id="${blockId}" class="analysis-history-block" style="margin-bottom:32px;">
+        <div class="card" style="border-left:6px solid #2563eb;">
+          <div style="font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">
+            Question ${questionNumber}
+          </div>
           <div class="card-header">
             <div class="section-badge badge-blue">Analysis summary</div>
             <div class="card-title">Your question</div>
@@ -1197,33 +1243,29 @@
             </div>
           </div>
         </div>
-      `;
 
-      results.innerHTML += buildExecutiveSection(data);
-      results.innerHTML += buildDatasetSummarySection(data);
-      results.innerHTML += buildInsightCards(data);
+        ${buildExecutiveSection(data)}
+        ${buildDatasetSummarySection(data)}
+        ${buildInsightCards(data)}
+        ${data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0 ? buildKPIHtml(data) : ""}
+        ${buildTakeaways(data)}
+        ${primaryChart ? renderMainChart(primaryChart, blockId) : ""}
+        ${supportingCharts.length ? renderSupportingCharts(supportingCharts, blockId) : ""}
+        ${buildDataQualitySection(data)}
+        ${buildDecisionSupportSection(data)}
+        ${renderTextSection(data)}
+        ${buildFollowUpQuestions(data)}
+      </div>
+    `;
 
-      if(data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0){
-        results.innerHTML += buildKPIHtml(data);
-      }
+    results.insertAdjacentHTML("beforeend", html);
+    mountCharts(data, blockId);
 
-      results.innerHTML += buildTakeaways(data);
-
-      if(data.charts && data.charts.length > 0){
-        const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
-        const supportingCharts = data.charts.filter(c => c !== primaryChart);
-
-        results.innerHTML += renderMainChart(primaryChart);
-        results.innerHTML += renderSupportingCharts(supportingCharts);
-      }
-
-      results.innerHTML += buildFollowUpQuestions(data);
-      results.innerHTML += buildDataQualitySection(data);
-      results.innerHTML += buildDecisionSupportSection(data);
-      results.innerHTML += renderTextSection(data);
-
-      mountCharts(data);
+    const block = document.getElementById(blockId);
+    if(block){
+      block.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  </script>
-</body>
-</html>
+  }
+
+  window.addEventListener("resize", resizeAllCharts);
+</script>

@@ -1,140 +1,143 @@
-class NarrativeAgent:
-    def run(self, question, analysis, kpis=None, target=None, business_layer=None):
-        kpis = kpis or {}
-        analysis = analysis or {}
-        business_layer = business_layer or {}
+import json
+from llm.openai_client import OpenAIClient
 
-        correlations = analysis.get("correlations", {})
-        categorical_drivers = analysis.get("categorical_drivers", {})
-        target_summary = analysis.get("target_summary", {})
-        top_segments = analysis.get("top_segments", [])
-        bottom_segments = analysis.get("bottom_segments", [])
-        outlier_signals = analysis.get("outlier_signals", {})
-        distribution_signals = analysis.get("distribution_signals", {})
 
-        paragraphs = []
+class PlannerAgent:
+    def __init__(self):
+        self.llm = OpenAIClient()
 
-        if target:
-            paragraphs.append(
-                f"This analysis is centered on {format_label(target).lower()} because it is the main metric most relevant to the business question."
-            )
+    def run(self, question, columns):
+        columns = [str(col).strip() for col in columns]
+        normalized_map = {str(col).strip().lower(): col for col in columns}
 
-        if business_layer.get("direct_answer"):
-            paragraphs.append(business_layer["direct_answer"])
+        prompt = f"""
+You are a senior data analysis planner.
 
-        if target and kpis.get("total_target") is not None and kpis.get("average_target") is not None:
-            paragraphs.append(
-                f"At the overall level, total {format_label(target).lower()} is {format_number(kpis['total_target'])}, while the average per record is {format_number(kpis['average_target'])}. This gives a clear sense of the overall scale before comparing segments."
-            )
+User question:
+"{question}"
 
-        if top_segments:
-            top = top_segments[0]
-            paragraphs.append(
-                f"The strongest segment-level result appears in {format_label(top['dimension']).lower()}, where {top['segment']} leads with an average {format_label(target).lower()} of {format_number(top.get('mean_target'))} across {top.get('count', 'N/A')} records."
-            )
+Dataset columns:
+{columns}
 
-        if bottom_segments:
-            bottom = bottom_segments[0]
-            paragraphs.append(
-                f"At the lower end, {bottom['segment']} is one of the weakest visible segments in {format_label(bottom['dimension']).lower()}, suggesting a meaningful performance gap across groups."
-            )
+Task:
+1. Select the single best target column to analyze.
+2. Select the best driver columns that either explain, segment, or group the target.
+3. Prefer a numeric business metric as the target when possible.
+4. Prefer date, category, region, segment, product, channel, or customer-like fields as drivers.
+5. Do not return the target inside drivers.
+6. Return only valid column names from the provided list.
 
-        if correlations:
-            sorted_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[:2]
-            details = []
-            for col, val in sorted_corr:
-                direction = "moves in the same direction as" if val > 0 else "moves in the opposite direction to"
-                details.append(f"{format_label(col)} {direction} the target (correlation: {val})")
+Return ONLY JSON in this format:
+{{"target": "string", "drivers": ["string", "string", "string"]}}
+""".strip()
 
-            if details:
-                paragraphs.append(
-                    "The numeric analysis indicates that " + "; ".join(details) + ". These are useful directional signals for investigation, but they should not be interpreted as causal proof."
-                )
+        target = None
+        drivers = []
 
-        if categorical_drivers:
-            sorted_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[:2]
-            top_fields = [format_label(col) for col, _ in sorted_cat]
-            if top_fields:
-                paragraphs.append(
-                    "The strongest group-level differences appear across " + ", ".join(top_fields) + ", which suggests that segment-level analysis is important and that performance is not evenly distributed."
-                )
+        try:
+            response = self.llm.generate(prompt)
+            response = response.replace("```json", "").replace("```", "").strip()
+            plan = json.loads(response)
 
-        if distribution_signals.get("spread_ratio") is not None:
-            spread_ratio = distribution_signals["spread_ratio"]
-            if spread_ratio >= 1:
-                paragraphs.append(
-                    "The target distribution appears relatively spread out, which suggests that performance varies significantly across the dataset rather than clustering tightly around the average."
-                )
+            raw_target = str(plan.get("target", "")).strip()
+            raw_drivers = plan.get("drivers", [])
 
-        if outlier_signals.get("outlier_count") is not None and outlier_signals.get("outlier_count", 0) > 0:
-            paragraphs.append(
-                f"The data also contains {outlier_signals['outlier_count']} outlier records ({format_number(outlier_signals.get('outlier_pct'))}%), so a small number of unusually high or low observations may be influencing headline metrics."
-            )
+            target = self._match_column(raw_target, columns, normalized_map)
+            drivers = [
+                matched
+                for matched in [
+                    self._match_column(str(driver).strip(), columns, normalized_map)
+                    for driver in raw_drivers
+                ]
+                if matched and matched != target
+            ]
 
-        if business_layer.get("business_impact"):
-            paragraphs.append(
-                "From a business perspective, " + " ".join(business_layer["business_impact"])
-            )
+        except Exception as e:
+            print("PlannerAgent LLM error:", e)
 
-        if business_layer.get("risks_or_limitations"):
-            paragraphs.append(
-                "The analysis should still be read with some caution: " + " ".join(business_layer["risks_or_limitations"][:2])
-            )
+        if not target:
+            target = self._fallback_target(columns, question)
 
-        paragraphs.append(
-            "Taken together, the results show where performance is concentrated, where gaps exist, and which signals are most relevant for deeper investigation or next-step decisions."
-        )
+        if not drivers:
+            drivers = self._fallback_drivers(columns, target, question)
 
         return {
-            "title": "Analyst Narrative",
-            "summary": build_summary_line(target, kpis, business_layer, analysis),
-            "paragraphs": paragraphs
+            "target": target,
+            "drivers": drivers[:5]
         }
 
+    def _match_column(self, candidate, columns, normalized_map):
+        if not candidate:
+            return None
 
-def build_summary_line(target, kpis, business_layer, analysis):
-    if business_layer.get("executive_summary"):
-        return business_layer["executive_summary"]
+        if candidate in columns:
+            return candidate
 
-    top_segments = analysis.get("top_segments", [])
-    if target and top_segments:
-        top = top_segments[0]
-        return (
-            f"At a high level, the analysis is centered on {format_label(target).lower()}, "
-            f"with {top['segment']} standing out as a leading segment in {format_label(top['dimension']).lower()}."
-        )
+        lower_candidate = candidate.lower().strip()
 
-    if target and kpis.get("top_dimension_value") and kpis.get("top_dimension_name"):
-        return (
-            f"At a high level, the leading {str(kpis['top_dimension_name']).lower()} "
-            f"is {kpis['top_dimension_value']}, and the analysis is centered on {format_label(target).lower()}."
-        )
+        if lower_candidate in normalized_map:
+            return normalized_map[lower_candidate]
 
-    if target:
-        return f"At a high level, this analysis is centered on {format_label(target).lower()}."
+        for col in columns:
+            col_lower = col.lower()
+            if lower_candidate == col_lower:
+                return col
+            if lower_candidate in col_lower or col_lower in lower_candidate:
+                return col
 
-    return "At a high level, the dataset was analyzed successfully."
+        return None
 
+    def _fallback_target(self, columns, question):
+        q = (question or "").lower()
 
-def format_number(value):
-    if value is None:
-        return "N/A"
-    try:
-        value = float(value)
-        abs_value = abs(value)
+        business_metric_priority = [
+            "revenue", "sales", "profit", "amount", "price", "cost",
+            "income", "margin", "value", "quantity", "units", "count"
+        ]
 
-        if abs_value >= 1_000_000_000:
-            return f"{value / 1_000_000_000:.2f}B"
-        if abs_value >= 1_000_000:
-            return f"{value / 1_000_000:.2f}M"
-        if abs_value >= 1_000:
-            return f"{value / 1_000:.2f}K"
-        if float(value).is_integer():
-            return f"{int(value):,}"
-        return f"{value:,.2f}"
-    except Exception:
-        return str(value)
+        for keyword in business_metric_priority:
+            for col in columns:
+                if keyword in col.lower():
+                    return col
 
+        for col in columns:
+            col_lower = col.lower()
+            if any(word in q for word in ["trend", "over time", "growth", "performance", "summary"]):
+                if any(metric in col_lower for metric in business_metric_priority):
+                    return col
 
-def format_label(value):
-    return str(value).replace("_", " ").strip()
+        return columns[-1] if columns else None
+
+    def _fallback_drivers(self, columns, target, question):
+        q = (question or "").lower()
+        driver_priority = [
+            "date", "time", "region", "country", "state", "city",
+            "category", "segment", "product", "channel", "customer",
+            "department", "type", "group"
+        ]
+
+        scored = []
+
+        for col in columns:
+            if col == target:
+                continue
+
+            score = 0
+            col_lower = col.lower()
+
+            for idx, keyword in enumerate(driver_priority):
+                if keyword in col_lower:
+                    score += (len(driver_priority) - idx)
+
+            if col_lower in q:
+                score += 5
+
+            scored.append((col, score))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        ranked = [col for col, score in scored if score > 0]
+        if ranked:
+            return ranked[:5]
+
+        return [col for col in columns if col != target][:5]
