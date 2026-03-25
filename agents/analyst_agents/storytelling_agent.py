@@ -1,12 +1,12 @@
 class StorytellingAgent:
-
-    def run(self, question, target, kpis=None, analysis=None):
+    def run(self, question, target, kpis=None, analysis=None, business_layer=None):
         kpis = kpis or {}
         analysis = analysis or {}
+        business_layer = business_layer or {}
 
-        headline = self._build_headline(question, target, kpis)
-        key_points = self._build_key_points(target, kpis, analysis)
-        business_view = self._build_business_view(question, target, kpis, analysis)
+        headline = self._build_headline(question, target, kpis, analysis, business_layer)
+        key_points = self._build_key_points(target, kpis, analysis, business_layer)
+        business_view = self._build_business_view(question, target, kpis, analysis, business_layer)
 
         return {
             "title": "Data Story",
@@ -15,7 +15,18 @@ class StorytellingAgent:
             "business_view": business_view
         }
 
-    def _build_headline(self, question, target, kpis):
+    def _build_headline(self, question, target, kpis, analysis, business_layer):
+        if business_layer.get("direct_answer"):
+            return business_layer["direct_answer"]
+
+        top_segments = analysis.get("top_segments", [])
+        if top_segments:
+            top = top_segments[0]
+            return (
+                f"{top['segment']} emerges as the strongest visible segment in "
+                f"{format_label(top['dimension']).lower()} for {format_label(target).lower()}."
+            )
+
         if kpis.get("top_dimension_value") and kpis.get("top_dimension_name"):
             return (
                 f"{kpis['top_dimension_value']} stands out as the leading "
@@ -23,69 +34,95 @@ class StorytellingAgent:
             )
 
         if target:
-            return f"The story in this dataset is mainly about how {target.lower()} is distributed, what drives it, and where the strongest performance is concentrated."
+            return (
+                f"The main story in this dataset is how {format_label(target).lower()} is distributed, "
+                f"which segments lead, and which signals appear most relevant."
+            )
 
-        return "This dataset reveals a mix of group-level differences, overall scale, and a few stronger signals that stand out."
+        return "This dataset shows meaningful performance differences and a few stronger patterns worth further investigation."
 
-    def _build_key_points(self, target, kpis, analysis):
+    def _build_key_points(self, target, kpis, analysis, business_layer):
         points = []
 
-        if kpis.get("total_target") is not None:
-            points.append(f"Total {target.lower()}: {format_number(kpis['total_target'])}")
+        if kpis.get("total_target") is not None and target:
+            points.append(f"Total {format_label(target).lower()}: {format_number(kpis['total_target'])}")
 
-        if kpis.get("average_target") is not None:
-            points.append(f"Average {target.lower()}: {format_number(kpis['average_target'])}")
+        if kpis.get("average_target") is not None and target:
+            points.append(f"Average {format_label(target).lower()}: {format_number(kpis['average_target'])}")
 
-        if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+        top_segments = analysis.get("top_segments", [])
+        if top_segments:
+            top = top_segments[0]
             points.append(
-                f"Leading {str(kpis['top_dimension_name']).lower()}: {kpis['top_dimension_value']}"
+                f"Leading segment: {top['segment']} in {format_label(top['dimension']).lower()}"
             )
 
         correlations = analysis.get("correlations", {})
         if correlations:
-            sorted_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-            top_driver = sorted_corr[0]
-            points.append(f"Strongest numeric signal: {top_driver[0]} (correlation: {top_driver[1]})")
+            top_driver = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
+            points.append(
+                f"Strongest numeric signal: {format_label(top_driver[0])} (correlation: {top_driver[1]})"
+            )
 
-        categorical_drivers = analysis.get("categorical_drivers", {})
-        if categorical_drivers:
-            sorted_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
-            points.append(f"Most meaningful group variation: {sorted_cat[0][0]}")
+        outlier_signals = analysis.get("outlier_signals", {})
+        if outlier_signals.get("outlier_count", 0) > 0:
+            points.append(
+                f"Outliers detected: {outlier_signals['outlier_count']} records"
+            )
 
-        return points
+        if business_layer.get("recommended_actions"):
+            points.append(f"Suggested next step: {business_layer['recommended_actions'][0]}")
 
-    def _build_business_view(self, question, target, kpis, analysis):
+        return points[:5]
+
+    def _build_business_view(self, question, target, kpis, analysis, business_layer):
         lines = []
 
-        lines.append(
-            f"Your question asks for an explanation of {target.lower()} in the context of the broader dataset. To answer that, the analysis first looks at the overall size of the metric, then identifies which groups contribute the most, and finally checks whether any numeric signals appear to move with the target."
-        )
+        if business_layer.get("executive_summary"):
+            lines.append(business_layer["executive_summary"])
 
-        if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+        if target:
             lines.append(
-                f"The clearest result is that {kpis['top_dimension_value']} is the leading {str(kpis['top_dimension_name']).lower()}. This makes it the strongest visible contributor in the dataset and a useful benchmark when comparing the rest of the groups."
+                f"The question is ultimately about how {format_label(target).lower()} behaves across the dataset and what that means from a decision-making perspective."
+            )
+
+        top_segments = analysis.get("top_segments", [])
+        bottom_segments = analysis.get("bottom_segments", [])
+
+        if top_segments:
+            top = top_segments[0]
+            lines.append(
+                f"The clearest positive signal is that {top['segment']} leads within {format_label(top['dimension']).lower()}, making it a useful benchmark when comparing the rest of the dataset."
+            )
+
+        if bottom_segments:
+            bottom = bottom_segments[0]
+            lines.append(
+                f"At the same time, weaker segments such as {bottom['segment']} indicate that performance is uneven and that not all groups are contributing equally."
             )
 
         correlations = analysis.get("correlations", {})
         if correlations:
-            sorted_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-            col, val = sorted_corr[0]
+            col, val = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
             relation = "moves with" if val > 0 else "moves opposite to"
             lines.append(
-                f"Among the numeric fields, {col} is the strongest measurable signal and {relation} the target metric. While this does not automatically prove causation, it gives the user a strong direction for deeper investigation."
+                f"Among the numeric fields, {format_label(col)} is the strongest measurable signal and {relation} the target metric. This should be treated as directional evidence rather than causal proof."
             )
 
         categorical_drivers = analysis.get("categorical_drivers", {})
         if categorical_drivers:
-            sorted_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
-            top_cat = sorted_cat[0][0]
+            top_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[0][0]
             lines.append(
-                f"There is also meaningful variation across {top_cat}, which suggests that performance is not uniform across the dataset. Some segments stand out much more than others and likely explain a large share of the overall result."
+                f"There is also clear variation across {format_label(top_cat).lower()}, which suggests that broad averages alone may hide meaningful segment-level differences."
             )
 
-        lines.append(
-            "In practical terms, the charts and KPIs together show where performance is concentrated, how it changes over time, how it is distributed across important business categories, and which signals are most closely associated with the target. This makes the dataset easier to understand for both analysts and business users."
-        )
+        if business_layer.get("business_impact"):
+            lines.extend(business_layer["business_impact"][:2])
+
+        if business_layer.get("risks_or_limitations"):
+            lines.append(
+                "This output is best used for prioritization and business direction, while keeping the stated data limitations in mind before making high-stakes decisions."
+            )
 
         return lines
 
@@ -95,8 +132,20 @@ def format_number(value):
         return "N/A"
     try:
         value = float(value)
-        if abs(value) >= 1000:
-            return f"{value:,.2f}"
-        return f"{value:.2f}"
+        abs_value = abs(value)
+
+        if abs_value >= 1_000_000_000:
+            return f"{value / 1_000_000_000:.2f}B"
+        if abs_value >= 1_000_000:
+            return f"{value / 1_000_000:.2f}M"
+        if abs_value >= 1_000:
+            return f"{value / 1_000:.2f}K"
+        if float(value).is_integer():
+            return f"{int(value):,}"
+        return f"{value:,.2f}"
     except Exception:
         return str(value)
+
+
+def format_label(value):
+    return str(value).replace("_", " ").strip()

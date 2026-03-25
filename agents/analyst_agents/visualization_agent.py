@@ -20,7 +20,7 @@ class VisualizationAgent:
         categorical_cols = working_df.select_dtypes(include=["object"]).columns.tolist()
         datetime_cols = working_df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
 
-        q = question.lower()
+        q = (question or "").lower().strip()
         drivers = drivers or []
 
         chart_plan = self._plan_visuals(
@@ -40,13 +40,15 @@ class VisualizationAgent:
                 chart_type = item["type"]
                 title = item["title"]
                 description = item["description"]
+                role = item.get("role", "supporting")
 
                 if chart_type == "bar":
                     option = self._build_bar_option(
                         working_df,
                         category_col=item["category_col"],
                         target=target,
-                        title=title
+                        agg=item.get("agg", "sum"),
+                        limit=item.get("limit", 10)
                     )
 
                 elif chart_type == "line":
@@ -54,7 +56,7 @@ class VisualizationAgent:
                         working_df,
                         date_col=item["date_col"],
                         target=target,
-                        title=title
+                        freq=item.get("freq", "M")
                     )
 
                 elif chart_type == "donut":
@@ -62,22 +64,21 @@ class VisualizationAgent:
                         working_df,
                         category_col=item["category_col"],
                         target=target,
-                        title=title
+                        agg=item.get("agg", "sum"),
+                        limit=item.get("limit", 6)
                     )
 
                 elif chart_type == "scatter":
                     option = self._build_scatter_option(
                         working_df,
                         x_col=item["x_col"],
-                        y_col=target,
-                        title=title
+                        y_col=target
                     )
 
                 elif chart_type == "histogram":
                     option = self._build_histogram_option(
                         working_df,
-                        target=target,
-                        title=title
+                        target=target
                     )
 
                 if option is None:
@@ -87,18 +88,16 @@ class VisualizationAgent:
                     "type": chart_type,
                     "title": title,
                     "description": description,
-                    "primary": idx == 0,
+                    "role": role,
+                    "primary": role == "primary" or idx == 0,
                     "option": option
                 })
 
             except Exception as e:
                 print(f"Visualization error for {item}: {e}")
 
-        return charts
+        return charts[:4]
 
-    # -------------------------------------------------
-    # HYBRID CHART PLANNER
-    # -------------------------------------------------
     def _plan_visuals(
         self,
         df,
@@ -113,464 +112,427 @@ class VisualizationAgent:
         plans = []
 
         best_cat = choose_best_category_column(df, categorical_cols, question, drivers)
-        best_num = choose_best_numeric_driver(numeric_cols, target)
+        second_cat = choose_second_category_column(df, categorical_cols, question, drivers, best_cat)
+        best_num = choose_best_numeric_driver(df, numeric_cols, target)
+        has_time = len(datetime_cols) > 0
 
-        # Primary chart
-        if ("trend" in question or "over time" in question or intent == "trend_analysis") and datetime_cols:
+        wants_trend = intent == "trend_analysis" or any(
+            token in question for token in ["trend", "over time", "monthly", "weekly", "daily", "timeline", "growth"]
+        )
+        wants_compare = intent == "comparison" or any(
+            token in question for token in ["compare", "comparison", "versus", "vs", "higher", "lower"]
+        )
+        wants_distribution = intent == "distribution_analysis" or any(
+            token in question for token in ["distribution", "spread", "outlier", "variance", "range"]
+        )
+        wants_relationship = intent == "relationship_analysis" or any(
+            token in question for token in ["relationship", "correlation", "impact", "influence", "driver"]
+        )
+        wants_ranking = intent == "ranking_analysis" or any(
+            token in question for token in ["top", "best", "highest", "lowest", "rank", "ranking"]
+        )
+
+        # PRIMARY
+        if wants_trend and has_time:
             plans.append({
                 "type": "line",
                 "date_col": datetime_cols[0],
+                "freq": "M",
                 "title": f"{format_label(target)} over time",
-                "description": f"Shows how {format_label(target).lower()} changes over time and highlights the overall performance direction."
+                "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} changes over time so the overall direction is immediately clear.",
+                "role": "primary"
             })
-        elif (
-            "compare" in question
-            or "top" in question
-            or "best" in question
-            or "highest" in question
-            or "country" in question
-            or "product" in question
-            or "sales person" in question
-            or intent in ["comparison", "summary_analysis"]
-        ) and best_cat:
-            plans.append({
-                "type": "bar",
-                "category_col": best_cat,
-                "title": f"Top {format_label(best_cat).lower()} by {format_label(target).lower()}",
-                "description": f"Ranks the leading {format_label(best_cat).lower()} based on total {format_label(target).lower()}."
-            })
-        elif (
-            "relationship" in question
-            or "correlation" in question
-            or "impact" in question
-            or "affect" in question
-            or "influence" in question
-            or intent == "relationship_analysis"
-        ) and best_num:
+        elif wants_relationship and best_num:
             plans.append({
                 "type": "scatter",
                 "x_col": best_num,
                 "title": f"{format_label(best_num)} vs {format_label(target)}",
-                "description": f"Shows whether changes in {format_label(best_num).lower()} are associated with changes in {format_label(target).lower()}."
+                "description": f"This is the primary answer chart. It tests whether {format_label(best_num).lower()} visibly moves with {format_label(target).lower()}.",
+                "role": "primary"
             })
-        else:
-            if best_cat:
-                plans.append({
-                    "type": "bar",
-                    "category_col": best_cat,
-                    "title": f"{format_label(target)} by {format_label(best_cat)}",
-                    "description": f"Provides the clearest category-level view of {format_label(target).lower()}."
-                })
-            elif datetime_cols:
-                plans.append({
-                    "type": "line",
-                    "date_col": datetime_cols[0],
-                    "title": f"{format_label(target)} over time",
-                    "description": f"Shows the overall time trend for {format_label(target).lower()}."
-                })
-            else:
-                plans.append({
-                    "type": "histogram",
-                    "title": f"Distribution of {format_label(target).lower()}",
-                    "description": f"Shows how {format_label(target).lower()} values are distributed across the dataset."
-                })
+        elif best_cat:
+            primary_agg = "sum"
+            if wants_compare or wants_ranking:
+                primary_agg = "sum"
+            elif "average" in question or "avg" in question or "mean" in question:
+                primary_agg = "mean"
 
-        # Support charts
-        if best_cat and not any(p["type"] == "bar" for p in plans):
             plans.append({
                 "type": "bar",
                 "category_col": best_cat,
+                "agg": primary_agg,
+                "limit": 10,
                 "title": f"{format_label(target)} by {format_label(best_cat)}",
-                "description": f"Compares total {format_label(target).lower()} across {format_label(best_cat).lower()}."
+                "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} differs across the most relevant grouping.",
+                "role": "primary"
+            })
+        else:
+            plans.append({
+                "type": "histogram",
+                "title": f"Distribution of {format_label(target)}",
+                "description": f"This is the primary answer chart. It shows the overall distribution of {format_label(target).lower()} across the dataset.",
+                "role": "primary"
             })
 
-        if datetime_cols and not any(p["type"] == "line" for p in plans):
+        # SUPPORTING 1
+        if has_time and not any(p["type"] == "line" for p in plans):
             plans.append({
                 "type": "line",
                 "date_col": datetime_cols[0],
-                "title": f"{format_label(target)} over time",
-                "description": f"Shows how {format_label(target).lower()} moves across time."
+                "freq": "M",
+                "title": f"Trend of {format_label(target)} over time",
+                "description": f"This supporting chart adds time context so you can see whether the pattern is stable, rising, falling, or driven by spikes.",
+                "role": "supporting"
+            })
+        elif best_cat and not any(p["type"] == "bar" and p.get("category_col") == best_cat for p in plans):
+            plans.append({
+                "type": "bar",
+                "category_col": best_cat,
+                "agg": "sum",
+                "limit": 8,
+                "title": f"Top {format_label(best_cat)} contributors",
+                "description": f"This supporting chart highlights the leading groups contributing most to {format_label(target).lower()}.",
+                "role": "supporting"
+            })
+        elif second_cat:
+            plans.append({
+                "type": "bar",
+                "category_col": second_cat,
+                "agg": "sum",
+                "limit": 8,
+                "title": f"{format_label(target)} by {format_label(second_cat)}",
+                "description": f"This supporting chart provides a second grouping view to explain where performance is concentrated.",
+                "role": "supporting"
             })
 
-        if best_cat and df[best_cat].nunique(dropna=True) <= 6 and not any(p["type"] == "donut" for p in plans):
+        # SUPPORTING 2
+        if best_cat and not wants_distribution:
             plans.append({
                 "type": "donut",
                 "category_col": best_cat,
-                "title": f"Share of {format_label(target).lower()} by {format_label(best_cat).lower()}",
-                "description": f"Shows how total {format_label(target).lower()} is distributed across {format_label(best_cat).lower()}."
+                "agg": "sum",
+                "limit": 6,
+                "title": f"Share of {format_label(target)} by {format_label(best_cat)}",
+                "description": f"This supporting chart shows how concentrated {format_label(target).lower()} is across the main grouping dimension.",
+                "role": "supporting"
             })
-
-        if best_num and not any(p["type"] == "scatter" for p in plans):
+        elif best_num and not any(p["type"] == "scatter" for p in plans):
             plans.append({
                 "type": "scatter",
                 "x_col": best_num,
-                "title": f"{format_label(best_num)} vs {format_label(target)}",
-                "description": f"Explores the relationship between {format_label(best_num).lower()} and {format_label(target).lower()}."
+                "title": f"{format_label(best_num)} compared with {format_label(target)}",
+                "description": f"This supporting chart checks whether the strongest numeric field appears to move with the target metric.",
+                "role": "supporting"
             })
-
-        if not any(p["type"] == "histogram" for p in plans):
+        else:
             plans.append({
                 "type": "histogram",
-                "title": f"Distribution of {format_label(target).lower()}",
-                "description": f"Shows the spread and concentration of {format_label(target).lower()} values."
+                "title": f"Distribution view of {format_label(target)}",
+                "description": f"This supporting chart shows spread, concentration, and value clustering in the target metric.",
+                "role": "supporting"
             })
 
-        # guarantee minimum 4 charts
+        # DIAGNOSTIC
+        if wants_distribution or not any(p["type"] == "histogram" for p in plans):
+            plans.append({
+                "type": "histogram",
+                "title": f"Diagnostic distribution of {format_label(target)}",
+                "description": f"This diagnostic chart helps assess spread, skew, and possible outliers in {format_label(target).lower()}.",
+                "role": "diagnostic"
+            })
+        elif best_num and not any(p["type"] == "scatter" for p in plans):
+            plans.append({
+                "type": "scatter",
+                "x_col": best_num,
+                "title": f"Diagnostic view: {format_label(best_num)} vs {format_label(target)}",
+                "description": f"This diagnostic chart helps validate whether the strongest numeric field has a visible relationship with the target.",
+                "role": "diagnostic"
+            })
+
         deduped = []
         seen = set()
 
-        for p in plans:
+        for plan in plans:
             key = (
-                p["type"],
-                p.get("category_col"),
-                p.get("date_col"),
-                p.get("x_col"),
-                p.get("title")
+                plan["type"],
+                plan.get("category_col"),
+                plan.get("date_col"),
+                plan.get("x_col"),
+                plan.get("agg")
             )
             if key not in seen:
-                deduped.append(p)
+                deduped.append(plan)
                 seen.add(key)
 
-        if len(deduped) < 4:
-            for driver in drivers:
-                if driver in categorical_cols and driver != best_cat:
-                    extra = {
-                        "type": "bar",
-                        "category_col": driver,
-                        "title": f"{format_label(target)} by {format_label(driver)}",
-                        "description": f"Gives an additional comparison of {format_label(target).lower()} across {format_label(driver).lower()}."
-                    }
-                    key = ("bar", driver, None, None, extra["title"])
-                    if key not in seen:
-                        deduped.append(extra)
-                        seen.add(key)
-                    if len(deduped) >= 4:
-                        break
+        while len(deduped) < 4:
+            deduped.append({
+                "type": "histogram",
+                "title": f"Additional diagnostic view of {format_label(target)}",
+                "description": f"This additional chart helps confirm the overall shape of {format_label(target).lower()} across the dataset.",
+                "role": "supporting"
+            })
 
         return deduped[:4]
 
-    # -------------------------------------------------
-    # ECHARTS OPTION BUILDERS
-    # -------------------------------------------------
-    def _base_option(self, title):
-        return {
-            "backgroundColor": "transparent",
-            "animation": True,
-            "grid": {"left": 70, "right": 30, "top": 70, "bottom": 60},
-            "title": {
-                "text": title,
-                "left": 16,
-                "top": 14,
-                "textStyle": {
-                    "fontSize": 18,
-                    "fontWeight": 700,
-                    "color": "#0f172a"
-                }
-            },
-            "tooltip": {
-                "trigger": "item",
-                "backgroundColor": "#ffffff",
-                "borderColor": "#e2e8f0",
-                "borderWidth": 1,
-                "textStyle": {
-                    "color": "#0f172a"
-                }
-            }
-        }
+    def _prepare_dataframe(self, df, target):
+        if target in df.columns and not pd.api.types.is_numeric_dtype(df[target]):
+            df[target] = pd.to_numeric(df[target], errors="coerce")
+        return df
 
-    def _build_bar_option(self, df, category_col, target, title):
-        grouped = (
+    def _build_bar_option(self, df, category_col, target, agg="sum", limit=10):
+        grouped_df = (
             df.groupby(category_col, dropna=False)[target]
-            .sum()
-            .reset_index()
-            .sort_values(target, ascending=False)
-            .head(10)
+            .agg(agg)
+            .sort_values(ascending=False)
+            .head(limit)
         )
-        grouped[category_col] = grouped[category_col].astype(str)
 
-        categories = grouped[category_col].tolist()[::-1]
-        values = grouped[target].tolist()[::-1]
+        categories = [safe_label(v) for v in grouped_df.index.tolist()]
+        values = [round(float(v), 2) for v in grouped_df.values.tolist()]
 
-        option = self._base_option(title)
-        option.update({
+        return {
+            "tooltip": {"trigger": "axis"},
+            "grid": {"left": 70, "right": 30, "top": 50, "bottom": 95},
             "xAxis": {
-                "type": "value",
-                "name": format_label(target),
-                "axisLabel": {
-                    "formatter": "${value}" if is_money_like(target) else "{value}"
-                },
-                "splitLine": {"lineStyle": {"color": "#e5e7eb"}}
-            },
-            "yAxis": {
                 "type": "category",
                 "data": categories,
-                "name": format_label(category_col),
                 "axisLabel": {
-                    "width": 120,
-                    "overflow": "truncate"
+                    "interval": 0,
+                    "rotate": 25,
+                    "formatter": {"function": "function(value){ return truncateLabel(value, 16); }"}
+                }
+            },
+            "yAxis": {
+                "type": "value",
+                "axisLabel": {
+                    "formatter": {"function": "function(value){ return compactAxis(value); }"}
                 }
             },
             "series": [{
                 "type": "bar",
                 "data": values,
-                "barWidth": 22,
-                "itemStyle": {
-                    "color": "#2563eb",
-                    "borderRadius": [0, 8, 8, 0]
-                },
-                "label": {
-                    "show": True,
-                    "position": "right",
-                    "formatter": "${@[0]}" if is_money_like(target) else "{@[0]}"
-                }
+                "barMaxWidth": 48,
+                "itemStyle": {"borderRadius": [6, 6, 0, 0]}
             }]
-        })
-        return option
+        }
 
-    def _build_time_series_option(self, df, date_col, target, title):
-        temp_df = df[[date_col, target]].dropna().copy()
-        temp_df["period"] = temp_df[date_col].dt.to_period("M").dt.to_timestamp()
+    def _build_time_series_option(self, df, date_col, target, freq="M"):
+        working = df.dropna(subset=[date_col, target]).copy()
+
+        if working.empty:
+            return None
+
+        if freq == "M":
+            working["_period"] = working[date_col].dt.to_period("M").astype(str)
+        elif freq == "W":
+            working["_period"] = working[date_col].dt.to_period("W").astype(str)
+        else:
+            working["_period"] = working[date_col].dt.to_period("D").astype(str)
 
         grouped = (
-            temp_df.groupby("period")[target]
+            working.groupby("_period")[target]
             .sum()
             .reset_index()
-            .sort_values("period")
+            .sort_values("_period")
         )
 
-        x_data = grouped["period"].dt.strftime("%b %Y").tolist()
-        y_data = grouped[target].round(2).tolist()
-
-        option = self._base_option(title)
-        option.update({
+        return {
+            "tooltip": {"trigger": "axis"},
+            "grid": {"left": 70, "right": 30, "top": 50, "bottom": 75},
             "xAxis": {
                 "type": "category",
-                "data": x_data,
+                "data": grouped["_period"].tolist(),
                 "axisLabel": {
-                    "rotate": 35
+                    "rotate": 25,
+                    "formatter": {"function": "function(value){ return truncateLabel(value, 14); }"}
                 }
             },
             "yAxis": {
                 "type": "value",
-                "name": format_label(target),
                 "axisLabel": {
-                    "formatter": "${value}" if is_money_like(target) else "{value}"
-                },
-                "splitLine": {"lineStyle": {"color": "#e5e7eb"}}
+                    "formatter": {"function": "function(value){ return compactAxis(value); }"}
+                }
             },
             "series": [{
                 "type": "line",
-                "data": y_data,
+                "data": [round(float(v), 2) for v in grouped[target].tolist()],
                 "smooth": True,
-                "symbolSize": 8,
-                "lineStyle": {"width": 3, "color": "#2563eb"},
-                "itemStyle": {"color": "#2563eb"},
-                "areaStyle": {"color": "rgba(37, 99, 235, 0.10)"}
+                "symbol": "circle",
+                "symbolSize": 7,
+                "lineStyle": {"width": 3},
+                "areaStyle": {"opacity": 0.08}
             }]
-        })
-        return option
+        }
 
-    def _build_donut_option(self, df, category_col, target, title):
+    def _build_donut_option(self, df, category_col, target, agg="sum", limit=6):
         grouped = (
             df.groupby(category_col, dropna=False)[target]
-            .sum()
-            .reset_index()
-            .sort_values(target, ascending=False)
-            .head(6)
+            .agg(agg)
+            .sort_values(ascending=False)
+            .head(limit)
         )
 
-        data = [
-            {"name": str(row[category_col]), "value": round(float(row[target]), 2)}
-            for _, row in grouped.iterrows()
+        series_data = [
+            {"name": safe_label(idx), "value": round(float(val), 2)}
+            for idx, val in grouped.items()
         ]
 
-        option = self._base_option(title)
-        option.update({
+        return {
+            "tooltip": {"trigger": "item"},
             "legend": {
-                "bottom": 10,
-                "left": "center"
+                "bottom": 0,
+                "type": "scroll"
             },
             "series": [{
                 "type": "pie",
-                "radius": ["48%", "70%"],
-                "center": ["50%", "52%"],
-                "label": {
-                    "formatter": "{b}\n{d}%"
-                },
-                "data": data
+                "radius": ["45%", "70%"],
+                "avoidLabelOverlap": True,
+                "data": series_data,
+                "label": {"formatter": "{b}: {d}%"}
             }]
-        })
-        return option
+        }
 
-    def _build_scatter_option(self, df, x_col, y_col, title):
-        temp_df = df[[x_col, y_col]].dropna()
-        if len(temp_df) < 2:
+    def _build_scatter_option(self, df, x_col, y_col):
+        working = df.dropna(subset=[x_col, y_col]).copy()
+
+        if len(working) == 0:
             return None
 
-        data = temp_df[[x_col, y_col]].values.tolist()
+        if len(working) > 300:
+            working = working.sample(300, random_state=42)
 
-        option = self._base_option(title)
-        option.update({
+        points = [
+            [round(float(x), 2), round(float(y), 2)]
+            for x, y in zip(working[x_col], working[y_col])
+        ]
+
+        return {
+            "tooltip": {"trigger": "item"},
+            "grid": {"left": 70, "right": 30, "top": 50, "bottom": 75},
             "xAxis": {
                 "type": "value",
                 "name": format_label(x_col),
-                "splitLine": {"lineStyle": {"color": "#e5e7eb"}}
+                "nameLocation": "middle",
+                "nameGap": 30,
+                "axisLabel": {
+                    "formatter": {"function": "function(value){ return compactAxis(value); }"}
+                }
             },
             "yAxis": {
                 "type": "value",
                 "name": format_label(y_col),
+                "nameLocation": "middle",
+                "nameGap": 45,
                 "axisLabel": {
-                    "formatter": "${value}" if is_money_like(y_col) else "{value}"
-                },
-                "splitLine": {"lineStyle": {"color": "#e5e7eb"}}
+                    "formatter": {"function": "function(value){ return compactAxis(value); }"}
+                }
             },
             "series": [{
                 "type": "scatter",
-                "data": data,
-                "symbolSize": 10,
-                "itemStyle": {
-                    "color": "#2563eb",
-                    "opacity": 0.75
-                }
+                "data": points,
+                "symbolSize": 10
             }]
-        })
-        return option
+        }
 
-    def _build_histogram_option(self, df, target, title):
-        temp_df = df[[target]].dropna().copy()
+    def _build_histogram_option(self, df, target):
+        series = pd.to_numeric(df[target], errors="coerce").dropna()
 
-        q_low = temp_df[target].quantile(0.01)
-        q_high = temp_df[target].quantile(0.99)
-        temp_df = temp_df[(temp_df[target] >= q_low) & (temp_df[target] <= q_high)]
-
-        values = temp_df[target].tolist()
-        if len(values) == 0:
+        if len(series) == 0:
             return None
 
-        min_v = min(values)
-        max_v = max(values)
-        bins = 20
-        bin_size = (max_v - min_v) / bins if max_v != min_v else 1
+        bins = min(10, max(5, int(math.sqrt(len(series)))))
+        bucketed = pd.cut(series, bins=bins, duplicates="drop")
+        bucket_counts = bucketed.value_counts(sort=False)
 
-        counts = [0] * bins
         labels = []
+        values = []
 
-        for i in range(bins):
-            start = min_v + i * bin_size
-            end = start + bin_size
-            labels.append(f"{round(start, 0)} - {round(end, 0)}")
+        for interval, count in bucket_counts.items():
+            labels.append(f"{round(interval.left, 2)} to {round(interval.right, 2)}")
+            values.append(int(count))
 
-        for v in values:
-            idx = min(int((v - min_v) / bin_size), bins - 1) if bin_size > 0 else 0
-            counts[idx] += 1
-
-        option = self._base_option(title)
-        option.update({
+        return {
+            "tooltip": {"trigger": "axis"},
+            "grid": {"left": 70, "right": 30, "top": 50, "bottom": 105},
             "xAxis": {
                 "type": "category",
                 "data": labels,
                 "axisLabel": {
-                    "rotate": 35
+                    "interval": 0,
+                    "rotate": 30,
+                    "formatter": {"function": "function(value){ return truncateLabel(value, 18); }"}
                 }
             },
             "yAxis": {
-                "type": "value",
-                "name": "Count",
-                "splitLine": {"lineStyle": {"color": "#e5e7eb"}}
+                "type": "value"
             },
             "series": [{
                 "type": "bar",
-                "data": counts,
-                "barWidth": "85%",
-                "itemStyle": {
-                    "color": "#2563eb",
-                    "borderRadius": [6, 6, 0, 0]
-                }
+                "data": values,
+                "barMaxWidth": 42,
+                "itemStyle": {"borderRadius": [6, 6, 0, 0]}
             }]
-        })
-        return option
-
-    # -------------------------------------------------
-    # DATA PREP
-    # -------------------------------------------------
-    def _prepare_dataframe(self, df, target):
-        df.columns = [str(col).strip() for col in df.columns]
-
-        df[target] = (
-            df[target]
-            .astype(str)
-            .str.replace(r"[^\d\.\-]", "", regex=True)
-            .str.strip()
-        )
-        df[target] = pd.to_numeric(df[target], errors="coerce")
-
-        for col in df.columns:
-            if "date" in col.lower() or "time" in col.lower():
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-
-        for col in df.columns:
-            if col == target:
-                continue
-            if df[col].dtype == "object":
-                cleaned = (
-                    df[col]
-                    .astype(str)
-                    .str.replace(r"[^\d\.\-]", "", regex=True)
-                    .str.strip()
-                )
-                numeric_candidate = pd.to_numeric(cleaned, errors="coerce")
-                if numeric_candidate.notna().sum() > len(df) * 0.7:
-                    df[col] = numeric_candidate
-
-        return df
+        }
 
 
-def choose_best_category_column(df, categorical_cols, question_text, drivers=None):
-    q = question_text.lower()
-    drivers = drivers or []
+def choose_best_category_column(df, categorical_cols, question, drivers):
+    driver_candidates = [d for d in (drivers or []) if d in categorical_cols]
 
-    for driver in drivers:
-        if driver in categorical_cols:
-            return driver
+    filtered = []
+    for col in categorical_cols:
+        nunique = int(df[col].nunique(dropna=True))
+        if 1 < nunique <= min(20, max(6, int(len(df) * 0.5))):
+            filtered.append(col)
 
-    priorities = [
-        ("product", "Product"),
-        ("country", "Country"),
-        ("region", "Region"),
-        ("sales person", "Sales Person"),
-        ("channel", "Channel"),
-        ("category", "Category"),
-        ("segment", "Segment"),
-        ("customer", "Customer")
-    ]
+    candidate_cols = filtered if filtered else categorical_cols
 
-    for key, pretty_name in priorities:
-        if key in q:
-            for col in categorical_cols:
-                if col.lower() == pretty_name.lower():
-                    return col
-                if key in col.lower():
-                    return col
+    for d in driver_candidates:
+        if d in candidate_cols:
+            return d
 
-    for _, pretty_name in priorities:
-        for col in categorical_cols:
-            if col.lower() == pretty_name.lower():
+    preferred = ["product", "country", "region", "category", "segment", "channel", "customer"]
+    for pref in preferred:
+        for col in candidate_cols:
+            if pref in col.lower():
                 return col
 
-    return categorical_cols[0] if categorical_cols else None
+    return candidate_cols[0] if candidate_cols else None
 
 
-def choose_best_numeric_driver(numeric_cols, target):
+def choose_second_category_column(df, categorical_cols, question, drivers, first_choice):
+    filtered = [c for c in categorical_cols if c != first_choice]
+
+    preferred = ["region", "category", "segment", "channel", "customer", "country", "product"]
+    for pref in preferred:
+        for col in filtered:
+            if pref in col.lower():
+                return col
+
+    return filtered[0] if filtered else None
+
+
+def choose_best_numeric_driver(df, numeric_cols, target):
+    usable = []
     for col in numeric_cols:
-        if col != target:
-            return col
-    return None
+        if col == target:
+            continue
+        non_null = int(df[col].notna().sum())
+        if non_null >= max(5, int(len(df) * 0.2)):
+            usable.append(col)
+
+    return usable[0] if usable else None
 
 
-def format_label(column_name):
-    return str(column_name).replace("_", " ").strip().title()
+def format_label(value):
+    return str(value).replace("_", " ").strip()
 
 
-def is_money_like(column_name):
-    col = str(column_name).lower()
-    return any(word in col for word in ["amount", "revenue", "price", "cost", "profit"])
+def safe_label(value):
+    if pd.isna(value):
+        return "Unknown"
+    return str(value)
+
+
+def truncate_label(value, max_len=16):
+    value = str(value)
+    return value if len(value) <= max_len else value[:max_len - 1] + "…"
