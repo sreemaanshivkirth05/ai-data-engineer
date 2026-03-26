@@ -6,6 +6,7 @@ class QuestionAgent:
         show_kpis = True
         question_category = "general"
         question_goal = "Understand the most important patterns in the dataset."
+        is_count_question = False
 
         trend_terms = [
             "trend", "over time", "monthly", "daily", "weekly", "yearly",
@@ -38,6 +39,12 @@ class QuestionAgent:
             "segment", "group", "category", "region", "country", "channel",
             "customer", "product"
         ]
+        count_terms = [
+            "count", "counts", "how many", "number of", "total number"
+        ]
+
+        if any(term in q for term in count_terms):
+            is_count_question = True
 
         if any(term in q for term in trend_terms):
             intent = "trend_analysis"
@@ -79,11 +86,15 @@ class QuestionAgent:
             question_category = "summary"
             question_goal = "Provide a business-friendly summary of overall performance."
 
+        if is_count_question:
+            question_goal = "Count records or entities and compare how those counts vary across groups."
+
         kpi_terms = [
             "total", "average", "avg", "top", "best", "highest", "lowest",
             "revenue", "sales", "profit", "performance", "summary", "overview",
-            "kpi", "metric"
+            "kpi", "metric", "count", "number of", "how many"
         ]
+
         show_kpis = any(term in q for term in kpi_terms) or intent != "distribution_analysis"
 
         return {
@@ -91,5 +102,6 @@ class QuestionAgent:
             "intent": intent,
             "show_kpis": show_kpis,
             "question_category": question_category,
-            "question_goal": question_goal
+            "question_goal": question_goal,
+            "is_count_question": is_count_question
         }
