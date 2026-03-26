@@ -1,4 +1,3 @@
-import math
 import pandas as pd
 
 
@@ -28,7 +27,8 @@ def build_phase1_product_layer(
         target=target,
         kpis=kpis,
         analysis=analysis,
-        charts=charts
+        charts=charts,
+        intent=intent
     )
 
     follow_up_questions = build_follow_up_questions(
@@ -83,10 +83,51 @@ def build_dataset_summary(df, intent, target, drivers, question_category=None, q
     return summary
 
 
-def build_top_insights(df, target, kpis, analysis, charts):
+def build_top_insights(df, target, kpis, analysis, charts, intent):
     insights = []
 
-    if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+    time_summary = analysis.get("time_summary", {}) or {}
+    top_segments = analysis.get("top_segments", []) or []
+    correlations = analysis.get("correlations", {}) or {}
+    categorical_drivers = analysis.get("categorical_drivers", {}) or {}
+    outlier_summary = analysis.get("outlier_summary", {}) or {}
+
+    if intent == "trend_analysis" and time_summary:
+        first_period = time_summary.get("first_period")
+        last_period = time_summary.get("last_period")
+        change_pct = time_summary.get("change_pct")
+        best_period = time_summary.get("best_period")
+        best_period_value = time_summary.get("best_period_value")
+
+        if first_period and last_period and change_pct is not None:
+            direction = "up" if change_pct >= 0 else "down"
+            insights.append({
+                "title": "Trend direction",
+                "value": f"{abs(change_pct):.1f}% {direction}",
+                "detail": f"{format_label(target).lower()} changed from {first_period} to {last_period}, showing the overall trend direction.",
+                "type": "positive" if change_pct >= 0 else "risk"
+            })
+
+        if best_period and best_period_value is not None:
+            insights.append({
+                "title": "Best period",
+                "value": str(best_period),
+                "detail": f"This period delivered the strongest observed {format_label(target).lower()} at {format_number(best_period_value)}.",
+                "type": "pattern"
+            })
+
+    if not insights and top_segments:
+        best = top_segments[0]
+        insights.append({
+            "title": "Top performer",
+            "value": str(best["segment"]),
+            "detail": (
+                f"The leading {format_label(best['dimension']).lower()} segment contributes strongly to "
+                f"{format_label(target).lower()}, with total {format_number(best.get('total_target'))}."
+            ),
+            "type": "positive"
+        })
+    elif not insights and kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
         insights.append({
             "title": "Top performer",
             "value": str(kpis["top_dimension_value"]),
@@ -97,7 +138,6 @@ def build_top_insights(df, target, kpis, analysis, charts):
             "type": "positive"
         })
 
-    correlations = analysis.get("correlations", {}) or {}
     if correlations:
         top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
         direction = "positive" if top_corr[1] > 0 else "negative"
@@ -111,16 +151,21 @@ def build_top_insights(df, target, kpis, analysis, charts):
             "type": "signal"
         })
 
-    categorical_drivers = analysis.get("categorical_drivers", {}) or {}
     if categorical_drivers:
         top_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[0]
         insights.append({
             "title": "Biggest group variation",
             "value": format_label(top_cat[0]),
-            "detail": (
-                f"This is the clearest grouping dimension where performance differences are visible."
-            ),
+            "detail": "This is the clearest grouping dimension where performance differences are visible.",
             "type": "pattern"
+        })
+
+    if outlier_summary.get("outlier_count", 0) > 0:
+        insights.append({
+            "title": "Outlier watch",
+            "value": f"{outlier_summary.get('outlier_count', 0)} outliers",
+            "detail": f"About {outlier_summary.get('outlier_pct', 0)}% of usable records may be unusually high or low.",
+            "type": "risk"
         })
 
     target_risk = compute_target_risk(df, target)
@@ -131,57 +176,96 @@ def build_top_insights(df, target, kpis, analysis, charts):
         "type": "risk"
     })
 
-    if len(insights) < 4:
-        insights.append({
+    deduped = []
+    seen = set()
+    for item in insights:
+        key = (item.get("title", "").lower(), item.get("value", "").lower())
+        if key not in seen:
+            deduped.append(item)
+            seen.add(key)
+
+    if len(deduped) < 4:
+        deduped.append({
             "title": "Chart coverage",
             "value": f"{len(charts)} visuals",
             "detail": "The answer includes a primary view plus supporting context for interpretation.",
             "type": "info"
         })
 
-    return insights[:4]
+    return deduped[:4]
 
 
 def build_follow_up_questions(df, question, intent, target, drivers, analysis):
     suggestions = []
+    question_lower = (question or "").lower().strip()
     target_label = format_label(target).lower() if target else "the target metric"
 
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
     datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
-    top_group = None
-    if categorical_cols:
-        top_group = choose_best_grouping(categorical_cols, drivers)
+    categorical_cols = filter_bad_followup_dimensions(categorical_cols)
+    driver_candidates = [d for d in (drivers or []) if d in categorical_cols]
+    top_group = choose_best_grouping(categorical_cols, driver_candidates)
 
     strongest_signal = None
     correlations = analysis.get("correlations", {}) or {}
     if correlations:
-        strongest_signal = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0][0]
+        ranked_corr = [
+            col for col, _ in sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
+            if is_good_numeric_followup_column(col)
+        ]
+        if ranked_corr:
+            strongest_signal = ranked_corr[0]
 
-    if datetime_cols:
-        suggestions.append(f"How has {target_label} changed over time?")
+    time_summary = analysis.get("time_summary", {}) or {}
+    top_segments = analysis.get("top_segments", []) or []
 
-    if top_group:
-        suggestions.append(f"Which {format_label(top_group).lower()} segments are driving the highest {target_label}?")
-        suggestions.append(f"Is {target_label} concentrated in a few {format_label(top_group).lower()} groups or broadly distributed?")
+    if intent == "trend_analysis":
+        if top_group:
+            suggestions.append(f"Which {format_label(top_group).lower()} segments are driving the biggest changes in {target_label} over time?")
+        suggestions.append(f"Which time periods show the strongest and weakest {target_label}?")
+        if top_group:
+            suggestions.append(f"How does the trend of {target_label} differ across {format_label(top_group).lower()} groups?")
+    else:
+        if datetime_cols:
+            suggestions.append(f"How has {target_label} changed over time?")
 
-    if strongest_signal:
-        suggestions.append(f"How does {format_label(strongest_signal).lower()} influence or move with {target_label}?")
+    if intent in ["comparison", "ranking_analysis", "segment_analysis", "contribution_analysis", "general_analysis", "summary_analysis"]:
+        if top_group:
+            suggestions.append(f"Which {format_label(top_group).lower()} groups are driving the highest {target_label}?")
+            suggestions.append(f"Is {target_label} concentrated in a few {format_label(top_group).lower()} groups or broadly distributed?")
+            suggestions.append(f"What explains the gap between the top and bottom {format_label(top_group).lower()} groups for {target_label}?")
 
-    if intent in ["comparison", "ranking_analysis", "summary_analysis"]:
-        suggestions.append(f"What explains the gap between the top and bottom performers for {target_label}?")
+    if intent == "relationship_analysis" and strongest_signal:
+        suggestions.append(f"How does {format_label(strongest_signal).lower()} move with {target_label}?")
+
+    if strongest_signal and intent not in ["relationship_analysis", "trend_analysis"]:
+        suggestions.append(f"Does {format_label(strongest_signal).lower()} help explain differences in {target_label}?")
 
     if len(numeric_cols) > 1:
         suggestions.append(f"Are there outliers in {target_label} that are affecting the overall result?")
 
+    if top_segments:
+        lead = top_segments[0]
+        segment_text = str(lead.get("segment", "")).lower().strip()
+        dimension_text = format_label(lead.get("dimension", "")).lower().strip()
+        if segment_text and segment_text not in question_lower:
+            suggestions.append(f"Why is {lead['segment']} leading within {dimension_text} for {target_label}?")
+
     deduped = []
     seen = set()
+
     for s in suggestions:
-        key = s.lower().strip()
-        if key not in seen:
-            deduped.append(s)
-            seen.add(key)
+        cleaned = normalize_followup_text(s)
+        if not cleaned:
+            continue
+        if cleaned in seen:
+            continue
+        if cleaned == normalize_followup_text(question):
+            continue
+        deduped.append(s)
+        seen.add(cleaned)
 
     return deduped[:5]
 
@@ -327,6 +411,39 @@ def choose_best_grouping(categorical_cols, drivers):
                 return col
 
     return categorical_cols[0] if categorical_cols else None
+
+
+def filter_bad_followup_dimensions(columns):
+    blocked_keywords = [
+        "postal", "zip", "zipcode", "row id", "row_id", "id",
+        "order id", "order_id", "customer id", "customer_id",
+        "product id", "product_id"
+    ]
+
+    filtered = []
+    for col in columns:
+        col_lower = str(col).lower().strip()
+        if any(keyword in col_lower for keyword in blocked_keywords):
+            continue
+        filtered.append(col)
+    return filtered
+
+
+def is_good_numeric_followup_column(column_name):
+    blocked_keywords = ["postal", "zip", "id", "code"]
+    lower = str(column_name).lower().strip()
+
+    if lower in ["id", "postal code", "zip code"]:
+        return False
+
+    if any(keyword in lower for keyword in blocked_keywords):
+        return False
+
+    return True
+
+
+def normalize_followup_text(text):
+    return str(text).lower().strip().replace("?", "").replace("  ", " ")
 
 
 def format_number(value):

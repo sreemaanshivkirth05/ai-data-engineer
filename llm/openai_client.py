@@ -5,7 +5,7 @@ from .base import LLMClient
 
 class OpenAIClient(LLMClient):
 
-    def __init__(self, model="gpt-4o-mini"):
+    def __init__(self, model="gpt-5.4-mini"):
         api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:

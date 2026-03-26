@@ -84,7 +84,12 @@ def run_analysis_pipeline(dataset_path, question):
         print(f"⚠️ AnalysisAgent failed: {e}")
         analysis_results = {
             "correlations": {},
-            "categorical_drivers": {}
+            "categorical_drivers": {},
+            "time_summary": {},
+            "top_segments": [],
+            "bottom_segments": {},
+            "distribution_summary": {},
+            "outlier_summary": {}
         }
 
     print("✅ Statistical analysis done")
@@ -238,7 +243,8 @@ def build_business_layer(
         question_goal=question_goal,
         target=target,
         kpis=kpis,
-        analysis=analysis
+        analysis=analysis,
+        intent=intent
     )
 
     direct_answer = build_direct_answer(
@@ -253,7 +259,8 @@ def build_business_layer(
         target=target,
         kpis=kpis,
         analysis=analysis,
-        charts=charts
+        charts=charts,
+        intent=intent
     )
 
     recommended_actions = build_recommended_actions(
@@ -280,8 +287,11 @@ def build_business_layer(
     }
 
 
-def build_executive_summary(question, question_goal, target, kpis, analysis):
+def build_executive_summary(question, question_goal, target, kpis, analysis, intent):
     parts = []
+    time_summary = analysis.get("time_summary", {}) or {}
+    top_segments = analysis.get("top_segments", []) or []
+    correlations = analysis.get("correlations", {}) or {}
 
     if target:
         parts.append(
@@ -291,7 +301,30 @@ def build_executive_summary(question, question_goal, target, kpis, analysis):
     if question_goal:
         parts.append(question_goal)
 
-    if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+    if intent == "trend_analysis" and time_summary:
+        first_period = time_summary.get("first_period")
+        last_period = time_summary.get("last_period")
+        change_pct = time_summary.get("change_pct")
+        best_period = time_summary.get("best_period")
+
+        if first_period and last_period and change_pct is not None:
+            direction = "increased" if change_pct >= 0 else "decreased"
+            parts.append(
+                f"{format_label(target)} {direction} by {abs(change_pct):.1f}% from {first_period} to {last_period}."
+            )
+
+        if best_period:
+            parts.append(
+                f"The strongest observed period was {best_period}."
+            )
+
+    elif top_segments:
+        best = top_segments[0]
+        parts.append(
+            f"The clearest visible leader is {best['segment']} within {format_label(best['dimension']).lower()}."
+        )
+
+    elif kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
         dim_name = str(kpis["top_dimension_name"]).lower()
         dim_value = str(kpis["top_dimension_value"])
         dim_metric = format_number(kpis.get("top_dimension_metric"))
@@ -299,36 +332,72 @@ def build_executive_summary(question, question_goal, target, kpis, analysis):
             f"The clearest visible leader is {dim_value} within {dim_name}, contributing {dim_metric}."
         )
 
-    correlations = analysis.get("correlations", {})
-    if correlations:
+    if correlations and intent != "trend_analysis":
         top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
         relation = "moves with" if top_corr[1] > 0 else "moves opposite to"
         parts.append(
-            f"{top_corr[0]} is the strongest measurable numeric signal and {relation} the target metric."
+            f"{format_label(top_corr[0]).lower()} is the strongest measurable numeric signal and {relation} the target metric."
         )
 
     if not parts:
-        parts.append("The dataset was analyzed successfully and the strongest visible patterns were summarized into visuals and business interpretation.")
+        parts.append(
+            "The dataset was analyzed successfully and the strongest visible patterns were summarized into visuals and business interpretation."
+        )
 
     return " ".join(parts)
 
 
 def build_direct_answer(question, intent, target, kpis, analysis):
+    time_summary = analysis.get("time_summary", {}) or {}
+    top_segments = analysis.get("top_segments", []) or []
+    correlations = analysis.get("correlations", {}) or {}
+
+    if intent == "trend_analysis" and time_summary:
+        first_period = time_summary.get("first_period")
+        last_period = time_summary.get("last_period")
+        first_value = time_summary.get("first_value")
+        last_value = time_summary.get("last_value")
+        change_pct = time_summary.get("change_pct")
+        best_period = time_summary.get("best_period")
+        best_period_value = time_summary.get("best_period_value")
+
+        if first_period and last_period and first_value is not None and last_value is not None:
+            change_text = ""
+            if change_pct is not None:
+                direction = "up" if change_pct >= 0 else "down"
+                change_text = f", moving {direction} by {abs(change_pct):.1f}% overall"
+
+            best_period_text = ""
+            if best_period and best_period_value is not None:
+                best_period_text = f" The strongest period was {best_period} at {format_number(best_period_value)}."
+
+            return (
+                f"{format_label(target)} changed from {format_number(first_value)} in {first_period} "
+                f"to {format_number(last_value)} in {last_period}{change_text}.{best_period_text}"
+            )
+
+    if intent == "relationship_analysis" and correlations:
+        top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
+        direction = "positively associated with" if top_corr[1] > 0 else "negatively associated with"
+        return (
+            f"The strongest numeric relationship is that {format_label(top_corr[0]).lower()} is "
+            f"{direction} {format_label(target).lower()} with a correlation of {top_corr[1]}."
+        )
+
+    if top_segments:
+        best = top_segments[0]
+        return (
+            f"The clearest answer is that {best['segment']} is currently the leading "
+            f"{format_label(best['dimension']).lower()} for {format_label(target).lower()}, "
+            f"with a measured contribution of {format_number(best.get('total_target'))}."
+        )
+
     if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
         metric = format_number(kpis.get("top_dimension_metric"))
         return (
             f"The clearest answer is that {kpis['top_dimension_value']} is currently the leading "
             f"{str(kpis['top_dimension_name']).lower()} for {format_label(target).lower()}, "
             f"with a measured contribution of {metric}."
-        )
-
-    correlations = analysis.get("correlations", {})
-    if intent == "relationship_analysis" and correlations:
-        top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
-        direction = "positively associated with" if top_corr[1] > 0 else "negatively associated with"
-        return (
-            f"The strongest numeric relationship is that {top_corr[0]} is "
-            f"{direction} {format_label(target).lower()} with a correlation of {top_corr[1]}."
         )
 
     if target:
@@ -339,19 +408,40 @@ def build_direct_answer(question, intent, target, kpis, analysis):
     return "The analysis completed successfully, but the answer could not be narrowed to a single target metric."
 
 
-def build_business_impact(target, kpis, analysis, charts):
+def build_business_impact(target, kpis, analysis, charts, intent):
     lines = []
+    top_segments = analysis.get("top_segments", []) or []
+    categorical_drivers = analysis.get("categorical_drivers", {}) or {}
+    time_summary = analysis.get("time_summary", {}) or {}
 
-    if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+    if intent == "trend_analysis" and time_summary:
+        change_pct = time_summary.get("change_pct")
+        best_period = time_summary.get("best_period")
+        if change_pct is not None:
+            direction = "growth" if change_pct >= 0 else "decline"
+            lines.append(
+                f"The time pattern shows overall {direction} in {format_label(target).lower()}, which is important for planning, forecasting, and performance monitoring."
+            )
+        if best_period:
+            lines.append(
+                f"{best_period} stands out as the strongest period and can be used as a benchmark when comparing weaker periods."
+            )
+
+    elif top_segments:
+        best = top_segments[0]
+        lines.append(
+            f"Performance is not evenly distributed: {best['segment']} is a strong benchmark segment that can be compared against weaker groups."
+        )
+
+    elif kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
         lines.append(
             f"Performance is not evenly distributed: {kpis['top_dimension_value']} is a strong benchmark segment that can be compared against weaker groups."
         )
 
-    categorical_drivers = analysis.get("categorical_drivers", {})
-    if categorical_drivers:
+    if categorical_drivers and intent != "trend_analysis":
         top_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[0][0]
         lines.append(
-            f"The variation across {top_cat} suggests that segment-level decisions will likely be more useful than one-size-fits-all actions."
+            f"The variation across {format_label(top_cat).lower()} suggests that segment-level decisions will likely be more useful than one-size-fits-all actions."
         )
 
     if charts and len(charts) >= 4:
@@ -369,15 +459,21 @@ def build_business_impact(target, kpis, analysis, charts):
 
 def build_recommended_actions(intent, target, kpis, analysis):
     actions = []
-
-    if kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
-        actions.append(
-            f"Use {kpis['top_dimension_value']} as a benchmark segment and compare the rest of the groups against it."
-        )
+    time_summary = analysis.get("time_summary", {}) or {}
+    correlations = analysis.get("correlations", {}) or {}
 
     if intent == "trend_analysis":
         actions.append(
             "Review the time-based chart to determine whether the pattern is stable, improving, or driven by a limited number of spikes."
+        )
+        if time_summary.get("best_period") and time_summary.get("worst_period"):
+            actions.append(
+                f"Compare {time_summary['best_period']} and {time_summary['worst_period']} to understand what drove the performance gap across periods."
+            )
+
+    if kpis.get("top_dimension_name") and kpis.get("top_dimension_value") and intent != "trend_analysis":
+        actions.append(
+            f"Use {kpis['top_dimension_value']} as a benchmark segment and compare the rest of the groups against it."
         )
 
     if intent == "comparison":
@@ -385,11 +481,10 @@ def build_recommended_actions(intent, target, kpis, analysis):
             "Investigate why the highest-performing groups are ahead and test whether those conditions can be replicated in weaker segments."
         )
 
-    correlations = analysis.get("correlations", {})
-    if correlations:
+    if correlations and intent != "trend_analysis":
         top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
         actions.append(
-            f"Investigate {top_corr[0]} further as a potential driver of {format_label(target).lower()}, while treating the current result as directional rather than causal."
+            f"Investigate {format_label(top_corr[0]).lower()} further as a potential driver of {format_label(target).lower()}, while treating the current result as directional rather than causal."
         )
 
     if not actions:
