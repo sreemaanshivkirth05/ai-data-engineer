@@ -625,6 +625,7 @@
   <script>
     let mountedCharts = [];
     let analysisHistoryCount = 0;
+    let questionHistory = [];
 
     async function runAnalysis(questionOverride = null){
       const fileInput = document.getElementById("dataset");
@@ -647,6 +648,7 @@
       const formData = new FormData();
       formData.append("file", fileInput.files[0]);
       formData.append("question", question);
+      formData.append("question_history", JSON.stringify(questionHistory));
 
       try{
         const response = await fetch("/analyze", {
@@ -664,6 +666,7 @@
 
         analysisHistoryCount += 1;
         displayResults(data, analysisHistoryCount);
+        questionHistory.push(question);
 
         if(!questionOverride){
           questionInput.value = "";
@@ -961,10 +964,10 @@
         { title: "Top segment", value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : "Leading category based on aggregate contribution." },
         { title: "Top segment value", value: kpis.top_dimension_metric, footnote: "Measured contribution of the leading segment." },
         { title: "Date coverage", value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: "Observed time range in the dataset." },
-        { title: "Aggregation used", value: kpis.aggregation_used, footnote: "Metric rollup method selected for this question." },
         { title: "Best period", value: kpis.best_period, footnote: "Strongest observed time period for the selected metric." },
         { title: "Worst period", value: kpis.worst_period, footnote: "Weakest observed time period for the selected metric." },
-        { title: "Period change %", value: kpis.period_change_pct, footnote: "Overall change from first period to last period." }
+        { title: "Period change %", value: kpis.period_change_pct, footnote: "Overall change from first period to last period." },
+        { title: "Coverage %", value: kpis.target_coverage_pct, footnote: "Usable target coverage across all uploaded rows." }
       ].filter(item => item.value !== undefined);
 
       if(!kpiItems.length) return "";

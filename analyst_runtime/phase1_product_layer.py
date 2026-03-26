@@ -11,7 +11,9 @@ def build_phase1_product_layer(
     analysis,
     charts,
     question_category=None,
-    question_goal=None
+    question_goal=None,
+    question_history=None,
+    plan=None
 ):
     dataset_summary = build_dataset_summary(
         df=df,
@@ -19,7 +21,10 @@ def build_phase1_product_layer(
         target=target,
         drivers=drivers,
         question_category=question_category,
-        question_goal=question_goal
+        question_goal=question_goal,
+        kpis=kpis,
+        analysis=analysis,
+        plan=plan
     )
 
     top_insights = build_top_insights(
@@ -37,7 +42,8 @@ def build_phase1_product_layer(
         intent=intent,
         target=target,
         drivers=drivers,
-        analysis=analysis
+        analysis=analysis,
+        question_history=question_history or []
     )
 
     data_quality_summary = build_data_quality_summary(
@@ -53,10 +59,13 @@ def build_phase1_product_layer(
     }
 
 
-def build_dataset_summary(df, intent, target, drivers, question_category=None, question_goal=None):
+def build_dataset_summary(df, intent, target, drivers, question_category=None, question_goal=None, kpis=None, analysis=None, plan=None):
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
     datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
+
+    analysis_metadata = (analysis or {}).get("analysis_metadata", {}) or {}
+    plan = plan or {}
 
     summary = {
         "row_count": int(len(df)),
@@ -70,7 +79,10 @@ def build_dataset_summary(df, intent, target, drivers, question_category=None, q
         "driver_columns": drivers[:4] if drivers else [],
         "numeric_columns_preview": numeric_cols[:6],
         "categorical_columns_preview": categorical_cols[:6],
-        "datetime_columns_preview": datetime_cols[:3]
+        "datetime_columns_preview": datetime_cols[:3],
+        "time_column_used": analysis_metadata.get("time_column_used") or plan.get("time_column"),
+        "aggregation_used": analysis_metadata.get("aggregation_used") or plan.get("aggregation"),
+        "preferred_chart": plan.get("chart")
     }
 
     if datetime_cols:
@@ -179,7 +191,7 @@ def build_top_insights(df, target, kpis, analysis, charts, intent):
     deduped = []
     seen = set()
     for item in insights:
-        key = (item.get("title", "").lower(), item.get("value", "").lower())
+        key = (str(item.get("title", "")).lower(), str(item.get("value", "")).lower())
         if key not in seen:
             deduped.append(item)
             seen.add(key)
@@ -195,9 +207,12 @@ def build_top_insights(df, target, kpis, analysis, charts, intent):
     return deduped[:4]
 
 
-def build_follow_up_questions(df, question, intent, target, drivers, analysis):
+def build_follow_up_questions(df, question, intent, target, drivers, analysis, question_history=None):
     suggestions = []
-    question_lower = (question or "").lower().strip()
+    question_lower = normalize_followup_text(question)
+    history_normalized = {normalize_followup_text(q) for q in (question_history or []) if q}
+    history_normalized.add(question_lower)
+
     target_label = format_label(target).lower() if target else "the target metric"
 
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
@@ -220,6 +235,8 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis):
 
     time_summary = analysis.get("time_summary", {}) or {}
     top_segments = analysis.get("top_segments", []) or []
+    distribution_summary = analysis.get("distribution_summary", {}) or {}
+    outlier_summary = analysis.get("outlier_summary", {}) or {}
 
     if intent == "trend_analysis":
         if top_group:
@@ -227,24 +244,40 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis):
         suggestions.append(f"Which time periods show the strongest and weakest {target_label}?")
         if top_group:
             suggestions.append(f"How does the trend of {target_label} differ across {format_label(top_group).lower()} groups?")
+        if strongest_signal:
+            suggestions.append(f"Does {format_label(strongest_signal).lower()} help explain the time-based changes in {target_label}?")
+
+    elif intent == "relationship_analysis":
+        if top_group:
+            suggestions.append(f"Does the relationship in {target_label} change across {format_label(top_group).lower()} groups?")
+        if datetime_cols:
+            suggestions.append(f"Has the relationship affecting {target_label} changed over time?")
+        suggestions.append(f"Are there outliers that may be distorting the relationship with {target_label}?")
+
+    elif intent == "distribution_analysis":
+        if top_group:
+            suggestions.append(f"How does the distribution of {target_label} differ across {format_label(top_group).lower()} groups?")
+        suggestions.append(f"Which records appear to be the main outliers in {target_label}?")
+        if datetime_cols:
+            suggestions.append(f"Has the distribution of {target_label} changed over time?")
+
     else:
         if datetime_cols:
             suggestions.append(f"How has {target_label} changed over time?")
 
-    if intent in ["comparison", "ranking_analysis", "segment_analysis", "contribution_analysis", "general_analysis", "summary_analysis"]:
         if top_group:
             suggestions.append(f"Which {format_label(top_group).lower()} groups are driving the highest {target_label}?")
             suggestions.append(f"Is {target_label} concentrated in a few {format_label(top_group).lower()} groups or broadly distributed?")
             suggestions.append(f"What explains the gap between the top and bottom {format_label(top_group).lower()} groups for {target_label}?")
 
-    if intent == "relationship_analysis" and strongest_signal:
-        suggestions.append(f"How does {format_label(strongest_signal).lower()} move with {target_label}?")
+        if strongest_signal:
+            suggestions.append(f"Does {format_label(strongest_signal).lower()} help explain differences in {target_label}?")
 
-    if strongest_signal and intent not in ["relationship_analysis", "trend_analysis"]:
-        suggestions.append(f"Does {format_label(strongest_signal).lower()} help explain differences in {target_label}?")
-
-    if len(numeric_cols) > 1:
+    if len(numeric_cols) > 1 and outlier_summary.get("outlier_count", 0) > 0:
         suggestions.append(f"Are there outliers in {target_label} that are affecting the overall result?")
+
+    if distribution_summary and intent != "distribution_analysis":
+        suggestions.append(f"What does the distribution of {target_label} reveal about spread and concentration?")
 
     if top_segments:
         lead = top_segments[0]
@@ -252,6 +285,9 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis):
         dimension_text = format_label(lead.get("dimension", "")).lower().strip()
         if segment_text and segment_text not in question_lower:
             suggestions.append(f"Why is {lead['segment']} leading within {dimension_text} for {target_label}?")
+
+    if time_summary.get("best_period") and intent != "trend_analysis":
+        suggestions.append(f"Why was {time_summary['best_period']} the strongest period for {target_label}?")
 
     deduped = []
     seen = set()
@@ -262,7 +298,7 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis):
             continue
         if cleaned in seen:
             continue
-        if cleaned == normalize_followup_text(question):
+        if cleaned in history_normalized:
             continue
         deduped.append(s)
         seen.add(cleaned)
@@ -443,7 +479,14 @@ def is_good_numeric_followup_column(column_name):
 
 
 def normalize_followup_text(text):
-    return str(text).lower().strip().replace("?", "").replace("  ", " ")
+    return " ".join(
+        str(text or "")
+        .lower()
+        .replace("?", "")
+        .replace("’", "'")
+        .replace('"', "")
+        .split()
+    )
 
 
 def format_number(value):

@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 
 from fastapi import FastAPI, UploadFile, File, Form, Request
@@ -11,7 +12,6 @@ from engineer_runtime.cleaning_pipeline import run_cleaning_pipeline
 from architect_runtime.architecture_pipeline import run_architecture_pipeline
 from orchestrator import run_full_pipeline
 
-
 # ======================================================
 # APP SETUP
 # ======================================================
@@ -23,9 +23,7 @@ templates = Jinja2Templates(directory="templates")
 os.makedirs("outputs", exist_ok=True)
 os.makedirs("datasets", exist_ok=True)
 
-# Serve output files
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
-
 
 # ======================================================
 # HELPERS
@@ -92,14 +90,29 @@ async def architect_page(request: Request):
 @app.post("/analyze")
 async def analyze_dataset(
     file: UploadFile = File(...),
-    question: str = Form(...)
+    question: str = Form(...),
+    question_history: str = Form("[]")
 ):
     try:
         dataset_path = save_upload_file(file)
 
+        try:
+            parsed_history = json.loads(question_history)
+            if not isinstance(parsed_history, list):
+                parsed_history = []
+        except Exception:
+            parsed_history = []
+
+        parsed_history = [
+            str(item).strip()
+            for item in parsed_history
+            if str(item).strip()
+        ]
+
         report = run_analysis_pipeline(
-            dataset_path,
-            question
+            dataset_path=dataset_path,
+            question=question,
+            question_history=parsed_history
         )
 
         return JSONResponse(report)

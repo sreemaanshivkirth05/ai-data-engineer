@@ -2,6 +2,7 @@ import pandas as pd
 
 
 class AnalysisAgent:
+
     def run(
         self,
         df,
@@ -23,8 +24,8 @@ class AnalysisAgent:
             "outlier_summary": {},
             "analysis_metadata": {
                 "intent": intent,
-                "time_column_used": None,
-                "aggregation_used": normalize_aggregation(aggregation),
+                "time_column_used": time_column,
+                "aggregation_used": aggregation,
                 "driver_priority": drivers or []
             }
         }
@@ -42,30 +43,22 @@ class AnalysisAgent:
             working_df[target] = pd.to_numeric(working_df[target], errors="coerce")
             working_df = working_df.dropna(subset=[target])
 
-        if len(working_df) == 0 or not pd.api.types.is_numeric_dtype(working_df[target]):
+        if len(working_df) == 0:
             return results
 
         drivers = drivers or []
-        agg = normalize_aggregation(aggregation)
+        aggregation = (aggregation or "sum").lower().strip()
+        if aggregation not in {"sum", "avg", "mean", "median", "count", "count_distinct", "none"}:
+            aggregation = "sum"
 
         numeric_cols = working_df.select_dtypes(include=["number"]).columns.tolist()
         categorical_cols = working_df.select_dtypes(include=["object"]).columns.tolist()
         datetime_cols = working_df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
 
-        ranked_categorical_cols = rank_categorical_candidates(
-            df=working_df,
-            categorical_cols=categorical_cols,
-            drivers=drivers
-        )
-
-        ranked_numeric_cols = rank_numeric_candidates(
-            numeric_cols=numeric_cols,
-            target=target,
-            drivers=drivers
-        )
-
-        # numeric relationships
-        for col in ranked_numeric_cols:
+        # --------------------------
+        # NUMERIC DRIVER ANALYSIS
+        # --------------------------
+        for col in numeric_cols:
             if col == target:
                 continue
 
@@ -75,26 +68,33 @@ class AnalysisAgent:
                     continue
 
                 corr = pair_df[target].corr(pair_df[col])
+
                 if pd.notna(corr):
                     results["correlations"][col] = round(float(corr), 3)
             except Exception:
                 continue
 
-        # categorical drivers
-        for col in ranked_categorical_cols:
+        # --------------------------
+        # CATEGORICAL DRIVER ANALYSIS
+        # --------------------------
+        preferred_cats = self._rank_categorical_columns(categorical_cols, drivers)
+
+        for col in preferred_cats:
             try:
                 grouped = (
                     working_df.groupby(col, dropna=False)[target]
-                    .agg(["mean", "sum", "count"])
+                    .agg(["sum", "mean", "count", "median"])
                     .reset_index()
                 )
 
                 grouped = grouped[grouped["count"] > 0]
+
                 if len(grouped) <= 1:
                     continue
 
-                grouped["mean"] = pd.to_numeric(grouped["mean"], errors="coerce")
                 grouped["sum"] = pd.to_numeric(grouped["sum"], errors="coerce")
+                grouped["mean"] = pd.to_numeric(grouped["mean"], errors="coerce")
+                grouped["median"] = pd.to_numeric(grouped["median"], errors="coerce")
 
                 mean_variance = grouped["mean"].var()
                 total_variance = grouped["sum"].var()
@@ -103,38 +103,50 @@ class AnalysisAgent:
                 if pd.notna(mean_variance):
                     score += float(mean_variance)
                 if pd.notna(total_variance):
-                    score += float(total_variance) * 0.1
-
-                # boost planner-selected drivers a bit
-                if col in drivers:
-                    score *= 1.15
+                    score += float(total_variance) * 0.10
 
                 results["categorical_drivers"][col] = round(score, 3)
 
-                grouped_sorted = grouped.sort_values("sum", ascending=False)
+                metric_col = self._choose_group_metric_column(aggregation)
+                if metric_col not in grouped.columns:
+                    metric_col = "sum"
+
+                grouped_sorted = grouped.sort_values(metric_col, ascending=False)
+
                 top_row = grouped_sorted.iloc[0]
                 bottom_row = grouped_sorted.iloc[-1]
 
-                results["top_bottom_segments"][col] = {
-                    "top": {
-                        "segment": safe_label(top_row[col]),
-                        "sum": round(float(top_row["sum"]), 2),
-                        "mean": round(float(top_row["mean"]), 2),
-                        "count": int(top_row["count"])
-                    },
-                    "bottom": {
-                        "segment": safe_label(bottom_row[col]),
-                        "sum": round(float(bottom_row["sum"]), 2),
-                        "mean": round(float(bottom_row["mean"]), 2),
-                        "count": int(bottom_row["count"])
-                    }
+                top_info = {
+                    "dimension": col,
+                    "segment": self._safe_label(top_row[col]),
+                    "total_target": round(float(top_row["sum"]), 2),
+                    "average_target": round(float(top_row["mean"]), 2),
+                    "median_target": round(float(top_row["median"]), 2),
+                    "count": int(top_row["count"])
                 }
+
+                bottom_info = {
+                    "dimension": col,
+                    "segment": self._safe_label(bottom_row[col]),
+                    "total_target": round(float(bottom_row["sum"]), 2),
+                    "average_target": round(float(bottom_row["mean"]), 2),
+                    "median_target": round(float(bottom_row["median"]), 2),
+                    "count": int(bottom_row["count"])
+                }
+
+                results["top_bottom_segments"][col] = {
+                    "top": top_info,
+                    "bottom": bottom_info
+                }
+
+                results["top_segments"].append(top_info)
+                results["bottom_segments"].append(bottom_info)
 
                 total_target = float(working_df[target].sum())
                 if total_target > 0:
                     top_share = float(top_row["sum"]) / total_target * 100
                     results["concentration_summary"][col] = {
-                        "top_segment": safe_label(top_row[col]),
+                        "top_segment": self._safe_label(top_row[col]),
                         "top_segment_share_pct": round(top_share, 2),
                         "group_count": int(grouped[col].nunique())
                     }
@@ -142,32 +154,12 @@ class AnalysisAgent:
             except Exception:
                 continue
 
-        # top/bottom segments from strongest categorical driver
-        if results["categorical_drivers"]:
-            best_cat = sorted(
-                results["categorical_drivers"].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[0][0]
+        results["top_segments"] = self._dedupe_segment_list(results["top_segments"])[:5]
+        results["bottom_segments"] = self._dedupe_segment_list(results["bottom_segments"])[:5]
 
-            if best_cat in results["top_bottom_segments"]:
-                tb = results["top_bottom_segments"][best_cat]
-                results["top_segments"] = [{
-                    "dimension": best_cat,
-                    "segment": tb["top"]["segment"],
-                    "mean_target": tb["top"]["mean"],
-                    "total_target": tb["top"]["sum"],
-                    "count": tb["top"]["count"]
-                }]
-                results["bottom_segments"] = [{
-                    "dimension": best_cat,
-                    "segment": tb["bottom"]["segment"],
-                    "mean_target": tb["bottom"]["mean"],
-                    "total_target": tb["bottom"]["sum"],
-                    "count": tb["bottom"]["count"]
-                }]
-
-        # distribution summary
+        # --------------------------
+        # DISTRIBUTION SUMMARY
+        # --------------------------
         try:
             target_series = pd.to_numeric(working_df[target], errors="coerce").dropna()
 
@@ -184,41 +176,56 @@ class AnalysisAgent:
                     "mean": round(float(target_series.mean()), 2),
                     "median": round(float(target_series.median()), 2),
                     "std": round(float(target_series.std()), 2) if len(target_series) > 1 else 0.0,
+                    "min": round(float(target_series.min()), 2),
+                    "max": round(float(target_series.max()), 2),
                     "q1": round(q1, 2),
                     "q3": round(q3, 2),
-                    "iqr": round(iqr, 2),
-                    "min": round(float(target_series.min()), 2),
-                    "max": round(float(target_series.max()), 2)
+                    "iqr": round(iqr, 2)
                 }
 
                 results["outlier_summary"] = {
                     "outlier_count": int(len(outliers)),
-                    "outlier_pct": round(float(len(outliers)) / len(target_series) * 100, 2)
+                    "outlier_pct": round(float(len(outliers)) / len(target_series) * 100, 2),
+                    "lower_bound": round(lower_bound, 2),
+                    "upper_bound": round(upper_bound, 2)
                 }
         except Exception:
             pass
 
-        # time summary using planner-selected time column first
+        # --------------------------
+        # TIME SUMMARY
+        # --------------------------
         try:
             chosen_time_col = None
+
             if time_column and time_column in working_df.columns:
                 chosen_time_col = time_column
             elif datetime_cols:
                 chosen_time_col = datetime_cols[0]
 
+            results["analysis_metadata"]["time_column_used"] = chosen_time_col
+
             if chosen_time_col:
                 time_df = working_df.dropna(subset=[chosen_time_col, target]).copy()
 
                 if len(time_df) > 1:
-                    freq = infer_time_frequency(time_df, chosen_time_col)
-                    time_df["_period"] = to_period_string(time_df[chosen_time_col], freq)
+                    freq = self._detect_time_frequency(time_df[chosen_time_col])
+                    period_code = self._period_code(freq)
 
-                    grouped = (
-                        time_df.groupby("_period")[target]
-                        .agg(resolve_pandas_agg(agg))
-                        .reset_index()
-                        .sort_values("_period")
-                    )
+                    time_df["_period"] = time_df[chosen_time_col].dt.to_period(period_code).astype(str)
+
+                    if aggregation in {"avg", "mean"}:
+                        grouped = time_df.groupby("_period")[target].mean().reset_index()
+                    elif aggregation == "median":
+                        grouped = time_df.groupby("_period")[target].median().reset_index()
+                    elif aggregation == "count":
+                        grouped = time_df.groupby("_period")[target].count().reset_index()
+                    elif aggregation == "count_distinct":
+                        grouped = time_df.groupby("_period")[target].nunique().reset_index()
+                    else:
+                        grouped = time_df.groupby("_period")[target].sum().reset_index()
+
+                    grouped = grouped.sort_values("_period")
 
                     if len(grouped) >= 2:
                         first_value = float(grouped[target].iloc[0])
@@ -234,7 +241,6 @@ class AnalysisAgent:
                         results["time_summary"] = {
                             "date_column": chosen_time_col,
                             "frequency": freq,
-                            "aggregation": agg,
                             "period_count": int(len(grouped)),
                             "first_period": str(grouped["_period"].iloc[0]),
                             "last_period": str(grouped["_period"].iloc[-1]),
@@ -246,131 +252,103 @@ class AnalysisAgent:
                             "worst_period": str(grouped.loc[worst_idx, "_period"]),
                             "worst_period_value": round(float(grouped.loc[worst_idx, target]), 2)
                         }
-                        results["analysis_metadata"]["time_column_used"] = chosen_time_col
-
         except Exception:
             pass
 
         return results
 
+    def _rank_categorical_columns(self, categorical_cols, drivers):
+        ranked = []
+        seen = set()
 
-def normalize_aggregation(agg):
-    agg = str(agg or "").strip().lower()
-    mapping = {
-        "avg": "mean",
-        "average": "mean",
-        "mean": "mean",
-        "sum": "sum",
-        "median": "median",
-        "count": "count",
-        "count_distinct": "count",
-        "none": "sum",
-    }
-    return mapping.get(agg, "sum")
+        for col in drivers or []:
+            if col in categorical_cols and col not in seen:
+                ranked.append(col)
+                seen.add(col)
 
-
-def resolve_pandas_agg(agg):
-    normalized = normalize_aggregation(agg)
-    if normalized in {"sum", "mean", "median", "count"}:
-        return normalized
-    return "sum"
-
-
-def rank_categorical_candidates(df, categorical_cols, drivers):
-    scored = []
-
-    for col in categorical_cols:
-        score = 0.0
-        nunique = int(df[col].nunique(dropna=True))
-
-        if col in (drivers or []):
-            score += 10.0
-
-        if 1 < nunique <= min(20, max(6, int(len(df) * 0.5))):
-            score += 5.0
-        elif nunique == 1:
-            score -= 10.0
-        elif nunique > max(25, int(len(df) * 0.5)):
-            score -= 4.0
-
-        col_lower = col.lower()
-        preferred = [
+        preferred_keywords = [
             "region", "country", "state", "city",
-            "category", "segment", "product", "sub-category",
+            "category", "segment", "product", "sub category",
             "channel", "customer", "ship mode"
         ]
-        for idx, keyword in enumerate(preferred):
-            if keyword in col_lower:
-                score += (len(preferred) - idx) * 0.25
 
-        if "id" in col_lower or "postal" in col_lower or "zip" in col_lower:
-            score -= 8.0
+        for keyword in preferred_keywords:
+            for col in categorical_cols:
+                if col in seen:
+                    continue
+                if keyword in col.lower():
+                    ranked.append(col)
+                    seen.add(col)
 
-        scored.append((col, score))
+        for col in categorical_cols:
+            if col not in seen:
+                ranked.append(col)
+                seen.add(col)
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    return [col for col, score in scored if score > -5]
+        return ranked
 
+    def _choose_group_metric_column(self, aggregation):
+        mapping = {
+            "sum": "sum",
+            "avg": "mean",
+            "mean": "mean",
+            "median": "median",
+            "count": "count",
+            "count_distinct": "count",
+            "none": "sum"
+        }
+        return mapping.get(aggregation, "sum")
 
-def rank_numeric_candidates(numeric_cols, target, drivers):
-    scored = []
+    def _detect_time_frequency(self, dt_series):
+        clean_series = dt_series.dropna().sort_values()
+        if len(clean_series) < 2:
+            return "monthly"
 
-    for col in numeric_cols:
-        if col == target:
-            continue
+        try:
+            deltas = clean_series.diff().dropna().dt.days
+            if len(deltas) == 0:
+                return "monthly"
 
-        score = 0.0
-        if col in (drivers or []):
-            score += 10.0
+            median_gap = deltas.median()
 
-        col_lower = col.lower()
-        if any(word in col_lower for word in ["sales", "profit", "revenue", "cost", "amount", "discount", "quantity", "price"]):
-            score += 2.0
+            if median_gap <= 2:
+                return "daily"
+            if median_gap <= 10:
+                return "weekly"
+            if median_gap <= 45:
+                return "monthly"
+            if median_gap <= 120:
+                return "quarterly"
+            return "yearly"
+        except Exception:
+            return "monthly"
 
-        if "id" in col_lower or "postal" in col_lower or "zip" in col_lower:
-            score -= 8.0
+    def _period_code(self, frequency):
+        mapping = {
+            "daily": "D",
+            "weekly": "W",
+            "monthly": "M",
+            "quarterly": "Q",
+            "yearly": "Y"
+        }
+        return mapping.get(frequency, "M")
 
-        scored.append((col, score))
+    def _dedupe_segment_list(self, items):
+        seen = set()
+        result = []
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    return [col for col, _ in scored]
+        for item in items:
+            key = (
+                str(item.get("dimension", "")).strip().lower(),
+                str(item.get("segment", "")).strip().lower()
+            )
+            if key not in seen:
+                result.append(item)
+                seen.add(key)
 
+        return result
 
-def infer_time_frequency(df, date_col):
-    series = df[date_col].dropna().sort_values()
-    if len(series) < 2:
-        return "M"
-
-    try:
-        median_diff = series.diff().dropna().dt.days.median()
-        if median_diff is None:
-            return "M"
-        if median_diff <= 2:
-            return "D"
-        if median_diff <= 10:
-            return "W"
-        if median_diff <= 45:
-            return "M"
-        if median_diff <= 120:
-            return "Q"
-        return "Y"
-    except Exception:
-        return "M"
-
-
-def to_period_string(series, freq):
-    if freq == "Y":
-        return series.dt.to_period("Y").astype(str)
-    if freq == "Q":
-        return series.dt.to_period("Q").astype(str)
-    if freq == "W":
-        return series.dt.to_period("W").astype(str)
-    if freq == "D":
-        return series.dt.to_period("D").astype(str)
-    return series.dt.to_period("M").astype(str)
-
-
-def safe_label(value):
-    if pd.isna(value):
-        return "Unknown"
-    return str(value)
+    def _safe_label(self, value):
+        if pd.isna(value):
+            return "Unknown"
+        return str(value)

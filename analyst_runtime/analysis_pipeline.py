@@ -12,7 +12,9 @@ from agents.analyst_agents.kpi_agent import KPIAgent
 from analyst_runtime.phase1_product_layer import build_phase1_product_layer
 
 
-def run_analysis_pipeline(dataset_path, question):
+def run_analysis_pipeline(dataset_path, question, question_history=None):
+    question_history = question_history or []
+
     print("🚀 ANALYSIS PIPELINE STARTED")
     print(f"📂 Loading dataset: {dataset_path}")
 
@@ -93,7 +95,7 @@ def run_analysis_pipeline(dataset_path, question):
                     time_column=time_column,
                     aggregation=aggregation,
                     drivers=drivers
-)
+                )
             except TypeError:
                 kpis = kpi_agent.run(df, target)
         except Exception as e:
@@ -122,11 +124,19 @@ def run_analysis_pipeline(dataset_path, question):
         analysis_results = {
             "correlations": {},
             "categorical_drivers": {},
-            "time_summary": {},
             "top_segments": [],
             "bottom_segments": [],
+            "top_bottom_segments": {},
             "distribution_summary": {},
-            "outlier_summary": {}
+            "time_summary": {},
+            "concentration_summary": {},
+            "outlier_summary": {},
+            "analysis_metadata": {
+                "intent": intent,
+                "time_column_used": None,
+                "aggregation_used": aggregation,
+                "driver_priority": drivers
+            }
         }
 
     print("✅ Statistical analysis done")
@@ -188,7 +198,9 @@ def run_analysis_pipeline(dataset_path, question):
         analysis=analysis_results,
         charts=charts,
         question_category=question_category,
-        question_goal=question_goal
+        question_goal=question_goal,
+        question_history=question_history,
+        plan=plan
     )
     print("✅ Phase 1 product layer done")
 
@@ -612,7 +624,6 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [str(col).strip() for col in df.columns]
 
     money_keywords = ["amount", "revenue", "sales_value", "price", "cost", "profit"]
-
     for col in df.columns:
         col_lower = col.lower().strip()
         if col_lower in money_keywords:
@@ -625,7 +636,6 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     numeric_keywords = ["boxes shipped", "boxes", "quantity", "qty", "sales", "units", "count", "volume"]
-
     for col in df.columns:
         col_lower = col.lower().strip()
         if col_lower in numeric_keywords:
