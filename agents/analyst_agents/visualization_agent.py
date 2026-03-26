@@ -3,8 +3,18 @@ import pandas as pd
 
 
 class VisualizationAgent:
-
-    def run(self, df, target, question="", intent="general_analysis", drivers=None):
+    def run(
+        self,
+        df,
+        target,
+        question="",
+        intent="general_analysis",
+        drivers=None,
+        time_column=None,
+        aggregation="sum",
+        preferred_chart="table",
+        plan=None
+    ):
         charts = []
 
         if target not in df.columns:
@@ -22,6 +32,11 @@ class VisualizationAgent:
 
         q = (question or "").lower().strip()
         drivers = drivers or []
+        plan = plan or {}
+
+        resolved_time_column = time_column if time_column in working_df.columns else None
+        if not resolved_time_column and datetime_cols:
+            resolved_time_column = datetime_cols[0]
 
         chart_plan = self._plan_visuals(
             df=working_df,
@@ -31,7 +46,11 @@ class VisualizationAgent:
             drivers=drivers,
             numeric_cols=numeric_cols,
             categorical_cols=categorical_cols,
-            datetime_cols=datetime_cols
+            datetime_cols=datetime_cols,
+            time_column=resolved_time_column,
+            aggregation=aggregation,
+            preferred_chart=preferred_chart,
+            plan=plan
         )
 
         for idx, item in enumerate(chart_plan):
@@ -48,7 +67,8 @@ class VisualizationAgent:
                         category_col=item["category_col"],
                         target=target,
                         agg=item.get("agg", "sum"),
-                        limit=item.get("limit", 10)
+                        limit=item.get("limit", 10),
+                        sort_desc=item.get("sort_desc", True)
                     )
 
                 elif chart_type == "line":
@@ -56,7 +76,8 @@ class VisualizationAgent:
                         working_df,
                         date_col=item["date_col"],
                         target=target,
-                        freq=item.get("freq", "M")
+                        freq=item.get("freq", "M"),
+                        agg=item.get("agg", "sum")
                     )
 
                 elif chart_type == "donut":
@@ -77,6 +98,12 @@ class VisualizationAgent:
 
                 elif chart_type == "histogram":
                     option = self._build_histogram_option(
+                        working_df,
+                        target=target
+                    )
+
+                elif chart_type == "box":
+                    option = self._build_box_option(
                         working_df,
                         target=target
                     )
@@ -107,79 +134,123 @@ class VisualizationAgent:
         drivers,
         numeric_cols,
         categorical_cols,
-        datetime_cols
+        datetime_cols,
+        time_column,
+        aggregation,
+        preferred_chart,
+        plan
     ):
         plans = []
 
         best_cat = choose_best_category_column(df, categorical_cols, question, drivers)
         second_cat = choose_second_category_column(df, categorical_cols, question, drivers, best_cat)
         best_num = choose_best_numeric_driver(df, numeric_cols, target)
-        has_time = len(datetime_cols) > 0
 
-        wants_trend = intent == "trend_analysis" or any(
-            token in question for token in ["trend", "over time", "monthly", "weekly", "daily", "timeline", "growth"]
-        )
-        wants_compare = intent == "comparison" or any(
-            token in question for token in ["compare", "comparison", "versus", "vs", "higher", "lower"]
-        )
-        wants_distribution = intent == "distribution_analysis" or any(
-            token in question for token in ["distribution", "spread", "outlier", "variance", "range"]
-        )
-        wants_relationship = intent == "relationship_analysis" or any(
-            token in question for token in ["relationship", "correlation", "impact", "influence", "driver"]
-        )
-        wants_ranking = intent == "ranking_analysis" or any(
-            token in question for token in ["top", "best", "highest", "lowest", "rank", "ranking"]
-        )
+        planner_chart = str(preferred_chart or "").strip().lower()
+        planner_agg = normalize_aggregation(aggregation)
+        has_time = bool(time_column)
 
-        # PRIMARY
-        if wants_trend and has_time:
+        wants_trend = intent == "trend_analysis"
+        wants_compare = intent in ["comparison", "ranking_analysis", "segment_analysis", "contribution_analysis"]
+        wants_distribution = intent == "distribution_analysis"
+        wants_relationship = intent == "relationship_analysis"
+
+        # PRIMARY: obey planner first
+        if planner_chart == "line" and has_time:
             plans.append({
                 "type": "line",
-                "date_col": datetime_cols[0],
-                "freq": "M",
+                "date_col": time_column,
+                "freq": infer_time_frequency(df, time_column),
+                "agg": planner_agg,
                 "title": f"{format_label(target)} over time",
-                "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} changes over time so the overall direction is immediately clear.",
+                "description": f"This primary chart follows the planner decision and shows how {format_label(target).lower()} changes over time.",
                 "role": "primary"
             })
-        elif wants_relationship and best_num:
+        elif planner_chart == "scatter" and best_num:
             plans.append({
                 "type": "scatter",
                 "x_col": best_num,
                 "title": f"{format_label(best_num)} vs {format_label(target)}",
-                "description": f"This is the primary answer chart. It tests whether {format_label(best_num).lower()} visibly moves with {format_label(target).lower()}.",
+                "description": f"This primary chart follows the planner decision and checks whether {format_label(best_num).lower()} visibly moves with {format_label(target).lower()}.",
                 "role": "primary"
             })
-        elif best_cat:
-            primary_agg = "sum"
-            if wants_compare or wants_ranking:
-                primary_agg = "sum"
-            elif "average" in question or "avg" in question or "mean" in question:
-                primary_agg = "mean"
-
-            plans.append({
-                "type": "bar",
-                "category_col": best_cat,
-                "agg": primary_agg,
-                "limit": 10,
-                "title": f"{format_label(target)} by {format_label(best_cat)}",
-                "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} differs across the most relevant grouping.",
-                "role": "primary"
-            })
-        else:
+        elif planner_chart == "histogram":
             plans.append({
                 "type": "histogram",
                 "title": f"Distribution of {format_label(target)}",
-                "description": f"This is the primary answer chart. It shows the overall distribution of {format_label(target).lower()} across the dataset.",
+                "description": f"This primary chart follows the planner decision and shows the distribution of {format_label(target).lower()}.",
                 "role": "primary"
             })
+        elif planner_chart == "box":
+            plans.append({
+                "type": "box",
+                "title": f"Box view of {format_label(target)}",
+                "description": f"This primary chart follows the planner decision and highlights spread, skew, and outliers in {format_label(target).lower()}.",
+                "role": "primary"
+            })
+        elif planner_chart == "bar" and best_cat:
+            plans.append({
+                "type": "bar",
+                "category_col": best_cat,
+                "agg": planner_agg,
+                "limit": 10,
+                "title": f"{format_label(target)} by {format_label(best_cat)}",
+                "description": f"This primary chart follows the planner decision and compares {format_label(target).lower()} across the most relevant grouping.",
+                "role": "primary"
+            })
+
+        # fallback primary if planner chart not usable
+        if not plans:
+            if wants_trend and has_time:
+                plans.append({
+                    "type": "line",
+                    "date_col": time_column,
+                    "freq": infer_time_frequency(df, time_column),
+                    "agg": planner_agg,
+                    "title": f"{format_label(target)} over time",
+                    "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} changes over time.",
+                    "role": "primary"
+                })
+            elif wants_relationship and best_num:
+                plans.append({
+                    "type": "scatter",
+                    "x_col": best_num,
+                    "title": f"{format_label(best_num)} vs {format_label(target)}",
+                    "description": f"This is the primary answer chart. It tests whether {format_label(best_num).lower()} visibly moves with {format_label(target).lower()}.",
+                    "role": "primary"
+                })
+            elif wants_distribution:
+                plans.append({
+                    "type": "histogram",
+                    "title": f"Distribution of {format_label(target)}",
+                    "description": f"This is the primary answer chart. It shows the spread of {format_label(target).lower()} across the dataset.",
+                    "role": "primary"
+                })
+            elif best_cat:
+                plans.append({
+                    "type": "bar",
+                    "category_col": best_cat,
+                    "agg": planner_agg,
+                    "limit": 10,
+                    "title": f"{format_label(target)} by {format_label(best_cat)}",
+                    "description": f"This is the primary answer chart. It shows how {format_label(target).lower()} differs across the most relevant grouping.",
+                    "role": "primary"
+                })
+            else:
+                plans.append({
+                    "type": "histogram",
+                    "title": f"Distribution of {format_label(target)}",
+                    "description": f"This is the primary answer chart. It shows the overall distribution of {format_label(target).lower()}.",
+                    "role": "primary"
+                })
 
         # SUPPORTING 1
         if has_time and not any(p["type"] == "line" for p in plans):
             plans.append({
                 "type": "line",
-                "date_col": datetime_cols[0],
-                "freq": "M",
+                "date_col": time_column,
+                "freq": infer_time_frequency(df, time_column),
+                "agg": planner_agg,
                 "title": f"Trend of {format_label(target)} over time",
                 "description": f"This supporting chart adds time context so you can see whether the pattern is stable, rising, falling, or driven by spikes.",
                 "role": "supporting"
@@ -188,17 +259,17 @@ class VisualizationAgent:
             plans.append({
                 "type": "bar",
                 "category_col": best_cat,
-                "agg": "sum",
+                "agg": planner_agg,
                 "limit": 8,
-                "title": f"Top {format_label(best_cat)} contributors",
-                "description": f"This supporting chart highlights the leading groups contributing most to {format_label(target).lower()}.",
+                "title": f"{format_label(target)} by {format_label(best_cat)}",
+                "description": f"This supporting chart gives another grouped view of {format_label(target).lower()}.",
                 "role": "supporting"
             })
         elif second_cat:
             plans.append({
                 "type": "bar",
                 "category_col": second_cat,
-                "agg": "sum",
+                "agg": planner_agg,
                 "limit": 8,
                 "title": f"{format_label(target)} by {format_label(second_cat)}",
                 "description": f"This supporting chart provides a second grouping view to explain where performance is concentrated.",
@@ -206,11 +277,11 @@ class VisualizationAgent:
             })
 
         # SUPPORTING 2
-        if best_cat and not wants_distribution:
+        if best_cat and not wants_distribution and not any(p["type"] == "donut" for p in plans):
             plans.append({
                 "type": "donut",
                 "category_col": best_cat,
-                "agg": "sum",
+                "agg": planner_agg,
                 "limit": 6,
                 "title": f"Share of {format_label(target)} by {format_label(best_cat)}",
                 "description": f"This supporting chart shows how concentrated {format_label(target).lower()} is across the main grouping dimension.",
@@ -233,7 +304,7 @@ class VisualizationAgent:
             })
 
         # DIAGNOSTIC
-        if wants_distribution or not any(p["type"] == "histogram" for p in plans):
+        if wants_distribution or not any(p["type"] in ["histogram", "box"] for p in plans):
             plans.append({
                 "type": "histogram",
                 "title": f"Diagnostic distribution of {format_label(target)}",
@@ -252,16 +323,16 @@ class VisualizationAgent:
         deduped = []
         seen = set()
 
-        for plan in plans:
+        for plan_item in plans:
             key = (
-                plan["type"],
-                plan.get("category_col"),
-                plan.get("date_col"),
-                plan.get("x_col"),
-                plan.get("agg")
+                plan_item["type"],
+                plan_item.get("category_col"),
+                plan_item.get("date_col"),
+                plan_item.get("x_col"),
+                plan_item.get("agg")
             )
             if key not in seen:
-                deduped.append(plan)
+                deduped.append(plan_item)
                 seen.add(key)
 
         while len(deduped) < 4:
@@ -279,11 +350,11 @@ class VisualizationAgent:
             df[target] = pd.to_numeric(df[target], errors="coerce")
         return df
 
-    def _build_bar_option(self, df, category_col, target, agg="sum", limit=10):
+    def _build_bar_option(self, df, category_col, target, agg="sum", limit=10, sort_desc=True):
         grouped_df = (
             df.groupby(category_col, dropna=False)[target]
-            .agg(agg)
-            .sort_values(ascending=False)
+            .agg(resolve_pandas_agg(agg))
+            .sort_values(ascending=sort_desc)
             .head(limit)
         )
 
@@ -316,22 +387,25 @@ class VisualizationAgent:
             }]
         }
 
-    def _build_time_series_option(self, df, date_col, target, freq="M"):
+    def _build_time_series_option(self, df, date_col, target, freq="M", agg="sum"):
         working = df.dropna(subset=[date_col, target]).copy()
-
         if working.empty:
             return None
 
-        if freq == "M":
-            working["_period"] = working[date_col].dt.to_period("M").astype(str)
+        if freq == "Y":
+            working["_period"] = working[date_col].dt.to_period("Y").astype(str)
+        elif freq == "Q":
+            working["_period"] = working[date_col].dt.to_period("Q").astype(str)
         elif freq == "W":
             working["_period"] = working[date_col].dt.to_period("W").astype(str)
-        else:
+        elif freq == "D":
             working["_period"] = working[date_col].dt.to_period("D").astype(str)
+        else:
+            working["_period"] = working[date_col].dt.to_period("M").astype(str)
 
         grouped = (
             working.groupby("_period")[target]
-            .sum()
+            .agg(resolve_pandas_agg(agg))
             .reset_index()
             .sort_values("_period")
         )
@@ -367,7 +441,7 @@ class VisualizationAgent:
     def _build_donut_option(self, df, category_col, target, agg="sum", limit=6):
         grouped = (
             df.groupby(category_col, dropna=False)[target]
-            .agg(agg)
+            .agg(resolve_pandas_agg(agg))
             .sort_values(ascending=False)
             .head(limit)
         )
@@ -394,7 +468,6 @@ class VisualizationAgent:
 
     def _build_scatter_option(self, df, x_col, y_col):
         working = df.dropna(subset=[x_col, y_col]).copy()
-
         if len(working) == 0:
             return None
 
@@ -436,7 +509,6 @@ class VisualizationAgent:
 
     def _build_histogram_option(self, df, target):
         series = pd.to_numeric(df[target], errors="coerce").dropna()
-
         if len(series) == 0:
             return None
 
@@ -463,14 +535,35 @@ class VisualizationAgent:
                     "formatter": {"function": "function(value){ return truncateLabel(value, 18); }"}
                 }
             },
-            "yAxis": {
-                "type": "value"
-            },
+            "yAxis": {"type": "value"},
             "series": [{
                 "type": "bar",
                 "data": values,
                 "barMaxWidth": 42,
                 "itemStyle": {"borderRadius": [6, 6, 0, 0]}
+            }]
+        }
+
+    def _build_box_option(self, df, target):
+        series = pd.to_numeric(df[target], errors="coerce").dropna()
+        if len(series) == 0:
+            return None
+
+        values = [round(float(v), 2) for v in series.tolist()]
+
+        return {
+            "tooltip": {"trigger": "item"},
+            "grid": {"left": 70, "right": 30, "top": 50, "bottom": 60},
+            "xAxis": {"type": "category", "data": [format_label(target)]},
+            "yAxis": {
+                "type": "value",
+                "axisLabel": {
+                    "formatter": {"function": "function(value){ return compactAxis(value); }"}
+                }
+            },
+            "series": [{
+                "type": "boxplot",
+                "data": [compute_box_stats(values)]
             }]
         }
 
@@ -521,6 +614,70 @@ def choose_best_numeric_driver(df, numeric_cols, target):
             usable.append(col)
 
     return usable[0] if usable else None
+
+
+def normalize_aggregation(agg):
+    agg = str(agg or "").strip().lower()
+    mapping = {
+        "avg": "mean",
+        "average": "mean",
+        "mean": "mean",
+        "sum": "sum",
+        "median": "median",
+        "count": "count",
+        "count_distinct": "count",
+        "none": "sum",
+    }
+    return mapping.get(agg, "sum")
+
+
+def resolve_pandas_agg(agg):
+    normalized = normalize_aggregation(agg)
+    if normalized in {"sum", "mean", "median", "count"}:
+        return normalized
+    return "sum"
+
+
+def infer_time_frequency(df, date_col):
+    series = df[date_col].dropna().sort_values()
+    if len(series) < 2:
+        return "M"
+
+    try:
+        median_diff = series.diff().dropna().dt.days.median()
+        if median_diff is None:
+            return "M"
+        if median_diff <= 2:
+            return "D"
+        if median_diff <= 10:
+            return "W"
+        if median_diff <= 45:
+            return "M"
+        if median_diff <= 120:
+            return "Q"
+        return "Y"
+    except Exception:
+        return "M"
+
+
+def compute_box_stats(values):
+    clean = sorted([float(v) for v in values if v is not None])
+    if not clean:
+        return [0, 0, 0, 0, 0]
+
+    q1 = pd.Series(clean).quantile(0.25)
+    median = pd.Series(clean).quantile(0.5)
+    q3 = pd.Series(clean).quantile(0.75)
+    low = min(clean)
+    high = max(clean)
+
+    return [
+        round(float(low), 2),
+        round(float(q1), 2),
+        round(float(median), 2),
+        round(float(q3), 2),
+        round(float(high), 2),
+    ]
 
 
 def format_label(value):

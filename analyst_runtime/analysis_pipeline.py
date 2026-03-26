@@ -39,12 +39,15 @@ def run_analysis_pipeline(dataset_path, question):
     question_agent = QuestionAgent()
     question_info = question_agent.run(question)
 
-    intent = question_info["intent"]
+    fallback_intent = question_info["intent"]
     show_kpis = question_info.get("show_kpis", False)
     question_category = question_info.get("question_category", "general")
-    question_goal = question_info.get("question_goal", "Understand the most important pattern in the dataset.")
+    question_goal = question_info.get(
+        "question_goal",
+        "Understand the most important pattern in the dataset."
+    )
 
-    print(f"✅ Intent: {intent} | Show KPIs: {show_kpis}")
+    print(f"✅ Fallback intent: {fallback_intent} | Show KPIs: {show_kpis}")
 
     print("📊 Running PlannerAgent")
     planner = PlannerAgent()
@@ -52,6 +55,14 @@ def run_analysis_pipeline(dataset_path, question):
 
     target = plan.get("target")
     drivers = plan.get("drivers", [])
+    planner_intent = plan.get("analysis_type")
+    time_column = plan.get("time_column")
+    aggregation = plan.get("aggregation", "none")
+    preferred_chart = plan.get("chart", "table")
+    planner_reasoning = plan.get("reasoning", {}) or {}
+
+    intent = normalize_intent(planner_intent or fallback_intent)
+    question_category = normalize_question_category(intent, question_category)
 
     numeric_cols = df.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns.tolist()
 
@@ -61,14 +72,30 @@ def run_analysis_pipeline(dataset_path, question):
         else:
             target = columns[-1]
 
-    print(f"✅ Target: {target} | Drivers: {drivers}")
+    if time_column and time_column not in columns:
+        time_column = None
+
+    print(
+        f"✅ Target: {target} | Drivers: {drivers} | "
+        f"Intent: {intent} | Time column: {time_column} | "
+        f"Aggregation: {aggregation} | Preferred chart: {preferred_chart}"
+    )
 
     print("📌 Running KPIAgent")
     kpis = {}
     if show_kpis:
         try:
             kpi_agent = KPIAgent()
-            kpis = kpi_agent.run(df, target)
+            try:
+                kpis = kpi_agent.run(
+                    df,
+                    target,
+                    time_column=time_column,
+                    aggregation=aggregation,
+                    drivers=drivers
+)
+            except TypeError:
+                kpis = kpi_agent.run(df, target)
         except Exception as e:
             print(f"⚠️ KPIAgent failed: {e}")
             kpis = {}
@@ -79,7 +106,17 @@ def run_analysis_pipeline(dataset_path, question):
     analysis_results = {}
     try:
         analysis_agent = AnalysisAgent()
-        analysis_results = analysis_agent.run(df, target)
+        try:
+            analysis_results = analysis_agent.run(
+                df=df,
+                target=target,
+                drivers=drivers,
+                intent=intent,
+                time_column=time_column,
+                aggregation=aggregation
+            )
+        except TypeError:
+            analysis_results = analysis_agent.run(df, target)
     except Exception as e:
         print(f"⚠️ AnalysisAgent failed: {e}")
         analysis_results = {
@@ -87,7 +124,7 @@ def run_analysis_pipeline(dataset_path, question):
             "categorical_drivers": {},
             "time_summary": {},
             "top_segments": [],
-            "bottom_segments": {},
+            "bottom_segments": [],
             "distribution_summary": {},
             "outlier_summary": {}
         }
@@ -98,13 +135,26 @@ def run_analysis_pipeline(dataset_path, question):
     charts = []
     try:
         viz_agent = VisualizationAgent()
-        charts = viz_agent.run(
-            df=df,
-            target=target,
-            question=question,
-            intent=intent,
-            drivers=drivers
-        )
+        try:
+            charts = viz_agent.run(
+                df=df,
+                target=target,
+                question=question,
+                intent=intent,
+                drivers=drivers,
+                time_column=time_column,
+                aggregation=aggregation,
+                preferred_chart=preferred_chart,
+                plan=plan
+            )
+        except TypeError:
+            charts = viz_agent.run(
+                df=df,
+                target=target,
+                question=question,
+                intent=intent,
+                drivers=drivers
+            )
     except Exception as e:
         print(f"⚠️ VisualizationAgent failed: {e}")
         charts = []
@@ -122,7 +172,8 @@ def run_analysis_pipeline(dataset_path, question):
         drivers=drivers,
         kpis=kpis,
         analysis=analysis_results,
-        charts=charts
+        charts=charts,
+        plan=plan
     )
     print("✅ Decision-support layer done")
 
@@ -209,6 +260,11 @@ def run_analysis_pipeline(dataset_path, question):
         "show_kpis": show_kpis,
         "target": target,
         "drivers": drivers,
+        "plan": plan,
+        "time_column": time_column,
+        "aggregation": aggregation,
+        "preferred_chart": preferred_chart,
+        "planner_reasoning": planner_reasoning,
         "kpis": kpis,
         "analysis": analysis_results,
         "charts": charts,
@@ -236,7 +292,8 @@ def build_business_layer(
     drivers,
     kpis,
     analysis,
-    charts
+    charts,
+    plan=None
 ):
     executive_summary = build_executive_summary(
         question=question,
@@ -275,7 +332,8 @@ def build_business_layer(
         intent=intent,
         target=target,
         drivers=drivers,
-        analysis=analysis
+        analysis=analysis,
+        plan=plan
     )
 
     return {
@@ -314,9 +372,7 @@ def build_executive_summary(question, question_goal, target, kpis, analysis, int
             )
 
         if best_period:
-            parts.append(
-                f"The strongest observed period was {best_period}."
-            )
+            parts.append(f"The strongest observed period was {best_period}.")
 
     elif top_segments:
         best = top_segments[0]
@@ -495,7 +551,7 @@ def build_recommended_actions(intent, target, kpis, analysis):
     return actions[:4]
 
 
-def build_risks_and_limitations(df, intent, target, drivers, analysis):
+def build_risks_and_limitations(df, intent, target, drivers, analysis, plan=None):
     risks = []
 
     if target not in df.columns:
@@ -539,12 +595,15 @@ def build_risks_and_limitations(df, intent, target, drivers, analysis):
             f"The dataset contains {duplicate_rows} duplicate rows, which may affect aggregate totals if duplicates are not expected."
         )
 
+    if plan and plan.get("reasoning", {}).get("warnings"):
+        risks.extend(plan["reasoning"]["warnings"][:2])
+
     if not risks:
         risks.append(
             "This analysis is strong for descriptive insight, but results should still be validated against business context before making high-stakes decisions."
         )
 
-    return risks[:5]
+    return dedupe_list(risks)[:5]
 
 
 def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -584,6 +643,53 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = pd.to_datetime(df[col], errors="coerce")
 
     return df
+
+
+def normalize_intent(intent):
+    mapping = {
+        "trend": "trend_analysis",
+        "trend_analysis": "trend_analysis",
+        "comparison": "comparison",
+        "distribution": "distribution_analysis",
+        "distribution_analysis": "distribution_analysis",
+        "ranking": "ranking_analysis",
+        "ranking_analysis": "ranking_analysis",
+        "relationship": "relationship_analysis",
+        "relationship_analysis": "relationship_analysis",
+        "composition": "contribution_analysis",
+        "contribution_analysis": "contribution_analysis",
+        "diagnostic": "general_analysis",
+        "general_analysis": "general_analysis",
+        "summary_analysis": "summary_analysis",
+        "segment_analysis": "segment_analysis",
+    }
+    return mapping.get(str(intent or "").strip().lower(), "general_analysis")
+
+
+def normalize_question_category(intent, fallback_category):
+    mapping = {
+        "trend_analysis": "trend",
+        "comparison": "comparison",
+        "distribution_analysis": "distribution",
+        "ranking_analysis": "ranking",
+        "relationship_analysis": "relationship",
+        "contribution_analysis": "contribution",
+        "summary_analysis": "summary",
+        "segment_analysis": "segment",
+        "general_analysis": fallback_category or "general",
+    }
+    return mapping.get(intent, fallback_category or "general")
+
+
+def dedupe_list(items):
+    seen = set()
+    result = []
+    for item in items:
+        key = str(item).strip().lower()
+        if key and key not in seen:
+            result.append(item)
+            seen.add(key)
+    return result
 
 
 def format_number(value):
