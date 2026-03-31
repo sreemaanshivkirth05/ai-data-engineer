@@ -1,253 +1,505 @@
-class NarrativeAgent:
+import pandas as pd
 
-    def run(self, question, analysis, kpis=None, target=None, business_layer=None):
-        kpis = kpis or {}
+
+class NarrativeAgent:
+    def run(self, question, analysis, kpis, target, business_layer=None):
         analysis = analysis or {}
+        kpis = kpis or {}
         business_layer = business_layer or {}
 
-        correlations = analysis.get("correlations", {}) or {}
-        categorical_drivers = analysis.get("categorical_drivers", {}) or {}
-        time_summary = analysis.get("time_summary", {}) or {}
-        distribution_summary = analysis.get("distribution_summary", {}) or {}
-        outlier_summary = analysis.get("outlier_summary", {}) or {}
-        top_segments = analysis.get("top_segments", []) or []
-        top_bottom_segments = analysis.get("top_bottom_segments", {}) or {}
-        analysis_metadata = analysis.get("analysis_metadata", {}) or {}
-
-        intent = analysis_metadata.get("intent") or infer_intent_from_analysis(
-            time_summary=time_summary,
-            correlations=correlations,
-            distribution_summary=distribution_summary
+        title = "Analyst Narrative"
+        summary = self._build_summary(
+            question=question,
+            analysis=analysis,
+            kpis=kpis,
+            target=target,
+            business_layer=business_layer
         )
 
         paragraphs = []
+        paragraphs.extend(self._build_core_paragraphs(question, analysis, kpis, target, business_layer))
+        paragraphs = [p for p in paragraphs if p and str(p).strip()]
 
-        if target:
-            paragraphs.append(
-                f"This analysis focuses on {format_label(target).lower()} because it is the primary metric most relevant to the business question."
+        return {
+            "title": title,
+            "summary": summary,
+            "paragraphs": paragraphs[:8]
+        }
+
+    # --------------------------
+    # Summary
+    # --------------------------
+
+    def _build_summary(self, question, analysis, kpis, target, business_layer):
+        top_segments = analysis.get("top_segments", []) or []
+        time_summary = analysis.get("time_summary", {}) or {}
+        direct_answer = business_layer.get("direct_answer")
+        target_label = self._label(target).lower()
+        ranking_direction = self._infer_ranking_direction(question, target)
+
+        if direct_answer:
+            return direct_answer
+
+        focus_dim = self._infer_focus_dimension(question, top_segments)
+
+        if time_summary and time_summary.get("trend_direction") not in {None, "unknown"}:
+            direction = time_summary.get("trend_direction")
+            return (
+                f"This analysis is centered on {target_label}. "
+                f"The clearest visible pattern is a {direction} trend over time."
             )
 
-        if business_layer.get("direct_answer"):
-            paragraphs.append(business_layer["direct_answer"])
+        best_segment = self._best_segment_for_dimension(
+            top_segments,
+            preferred_dimension=focus_dim,
+            ranking_direction=ranking_direction
+        )
+        if best_segment:
+            descriptor = "lowest" if ranking_direction == "ascending" else "leading"
+            return (
+                f"This analysis is centered on {target_label}. "
+                f"The clearest visible {descriptor} group is {best_segment['segment']} within {self._label(best_segment['dimension']).lower()}."
+            )
 
-        if intent == "trend_analysis" and time_summary:
-            first_period = time_summary.get("first_period")
-            last_period = time_summary.get("last_period")
-            first_value = time_summary.get("first_value")
-            last_value = time_summary.get("last_value")
-            change_pct = time_summary.get("change_pct")
+        return (
+            f"This analysis is centered on {target_label}. "
+            f"It summarizes the strongest visible patterns, segment differences, and risks in the dataset."
+        )
+
+    # --------------------------
+    # Paragraph builders
+    # --------------------------
+
+    def _build_core_paragraphs(self, question, analysis, kpis, target, business_layer):
+        paragraphs = []
+
+        target_label = self._label(target).lower()
+        top_segments = analysis.get("top_segments", []) or []
+        correlations = analysis.get("correlations", {}) or {}
+        categorical_drivers = analysis.get("categorical_drivers", {}) or {}
+        distribution_summary = analysis.get("distribution_summary", {}) or {}
+        time_summary = analysis.get("time_summary", {}) or {}
+        outlier_summary = analysis.get("outlier_summary", {}) or {}
+        concentration_summary = analysis.get("concentration_summary", {}) or {}
+        performance_diagnostics = analysis.get("performance_diagnostics", {}) or {}
+        risks = business_layer.get("risks_or_limitations", []) or []
+        business_impact = business_layer.get("business_impact", []) or []
+        ranking_direction = self._infer_ranking_direction(question, target)
+
+        paragraphs.append(
+            f"This analysis focuses on {target_label} because it is the primary metric most relevant to the question."
+        )
+
+        focus_dim = self._infer_focus_dimension(question, top_segments)
+        best_segment = self._best_segment_for_dimension(
+            top_segments,
+            preferred_dimension=focus_dim,
+            ranking_direction=ranking_direction
+        )
+        if best_segment:
+            share_text = ""
+            if best_segment.get("share_pct") is not None:
+                share_text = f", contributing about {best_segment['share_pct']:.2f}% of the total"
+
+            if ranking_direction == "ascending":
+                paragraphs.append(
+                    f"The clearest answer is that {best_segment['segment']} is the lowest "
+                    f"{self._label(best_segment['dimension']).lower()} for {target_label}{share_text}. "
+                    f"This highlights the weakest-performing group that may need closer attention."
+                )
+            else:
+                paragraphs.append(
+                    f"The clearest answer is that {best_segment['segment']} is the leading "
+                    f"{self._label(best_segment['dimension']).lower()} for {target_label}{share_text}. "
+                    f"This makes it a useful benchmark when comparing weaker groups."
+                )
+
+        if kpis.get("total_target") is not None and kpis.get("average_target") is not None:
+            paragraphs.append(
+                f"At the overall level, total {target_label} is {self._format_value(kpis.get('total_target'), target)}, "
+                f"while the average per usable record is {self._format_value(kpis.get('average_target'), target)}. "
+                f"This gives a useful sense of scale before looking at deeper variation."
+            )
+
+        if time_summary and time_summary.get("period_count"):
+            direction = time_summary.get("trend_direction", "unknown")
+            volatility = time_summary.get("volatility_level", "unknown")
             best_period = time_summary.get("best_period")
             worst_period = time_summary.get("worst_period")
 
-            trend_parts = []
+            parts = [
+                f"The time pattern shows {direction if direction != 'unknown' else 'a measurable'} movement in {target_label}"
+            ]
 
-            if first_period and last_period and first_value is not None and last_value is not None:
-                trend_text = (
-                    f"Over time, {format_label(target).lower()} moved from {format_number(first_value)} in {first_period} "
-                    f"to {format_number(last_value)} in {last_period}"
-                )
-                if change_pct is not None:
-                    direction = "increase" if change_pct >= 0 else "decrease"
-                    trend_text += f", which represents an overall {direction} of {abs(change_pct):.1f}%."
-                else:
-                    trend_text += "."
-                trend_parts.append(trend_text)
-
-            if best_period:
-                trend_parts.append(
-                    f"The strongest observed period was {best_period}, which stands out as the clearest time-based benchmark."
+            if time_summary.get("change_pct") is not None:
+                parts.append(
+                    f"with an overall change of {abs(float(time_summary['change_pct'])):.2f}%"
                 )
 
-            if worst_period:
-                trend_parts.append(
-                    f"The weakest observed period was {worst_period}, which helps frame the range of performance across the timeline."
-                )
+            if volatility != "unknown":
+                parts.append(f"and {volatility} volatility")
 
-            if trend_parts:
-                paragraphs.append(" ".join(trend_parts))
+            sentence = " ".join(parts) + "."
 
-        if kpis.get("total_target") is not None and kpis.get("average_target") is not None and target:
+            if best_period and worst_period:
+                sentence += f" The strongest period was {best_period}, while the weakest period was {worst_period}."
+
+            paragraphs.append(sentence)
+
+        strong_group_dims = self._top_meaningful_group_dims(categorical_drivers)
+
+        if focus_dim:
+            focus_label = self._label(focus_dim)
+            strong_group_dims = [focus_label] + [d for d in strong_group_dims if d != focus_label]
+
+        if strong_group_dims:
             paragraphs.append(
-                f"At the overall level, total {format_label(target).lower()} is {format_number(kpis['total_target'])}, while the average per usable record is {format_number(kpis['average_target'])}. This gives a useful sense of scale before looking at deeper variation."
+                f"The most meaningful group-level differences appear across {', '.join(strong_group_dims[:2])}. "
+                f"This suggests that performance is not evenly distributed and that segment-level decisions are more useful than one-size-fits-all actions."
             )
 
-        if top_segments:
-            best = top_segments[0]
+        strong_numeric_signals = self._top_meaningful_numeric_signals(correlations)
+        if strong_numeric_signals:
+            formatted_signals = ", ".join(
+                [f"{name} ({direction}, correlation {corr})" for name, direction, corr in strong_numeric_signals[:2]]
+            )
             paragraphs.append(
-                f"The strongest visible segment is {best.get('segment')} within {format_label(best.get('dimension')).lower()}, contributing {format_number(best.get('total_target'))}. This makes it the clearest benchmark when comparing performance across the rest of the dataset."
+                f"The strongest measurable numeric signals are {formatted_signals}. "
+                f"These should be treated as directional relationships rather than proof of causation."
             )
-        elif kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
-            dim_name = str(kpis["top_dimension_name"]).lower()
-            dim_value = str(kpis["top_dimension_value"])
-            dim_metric = format_number(kpis.get("top_dimension_metric"))
-            paragraphs.append(
-                f"The strongest visible segment is {dim_value} within {dim_name}, contributing {dim_metric}. This makes it the clearest benchmark when comparing performance across the rest of the dataset."
-            )
-
-        if intent == "relationship_analysis" and correlations:
-            sorted_corr = sorted(
-                correlations.items(),
-                key=lambda x: abs(x[1]),
-                reverse=True
-            )
-            top_corr = sorted_corr[:2]
-
-            if top_corr:
-                details = []
-                for col, val in top_corr:
-                    direction = "moves in the same direction as" if val > 0 else "moves in the opposite direction to"
-                    details.append(f"{format_label(col).lower()} {direction} the target (correlation: {val})")
-
-                paragraphs.append(
-                    "The numeric relationship analysis shows that " + "; ".join(details) + ". These are useful directional signals for further investigation, even though they should not be treated as proof of causation."
-                )
-
-        elif correlations and intent != "trend_analysis":
-            top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[:2]
-            if top_corr:
-                details = []
-                for col, val in top_corr:
-                    relation = "positive" if val > 0 else "negative"
-                    details.append(f"{format_label(col)} ({relation}, correlation {val})")
-                paragraphs.append(
-                    f"The strongest measurable numeric signals are {', '.join(details)}, which suggests these fields are worth investigating as potential drivers of {format_label(target).lower()}."
-                )
-
-        if categorical_drivers:
-            sorted_cat = sorted(
-                categorical_drivers.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            top_fields = [format_label(col) for col, _ in sorted_cat[:2]]
-
-            if top_fields:
-                paragraphs.append(
-                    "The most meaningful group-level differences appear across " + ", ".join(top_fields) + ". This means performance is not evenly distributed and that segment-level analysis is important for decision-making."
-                )
 
         if distribution_summary:
             mean_val = distribution_summary.get("mean")
             median_val = distribution_summary.get("median")
             std_val = distribution_summary.get("std")
+            skew_direction = distribution_summary.get("skew_direction")
 
-            distribution_parts = []
-            if mean_val is not None and median_val is not None:
-                distribution_parts.append(
-                    f"The distribution of {format_label(target).lower()} has a mean of {format_number(mean_val)} and a median of {format_number(median_val)}"
-                )
+            distribution_text = (
+                f"The distribution of {target_label} has a mean of {self._format_value(mean_val, target)} "
+                f"and a median of {self._format_value(median_val, target)}"
+            )
             if std_val is not None:
-                distribution_parts.append(
-                    f"with a standard deviation of {format_number(std_val)}"
+                distribution_text += f", with a standard deviation of {self._format_value(std_val, target)}"
+            distribution_text += "."
+
+            if skew_direction and skew_direction != "balanced":
+                distribution_text += f" The distribution appears {skew_direction.replace('_', ' ')}."
+            paragraphs.append(distribution_text)
+
+        if outlier_summary and outlier_summary.get("outlier_count") is not None:
+            outlier_count = int(outlier_summary.get("outlier_count", 0))
+            outlier_pct = outlier_summary.get("outlier_pct")
+            if outlier_count > 0:
+                paragraphs.append(
+                    f"There are {outlier_count} detected outliers, representing about "
+                    f"{outlier_pct:.2f}% of usable records. This suggests that unusually high or low values may be influencing averages or totals."
                 )
 
-            if distribution_parts:
-                paragraphs.append(" ".join(distribution_parts) + ", which helps describe overall spread and concentration in the metric.")
+        best_concentration = self._best_concentration_summary(concentration_summary, preferred_dimension=focus_dim)
+        if best_concentration:
+            risk = best_concentration.get("concentration_risk", "unknown")
+            top3 = best_concentration.get("top_3_share_pct")
+            dim_name = best_concentration.get("dimension")
+            top_segment = best_concentration.get("top_segment")
 
-        if outlier_summary.get("outlier_count", 0) > 0:
-            paragraphs.append(
-                f"There are {outlier_summary.get('outlier_count')} detected outliers, representing about {outlier_summary.get('outlier_pct', 0)}% of usable records. This suggests that unusually high or low values may be influencing the overall result."
+            text = (
+                f"Concentration is also important here: within {self._label(dim_name).lower()}, "
+                f"{top_segment} is a leading segment"
             )
+            if top3 is not None:
+                text += f", and the top 3 groups account for about {top3:.2f}% of total {target_label}"
+            text += f". This points to a {risk} concentration risk profile."
+            paragraphs.append(text)
 
-        if top_bottom_segments:
-            top_dimension = next(iter(top_bottom_segments.keys()), None)
-            if top_dimension:
-                comparison = top_bottom_segments[top_dimension]
-                top_info = comparison.get("top", {})
-                bottom_info = comparison.get("bottom", {})
+        diag_text = self._build_diagnostics_paragraph(performance_diagnostics, preferred_dimension=focus_dim)
+        if diag_text:
+            paragraphs.append(diag_text)
 
-                if top_info and bottom_info:
-                    paragraphs.append(
-                        f"Within {format_label(top_dimension).lower()}, the gap between the strongest group ({top_info.get('segment')}) and weakest group ({bottom_info.get('segment')}) is large enough to matter for prioritization and decision support."
-                    )
+        if business_impact:
+            cleaned_impact = [self._clean_sentence(x) for x in business_impact if x]
+            if cleaned_impact:
+                paragraphs.append(
+                    "From a business perspective, " + " ".join(cleaned_impact[:3])
+                )
 
-        if business_layer.get("business_impact"):
-            paragraphs.append(
-                "From a business perspective, " + " ".join(business_layer["business_impact"])
-            )
-
-        if business_layer.get("risks_or_limitations"):
-            paragraphs.append(
-                "At the same time, the analysis should be read with a few caveats in mind: " + " ".join(business_layer["risks_or_limitations"][:2])
-            )
+        if risks:
+            cleaned_risks = [self._clean_sentence(x) for x in risks if x]
+            if cleaned_risks:
+                paragraphs.append(
+                    "At the same time, the analysis should be read with a few caveats in mind: "
+                    + " ".join(cleaned_risks[:3])
+                )
 
         paragraphs.append(
-            "Taken together, the results show not just what is happening in the dataset, but where performance is concentrated, which patterns are most important, and where further action or deeper analysis would be most useful."
+            "Taken together, the results show not just what is happening in the dataset, "
+            "but where performance is concentrated, which patterns are most important, and where further action or deeper analysis would be most useful."
         )
 
-        return {
-            "title": "Analyst Narrative",
-            "summary": build_summary_line(target, kpis, business_layer, analysis, intent),
-            "paragraphs": paragraphs
+        return paragraphs
+
+    # --------------------------
+    # Helpers
+    # --------------------------
+
+    def _infer_focus_dimension(self, question, top_segments):
+        q = str(question or "").lower().strip()
+
+        if any(word in q for word in ["sub-category", "sub category", "subcategory", "subcategories"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "sub-category" in dim or "sub category" in dim:
+                    return seg.get("dimension")
+
+        if any(word in q for word in ["product", "products", "item", "items", "chocolate", "chocolates"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "product" in dim or "item" in dim:
+                    return seg.get("dimension")
+
+        if any(word in q for word in ["country", "countries", "market", "markets", "region", "regions"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "country" in dim or "region" in dim or "market" in dim:
+                    return seg.get("dimension")
+
+        if any(word in q for word in ["sales person", "salesperson", "seller", "rep", "representative"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "sales person" in dim or "salesperson" in dim:
+                    return seg.get("dimension")
+
+        if any(word in q for word in ["category", "categories"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "category" in dim and "sub-category" not in dim and "sub category" not in dim:
+                    return seg.get("dimension")
+
+        if any(word in q for word in ["segment", "segments", "group", "groups"]):
+            for seg in top_segments:
+                dim = str(seg.get("dimension", "")).lower()
+                if "segment" in dim or "group" in dim:
+                    return seg.get("dimension")
+
+        return None
+
+    def _best_segment_for_dimension(self, segments, preferred_dimension=None, ranking_direction="descending"):
+        if not segments:
+            return None
+
+        valid = []
+        for seg in segments:
+            label = str(seg.get("segment", "")).strip().lower()
+            if label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+                continue
+            valid.append(seg)
+
+        if not valid:
+            return None
+
+        candidates = valid
+        if preferred_dimension:
+            focused = [
+                seg for seg in valid
+                if str(seg.get("dimension", "")).strip().lower() == str(preferred_dimension).strip().lower()
+            ]
+            if focused:
+                candidates = focused
+
+        reverse = ranking_direction != "ascending"
+        return sorted(
+            candidates,
+            key=lambda x: (
+                x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
+                x.get("total_target", 0)
+            ),
+            reverse=reverse
+        )[0]
+
+    def _infer_ranking_direction(self, question, target=None):
+        q = str(question or "").lower().strip()
+        target_lower = str(target or "").lower().strip()
+
+        ascending_terms = {
+            "least", "lowest", "bottom", "worst", "smallest", "minimum", "min",
+            "least profitable", "least profit", "lowest profit", "lowest sales",
+            "lowest revenue", "smallest contribution", "most negative"
+        }
+        descending_terms = {
+            "most", "highest", "top", "leading", "largest", "biggest", "maximum", "max",
+            "most profitable", "highest profit", "highest sales", "highest revenue"
         }
 
+        if any(term in q for term in ascending_terms):
+            return "ascending"
+        if any(term in q for term in descending_terms):
+            return "descending"
+        if "profit" in target_lower and any(term in q for term in ["least", "lowest", "worst"]):
+            return "ascending"
+        return "descending"
 
-def build_summary_line(target, kpis, business_layer, analysis, intent):
-    if business_layer.get("executive_summary"):
-        return business_layer["executive_summary"]
+    def _best_non_placeholder_segment(self, segments):
+        if not segments:
+            return None
 
-    time_summary = analysis.get("time_summary", {}) or {}
-    top_segments = analysis.get("top_segments", []) or {}
+        valid = []
+        for seg in segments:
+            label = str(seg.get("segment", "")).strip().lower()
+            if label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+                continue
+            valid.append(seg)
 
-    if intent == "trend_analysis" and time_summary:
-        first_period = time_summary.get("first_period")
-        last_period = time_summary.get("last_period")
-        change_pct = time_summary.get("change_pct")
+        if valid:
+            return sorted(
+                valid,
+                key=lambda x: (
+                    x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
+                    x.get("total_target", 0)
+                ),
+                reverse=True
+            )[0]
 
-        if first_period and last_period and change_pct is not None:
-            direction = "up" if change_pct >= 0 else "down"
-            return (
-                f"At a high level, {format_label(target).lower()} moved {direction} by {abs(change_pct):.1f}% from {first_period} to {last_period}."
-            )
+        return None
 
-    if top_segments:
-        best = top_segments[0]
-        return (
-            f"At a high level, the leading {format_label(best.get('dimension')).lower()} "
-            f"is {best.get('segment')}, and the analysis is centered on {format_label(target).lower()}."
-        )
+    def _top_meaningful_group_dims(self, categorical_drivers):
+        if not categorical_drivers:
+            return []
 
-    if target and kpis.get("top_dimension_value") and kpis.get("top_dimension_name"):
-        return (
-            f"At a high level, the leading {str(kpis['top_dimension_name']).lower()} "
-            f"is {kpis['top_dimension_value']}, and the analysis is centered on {format_label(target).lower()}."
-        )
+        items = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
 
-    if target:
-        return f"At a high level, this analysis is centered on {format_label(target).lower()}."
+        cleaned = []
+        for name, _score in items:
+            lower = str(name).lower()
+            if any(bad in lower for bad in ["id", "postal", "zip", "row"]):
+                continue
+            cleaned.append(self._label(name))
 
-    return "At a high level, the dataset was analyzed successfully."
+        return cleaned[:3]
 
+    def _top_meaningful_numeric_signals(self, correlations):
+        if not correlations:
+            return []
 
-def infer_intent_from_analysis(time_summary, correlations, distribution_summary):
-    if time_summary:
-        return "trend_analysis"
-    if correlations:
-        return "relationship_analysis"
-    if distribution_summary:
-        return "distribution_analysis"
-    return "general_analysis"
+        ranked = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
+        cleaned = []
 
+        for name, corr in ranked:
+            lower = str(name).lower()
+            if any(bad in lower for bad in ["id", "postal", "zip", "row"]):
+                continue
+            if abs(float(corr)) < 0.05:
+                continue
 
-def format_number(value):
-    if value is None:
-        return "N/A"
-    try:
-        value = float(value)
-        abs_value = abs(value)
+            direction = "positive" if corr > 0 else "negative"
+            cleaned.append((self._label(name), direction, round(float(corr), 3)))
 
-        if abs_value >= 1_000_000_000:
-            return f"{value / 1_000_000_000:.2f}B"
-        if abs_value >= 1_000_000:
-            return f"{value / 1_000_000:.2f}M"
-        if abs_value >= 1_000:
-            return f"{value / 1_000:.2f}K"
-        if float(value).is_integer():
-            return f"{int(value):,}"
-        return f"{value:,.2f}"
-    except Exception:
-        return str(value)
+        return cleaned[:3]
 
+    def _best_concentration_summary(self, concentration_summary, preferred_dimension=None):
+        if not concentration_summary:
+            return None
 
-def format_label(value):
-    return str(value).replace("_", " ").strip()
+        if preferred_dimension and preferred_dimension in concentration_summary:
+            best_obj = dict(concentration_summary[preferred_dimension])
+            best_obj["dimension"] = preferred_dimension
+            return best_obj
+
+        best_dim = None
+        best_obj = None
+        best_score = -1
+
+        for dim, info in concentration_summary.items():
+            score = info.get("top_3_share_pct")
+            if score is None:
+                score = info.get("top_segment_share_pct", -1)
+            if score is not None and score > best_score:
+                best_score = score
+                best_dim = dim
+                best_obj = dict(info)
+                best_obj["dimension"] = dim
+
+        return best_obj
+
+    def _build_diagnostics_paragraph(self, performance_diagnostics, preferred_dimension=None):
+        if not performance_diagnostics:
+            return None
+
+        dims_to_check = []
+        if preferred_dimension and preferred_dimension in performance_diagnostics:
+            dims_to_check.append((preferred_dimension, performance_diagnostics[preferred_dimension]))
+
+        for dim, info in performance_diagnostics.items():
+            if preferred_dimension and dim == preferred_dimension:
+                continue
+            dims_to_check.append((dim, info))
+
+        for dim, info in dims_to_check:
+            high_total_low_avg = info.get("high_total_low_avg_segments", []) or []
+            high_avg_low_volume = info.get("high_avg_low_volume_segments", []) or []
+            long_tail_count = info.get("long_tail_segment_count")
+
+            parts = []
+
+            if high_total_low_avg:
+                parts.append(
+                    f"Within {self._label(dim).lower()}, some groups such as {', '.join(high_total_low_avg[:2])} appear to have high total contribution but lower average performance"
+                )
+
+            if high_avg_low_volume:
+                parts.append(
+                    f"while groups such as {', '.join(high_avg_low_volume[:2])} appear strong on average but at lower volume"
+                )
+
+            if long_tail_count is not None and long_tail_count > 0:
+                parts.append(
+                    f"and the dimension also shows a long tail of {long_tail_count} smaller segments"
+                )
+
+            if parts:
+                text = " ".join(parts).strip()
+                if not text.endswith("."):
+                    text += "."
+                return text
+
+        return None
+
+    def _format_value(self, value, label=""):
+        if value is None:
+            return "N/A"
+
+        try:
+            num = float(value)
+        except Exception:
+            return str(value)
+
+        label_lower = str(label or "").lower()
+        is_money = any(word in label_lower for word in ["sales", "revenue", "profit", "cost", "amount", "price"])
+
+        if is_money:
+            if abs(num) >= 1_000_000_000:
+                return f"${num / 1_000_000_000:.2f}B"
+            if abs(num) >= 1_000_000:
+                return f"${num / 1_000_000:.2f}M"
+            if abs(num) >= 1_000:
+                return f"${num / 1_000:.2f}K"
+            return f"${num:,.2f}"
+
+        if abs(num) >= 1_000_000_000:
+            return f"{num / 1_000_000_000:.2f}B"
+        if abs(num) >= 1_000_000:
+            return f"{num / 1_000_000:.2f}M"
+        if abs(num) >= 1_000:
+            return f"{num / 1_000:.2f}K"
+        if num.is_integer():
+            return f"{int(num):,}"
+        return f"{num:,.2f}"
+
+    def _clean_sentence(self, text):
+        text = str(text or "").strip()
+        if not text:
+            return ""
+        if text[-1] not in ".!?":
+            text += "."
+        return text
+
+    def _label(self, value):
+        return str(value).replace("_", " ").strip()

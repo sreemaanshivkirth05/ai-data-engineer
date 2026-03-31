@@ -1,209 +1,357 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AI Data Platform{% endblock %}</title>
 
-<title>AI Data Platform</title>
+  {% block head_scripts %}{% endblock %}
 
-<style>
+  <style>
+    /* ── DESIGN TOKENS ──────────────────────────── */
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --primary:#2563eb;
+      --primary-2:#1d4ed8;
+      --green:#15803d;
+      --green-soft:#dcfce7;
+      --red:#b91c1c;
+      --red-soft:#fee2e2;
+      --amber:#b45309;
+      --amber-soft:#fef3c7;
+      --blue-soft:#dbeafe;
+      --purple-soft:#ede9fe;
+      --shadow:0 10px 30px rgba(15,23,42,.08);
+      --radius:18px;
+      --sidebar-bg:#0f172a;
+      --sidebar-text:#e2e8f0;
+      --sidebar-muted:#64748b;
+      --sidebar-active:#2563eb;
+      --sidebar-hover:rgba(255,255,255,.06);
+      --sidebar-w:240px;
+    }
 
-/* Base page */
+    *{ box-sizing:border-box; margin:0; padding:0; }
 
-body{
-margin:0;
-font-family:Arial, Helvetica, sans-serif;
-background:#f5f6fa;
-}
+    html,body{
+      height:100%;
+      font-family:Inter, Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
 
+    /* ── LAYOUT ─────────────────────────────────── */
+    .app-layout{
+      display:flex;
+      min-height:100vh;
+    }
 
-/* Sidebar */
+    /* ── SIDEBAR ─────────────────────────────────── */
+    .sidebar{
+      width:var(--sidebar-w);
+      flex-shrink:0;
+      background:var(--sidebar-bg);
+      display:flex;
+      flex-direction:column;
+      position:fixed;
+      top:0; left:0; bottom:0;
+      z-index:100;
+      overflow-y:auto;
+    }
 
-.sidebar{
-position:fixed;
-left:0;
-top:0;
-width:220px;
-height:100%;
-background:#111;
-padding-top:20px;
-}
+    .sidebar-brand{
+      padding:22px 20px 18px;
+      border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    .sidebar-brand-title{
+      font-size:16px;
+      font-weight:800;
+      color:#fff;
+      line-height:1.2;
+    }
+    .sidebar-brand-sub{
+      font-size:11px;
+      color:var(--sidebar-muted);
+      margin-top:3px;
+      letter-spacing:.03em;
+    }
 
-.sidebar h2{
-color:white;
-text-align:center;
-margin-bottom:40px;
-}
+    .sidebar-section{
+      padding:20px 14px 0;
+    }
+    .sidebar-section-label{
+      font-size:10px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      color:var(--sidebar-muted);
+      padding:0 8px;
+      margin-bottom:8px;
+    }
 
-.sidebar a{
-display:block;
-color:white;
-padding:15px 20px;
-text-decoration:none;
-font-size:15px;
-}
+    .nav-link{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:11px 12px;
+      border-radius:10px;
+      color:var(--sidebar-text);
+      text-decoration:none;
+      font-size:14px;
+      font-weight:600;
+      margin-bottom:4px;
+      transition:background .15s, color .15s;
+    }
+    .nav-link:hover{
+      background:var(--sidebar-hover);
+      color:#fff;
+    }
+    .nav-link.active{
+      background:var(--sidebar-active);
+      color:#fff;
+    }
+    .nav-icon{
+      font-size:16px;
+      width:22px;
+      text-align:center;
+      flex-shrink:0;
+    }
+    .nav-link-label{ flex:1; }
+    .nav-badge{
+      font-size:10px;
+      font-weight:700;
+      background:rgba(255,255,255,.12);
+      color:var(--sidebar-text);
+      padding:2px 7px;
+      border-radius:999px;
+    }
+    .nav-link.active .nav-badge{
+      background:rgba(255,255,255,.2);
+    }
 
-.sidebar a:hover{
-background:#333;
-}
+    .sidebar-divider{
+      height:1px;
+      background:rgba(255,255,255,.07);
+      margin:16px 14px;
+    }
 
+    .sidebar-footer{
+      margin-top:auto;
+      padding:16px 20px;
+      border-top:1px solid rgba(255,255,255,.07);
+      font-size:11px;
+      color:var(--sidebar-muted);
+      line-height:1.5;
+    }
 
-/* Main content */
+    /* ── MAIN CONTENT ────────────────────────────── */
+    .main-content{
+      margin-left:var(--sidebar-w);
+      flex:1;
+      min-height:100vh;
+    }
 
-.main{
-margin-left:220px;
-padding:40px;
-}
+    .page-wrap{
+      max-width:1200px;
+      margin:0 auto;
+      padding:36px 28px 80px;
+    }
 
+    /* ── SHARED CARD SYSTEM ──────────────────────── */
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:24px;
+      margin-bottom:20px;
+    }
 
-/* Card layout */
+    h1{ font-size:32px; font-weight:800; line-height:1.15; margin-bottom:10px; }
+    h2{ font-size:22px; font-weight:800; margin-bottom:10px; }
+    h3{ font-size:18px; font-weight:700; margin-bottom:8px; }
 
-.card{
-background:white;
-padding:25px;
-border-radius:10px;
-box-shadow:0 6px 15px rgba(0,0,0,0.1);
-margin-bottom:25px;
-}
+    .muted{ color:var(--muted); }
 
+    .pill{
+      display:inline-block;
+      padding:6px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      margin-bottom:12px;
+    }
+    .pill-blue{ background:var(--blue-soft); color:#1d4ed8; }
+    .pill-green{ background:var(--green-soft); color:#15803d; }
+    .pill-amber{ background:var(--amber-soft); color:#b45309; }
+    .pill-purple{ background:var(--purple-soft); color:#6d28d9; }
+    .pill-red{ background:var(--red-soft); color:#b91c1c; }
 
-/* Buttons */
+    .btn{
+      border:none;
+      border-radius:14px;
+      background:linear-gradient(135deg,var(--primary) 0%,var(--primary-2) 100%);
+      color:#fff;
+      padding:14px 22px;
+      font-size:15px;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow:0 6px 18px rgba(37,99,235,.22);
+      transition:opacity .15s, transform .1s;
+    }
+    .btn:hover{ opacity:.92; transform:translateY(-1px); }
+    .btn:active{ transform:translateY(0); }
 
-button{
-background:#2f80ed;
-color:white;
-padding:12px 22px;
-border:none;
-border-radius:6px;
-cursor:pointer;
-font-size:14px;
-}
+    input[type="file"], textarea{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:14px 16px;
+      font-size:15px;
+      background:#fff;
+      color:var(--text);
+      outline:none;
+      font-family:inherit;
+    }
+    textarea{
+      min-height:120px;
+      resize:vertical;
+      line-height:1.6;
+    }
+    textarea:focus, input:focus{
+      border-color:var(--primary);
+      box-shadow:0 0 0 3px rgba(37,99,235,.1);
+    }
 
-button:hover{
-background:#1c6ed5;
-}
+    label{ display:block; font-size:14px; font-weight:700; margin-bottom:8px; }
 
+    .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+    .grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 
-/* Inputs */
+    .mini-card{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+    }
+    .mini-label{
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      margin-bottom:8px;
+      font-weight:700;
+    }
+    .mini-value{
+      font-size:22px;
+      font-weight:800;
+      line-height:1.3;
+    }
 
-textarea{
-width:100%;
-padding:10px;
-border-radius:6px;
-border:1px solid #ccc;
-font-size:14px;
-}
+    .success{ color:var(--green); font-weight:700; }
+    .error-text{ color:var(--red); font-weight:700; }
 
-input[type=file]{
-padding:10px;
-font-size:14px;
-}
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:14px;
+      display:block;
+      overflow-x:auto;
+    }
+    th,td{
+      border:1px solid var(--border);
+      padding:10px 12px;
+      text-align:left;
+      vertical-align:top;
+      min-width:110px;
+      white-space:normal;
+    }
+    th{ background:#f8fafc; font-weight:700; }
 
+    pre{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:16px;
+      overflow-x:auto;
+      white-space:pre-wrap;
+      font-size:13px;
+      line-height:1.7;
+    }
 
-/* Chart container */
+    ul{ padding-left:20px; }
+    li{ margin-bottom:6px; line-height:1.7; }
 
-.chart img{
-margin-top:15px;
-border-radius:6px;
-}
+    a{ color:var(--primary); text-decoration:none; font-weight:700; }
+    a:hover{ text-decoration:underline; }
 
-
-/* Interactive charts iframe */
-
-iframe{
-border-radius:8px;
-margin-top:10px;
-}
-
-
-/* Agent pipeline UI */
-
-.pipeline{
-background:#f7f7f7;
-padding:15px;
-border-radius:6px;
-margin-top:10px;
-}
-
-
-/* Pipeline animation */
-
-.step{
-padding:8px;
-font-size:14px;
-animation:pulse 2s infinite;
-}
-
-@keyframes pulse{
-
-0%{
-opacity:0.6;
-}
-
-50%{
-opacity:1;
-}
-
-100%{
-opacity:0.6;
-}
-
-}
-
-
-/* Lists */
-
-ul{
-padding-left:20px;
-}
-
-li{
-margin-bottom:5px;
-}
-
-
-/* Code blocks */
-
-pre{
-background:#f4f4f4;
-padding:15px;
-border-radius:6px;
-overflow-x:auto;
-white-space:pre-wrap;
-}
-
-</style>
-
+    /* ── RESPONSIVE ─────────────────────────────── */
+    @media(max-width:900px){
+      :root{ --sidebar-w:0px; }
+      .sidebar{ display:none; }
+      .main-content{ margin-left:0; }
+      .page-wrap{ padding:24px 16px 60px; }
+      .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; }
+    }
+  </style>
 </head>
-
 <body>
+<div class="app-layout">
 
-<!-- Sidebar Navigation -->
+  <!-- ── SIDEBAR ─────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-title">AI Data Platform</div>
+      <div class="sidebar-brand-sub">Multi-agent analytics workspace</div>
+    </div>
 
-<div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Workspace</div>
+      <a href="/" class="nav-link {% block nav_home %}{% endblock %}">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-link-label">Home</span>
+      </a>
+    </div>
 
-<h2>AI Platform</h2>
+    <div class="sidebar-divider"></div>
 
-<a href="/">🏠 Dashboard</a>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Modules</div>
+      <a href="/engineer" class="nav-link {% block nav_engineer %}{% endblock %}">
+        <span class="nav-icon">🧹</span>
+        <span class="nav-link-label">Data Engineer</span>
+        <span class="nav-badge">Clean</span>
+      </a>
+      <a href="/analyst" class="nav-link {% block nav_analyst %}{% endblock %}">
+        <span class="nav-icon">📊</span>
+        <span class="nav-link-label">Data Analyst</span>
+        <span class="nav-badge">Analyse</span>
+      </a>
+      <a href="/architect" class="nav-link {% block nav_architect %}{% endblock %}">
+        <span class="nav-icon">🏗️</span>
+        <span class="nav-link-label">Data Architect</span>
+        <span class="nav-badge">Design</span>
+      </a>
+    </div>
 
-<a href="/engineer">⚙ Data Engineer</a>
+    <div class="sidebar-footer">
+      v1.0 · Industry Innovation Summit 2026<br>
+      Aditi Brahmbhatt &amp; Sreemaan Shivkirth Venkatesh
+    </div>
+  </aside>
 
-<a href="/analyst">📊 Data Analyst</a>
-
-<a href="/architect">🏗 Data Architect</a>
+  <!-- ── MAIN CONTENT ────────────────────────────── -->
+  <main class="main-content">
+    <div class="page-wrap">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
 
 </div>
-
-
-<!-- Main Content -->
-
-<div class="main">
-
-{% block content %}
-
-{% endblock %}
-
-</div>
-
 </body>
-
 </html>

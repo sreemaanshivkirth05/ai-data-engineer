@@ -1,0 +1,16 @@
+Name,Age,Email,Department,Salary,Join_Date,Status
+Alice Smith,30,alice@company.com,Engineering,75000,2023-01-15,Active
+bob jones,25,bob@company.com,MARKETING,85000,2023-02-20,active
+Charlie Brown,,charlie@company.com,engineering,65000,2023/03/10,Active
+Diana Prince,28,diana@company.com,Marketing,,2023-04-05,ACTIVE
+Eve Wilson,32,eve@company.com,Sales,70000,,Active
+,40,frank@company.com,Engineering,95000,2023-06-01,Active
+Alice Smith,30,alice@company.com,Engineering,75000,2023-01-15,Active
+Grace Lee,abc,grace@company.com,HR,60000,2023-08-15,inactive
+Henry Ford,45,henry@company.com,Sales,500000,2023-09-01,Active
+Ivan Petrov,35,,ENGINEERING,72000,2023-10-10,active
+Jane Doe,29,jane@company.com,marketing,68000,2023-11-20,Active
+Kevin Hart,31,kevin@company.com,HR,ERROR,2023-12-05,Active
+Laura Palmer,27,laura@company.com,Sales,71000,2023-01-25,UNKNOWN
+Mike Ross,33,mike@company.com,Engineering,78000,2023-02-28,Active
+Nancy Drew,-5,nancy@company.com,Marketing,73000,2023-03-15,Active

@@ -1,137 +1,751 @@
 {% extends "layout.html" %}
+{% block title %}Data Engineer · AI Data Platform{% endblock %}
+{% block nav_engineer %}active{% endblock %}
+
+{% block head_scripts %}
+<style>
+  /* ── ENGINEER-SPECIFIC STYLES ──────────────────────────── */
+
+  /* Pipeline step strip */
+  .pipeline-steps{
+    display:flex;
+    align-items:center;
+    gap:0;
+    flex-wrap:wrap;
+    margin-top:18px;
+  }
+  .pipeline-step{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 16px;
+    background:#f8fafc;
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--text);
+    white-space:nowrap;
+  }
+  .pipeline-step.done{
+    background:var(--green-soft);
+    border-color:#86efac;
+    color:#14532d;
+  }
+  .pipeline-step .step-dot{
+    width:7px; height:7px;
+    border-radius:50%;
+    background:#94a3b8;
+    flex-shrink:0;
+  }
+  .pipeline-step.done .step-dot{
+    background:#16a34a;
+  }
+  .pipeline-arrow{
+    width:28px; flex-shrink:0;
+    text-align:center;
+    color:var(--muted);
+    font-size:16px;
+  }
+
+  /* Health score */
+  .health-score-wrap{
+    display:flex;
+    align-items:center;
+    gap:24px;
+    padding:20px;
+    background:#f8fafc;
+    border:1px solid var(--border);
+    border-radius:14px;
+    margin-bottom:20px;
+  }
+  .health-circle{
+    width:80px; height:80px;
+    border-radius:50%;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    flex-shrink:0;
+    font-weight:800;
+  }
+  .health-circle-score{ font-size:24px; line-height:1; }
+  .health-circle-label{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .health-high{ background:#dcfce7; color:#14532d; }
+  .health-medium{ background:#fef9c3; color:#713f12; }
+  .health-low{ background:#fee2e2; color:#7f1d1d; }
+  .health-details{ flex:1; }
+  .health-title{ font-size:16px; font-weight:800; margin-bottom:4px; }
+  .health-note{ font-size:14px; color:var(--muted); line-height:1.6; }
+
+  /* KPI strip */
+  .kpi-strip{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .kpi-tile{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px 14px;
+    box-shadow:0 2px 8px rgba(15,23,42,.04);
+  }
+  .kpi-tile-label{
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  .kpi-tile-value{
+    font-size:22px;
+    font-weight:800;
+    line-height:1.2;
+    margin-bottom:4px;
+  }
+  .kpi-tile-note{
+    font-size:11px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .kv-green{ color:#16a34a; }
+  .kv-red{ color:#dc2626; }
+  .kv-amber{ color:#d97706; }
+  .kv-blue{ color:#2563eb; }
+
+  /* Before/after improvement bar */
+  .improvement-row{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    gap:16px;
+    align-items:center;
+    margin-bottom:16px;
+  }
+  .improve-box{
+    background:#f8fafc;
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px 16px;
+  }
+  .improve-label{
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .improve-val{
+    font-size:20px;
+    font-weight:800;
+    line-height:1.2;
+  }
+  .improve-note{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .improve-arrow{
+    text-align:center;
+    font-size:20px;
+    color:var(--muted);
+  }
+
+  /* Dataset intelligence — column type badges */
+  .col-type-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:3px 9px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:700;
+  }
+  .badge-numeric{ background:#dbeafe; color:#1d4ed8; }
+  .badge-text{ background:#ede9fe; color:#6d28d9; }
+  .badge-datetime{ background:#dcfce7; color:#15803d; }
+  .badge-id{ background:#f1f5f9; color:#475569; }
+
+  /* Column profile table — compact */
+  .col-profile-table td:first-child{ font-weight:700; min-width:130px; }
+  .col-profile-table .type-cell{ min-width:90px; }
+  .col-profile-table .missing-bar-wrap{
+    display:flex; align-items:center; gap:8px; min-width:120px;
+  }
+  .missing-bar-track{
+    flex:1; height:6px; background:#e2e8f0; border-radius:999px; min-width:60px;
+  }
+  .missing-bar-fill{
+    height:6px; border-radius:999px; background:#dc2626;
+  }
+  .missing-bar-fill.low{ background:#16a34a; }
+  .missing-bar-fill.medium{ background:#d97706; }
+
+  /* Severity pill */
+  .sev-high{ background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .sev-medium{ background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .sev-low{ background:#f0fdf4; color:#15803d; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+
+  /* Status pill in exec log */
+  .status-applied{ background:#dcfce7; color:#14532d; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .status-skipped{ background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .status-error{ background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+
+  /* Section header with icon */
+  .section-header{
+    display:flex; align-items:center; gap:10px; margin-bottom:16px;
+  }
+  .section-icon{
+    width:36px; height:36px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex-shrink:0;
+  }
+  .si-green{ background:var(--green-soft); }
+  .si-blue{ background:var(--blue-soft); }
+  .si-amber{ background:var(--amber-soft); }
+  .si-red{ background:var(--red-soft); }
+  .si-purple{ background:var(--purple-soft); }
+  .section-header-text h2{ margin:0; font-size:18px; }
+  .section-header-text p{ margin:4px 0 0; font-size:13px; color:var(--muted); }
+
+  /* Candidate metric highlight */
+  .metric-candidates{
+    display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
+  }
+  .metric-candidate{
+    display:flex; align-items:center; gap:6px;
+    background:var(--blue-soft); border:1px solid #bfdbfe;
+    color:#1d4ed8; padding:6px 12px; border-radius:999px;
+    font-size:13px; font-weight:700;
+  }
+
+  /* Download banner */
+  .download-banner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);
+    border-radius:var(--radius);
+    padding:24px 28px;
+    margin-bottom:20px;
+  }
+  .download-banner-left h2{ color:#fff; margin:0 0 6px; font-size:20px; }
+  .download-banner-left p{ color:#94a3b8; margin:0; font-size:14px; }
+  .download-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--primary); color:#fff;
+    padding:13px 22px; border-radius:12px;
+    font-size:14px; font-weight:700; text-decoration:none;
+    white-space:nowrap; flex-shrink:0;
+    transition:background .15s;
+  }
+  .download-btn:hover{ background:var(--primary-2); text-decoration:none; }
+
+  @media(max-width:900px){
+    .kpi-strip{ grid-template-columns:repeat(3,1fr); }
+    .improvement-row{ grid-template-columns:1fr; }
+    .improve-arrow{ transform:rotate(90deg); }
+    .pipeline-steps{ gap:4px; }
+  }
+  @media(max-width:600px){
+    .kpi-strip{ grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 
+<!-- ── UPLOAD CARD ─────────────────────────────────────────── -->
 <div class="card">
+  <div class="section-header">
+    <div class="section-icon si-green">🧹</div>
+    <div class="section-header-text">
+      <h2>AI Data Engineer</h2>
+      <p>Upload a dataset and let the agent pipeline profile it, detect issues, apply deterministic fixes, and return a clean file ready for analysis.</p>
+    </div>
+  </div>
 
-<h2>⚙ AI Data Engineer</h2>
+  <form action="/clean" method="post" enctype="multipart/form-data">
+    <label for="dataset"><strong>Dataset</strong> <span style="font-weight:400;color:var(--muted);">— CSV or Excel</span></label>
+    <input type="file" id="dataset" name="dataset" accept=".csv,.xlsx" required />
 
-<p>
-Upload a dataset to automatically clean and prepare it for analytics.
-The AI data engineering pipeline will detect issues and apply preprocessing.
-</p>
+    <div style="height:16px;"></div>
 
-<form action="/clean" method="post" enctype="multipart/form-data">
+    <label for="business_requirements"><strong>Business requirements</strong> <span style="font-weight:400;color:var(--muted);">— optional but recommended</span></label>
+    <textarea
+      id="business_requirements"
+      name="business_requirements"
+      placeholder="Example: Prepare this dataset for retail sales analysis. Treat ERROR, UNKNOWN, N/A, NULL, ?, and blanks as invalid values. Cast date columns correctly, use median for numeric missing values, use mode for categorical missing values, standardise text casing, and clip strong outliers."
+    >{{ business_requirements or "" }}</textarea>
 
-<label><b>Upload Dataset</b></label>
+    <div style="height:16px;"></div>
 
-<br><br>
-
-<input type="file" name="dataset" required>
-
-<br><br>
-
-<label><b>Business Requirements (Optional)</b></label>
-
-<br><br>
-
-<textarea
-name="business_requirements"
-rows="4"
-placeholder="Example: Prepare the dataset for sales forecasting analysis">
-</textarea>
-
-<br><br>
-
-<button type="submit">Run Cleaning Pipeline</button>
-
-</form>
-
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <button class="btn" type="submit">Run Cleaning Pipeline</button>
+      <span class="muted" style="font-size:13px;">Runs profiling → issue detection → cleaning plan → execution → validation</span>
+    </div>
+  </form>
 </div>
-
-
 {% if result %}
+  {# ── ERROR STATE ──────────────────────────────────────── #}
+  {% if result.status == "error" %}
+    <div class="card" style="border-left:4px solid var(--red);">
+      <div class="section-header">
+        <div class="section-icon si-red">⚠️</div>
+        <div class="section-header-text">
+          <h2 style="color:var(--red);">Cleaning failed</h2>
+          <p>{{ result.report.error }}</p>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 
-<!-- Pipeline Status -->
+  {% if result.status == "success" %}
 
-<div class="card">
+    {# ── PIPELINE VISUAL ──────────────────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-blue">⚙️</div>
+        <div class="section-header-text">
+          <h2>Pipeline complete</h2>
+          <p>All six stages ran successfully. Each stage output fed into the next.</p>
+        </div>
+      </div>
+      <div class="pipeline-steps">
+        <div class="pipeline-step done"><span class="step-dot"></span>Dataset Profiling</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step done"><span class="step-dot"></span>Issue Detection</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step done"><span class="step-dot"></span>Cleaning Plan</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step done"><span class="step-dot"></span>Execution</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step done"><span class="step-dot"></span>Validation</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step done"><span class="step-dot"></span>Clean File Ready</div>
+      </div>
+    </div>
 
-<h3>🤖 Data Engineering Pipeline</h3>
+    {# ── DATASET INTELLIGENCE ─────────────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-purple">🔍</div>
+        <div class="section-header-text">
+          <h2>Dataset intelligence</h2>
+          <p>What the profiler discovered about the structure and content of your dataset before any cleaning was applied.</p>
+        </div>
+      </div>
 
-<div class="pipeline">
+      {# Top-level KPI strip #}
+      <div class="kpi-strip">
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Total rows</div>
+          <div class="kpi-tile-value kv-blue">{{ result.dataset_profile.row_count | default("—") }}</div>
+          <div class="kpi-tile-note">Records in the raw dataset</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Columns</div>
+          <div class="kpi-tile-value kv-blue">{{ result.dataset_profile.column_count | default("—") }}</div>
+          <div class="kpi-tile-note">Fields across all rows</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Duplicate rows</div>
+          <div class="kpi-tile-value {% if result.dataset_profile.duplicate_rows and result.dataset_profile.duplicate_rows > 0 %}kv-amber{% else %}kv-green{% endif %}">
+            {{ result.dataset_profile.duplicate_rows | default("0") }}
+          </div>
+          <div class="kpi-tile-note">Exact record copies detected</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Overall missing %</div>
+          <div class="kpi-tile-value {% if result.dataset_profile.overall_missing_pct and result.dataset_profile.overall_missing_pct | float > 10 %}kv-red{% elif result.dataset_profile.overall_missing_pct and result.dataset_profile.overall_missing_pct | float > 2 %}kv-amber{% else %}kv-green{% endif %}">
+            {{ result.dataset_profile.overall_missing_pct | default("0") }}%
+          </div>
+          <div class="kpi-tile-note">Avg across all columns</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Issues found</div>
+          <div class="kpi-tile-value {% if result.cleaning_plan.issues | length > 0 %}kv-amber{% else %}kv-green{% endif %}">
+            {{ result.cleaning_plan.issues | length | default("0") }}
+          </div>
+          <div class="kpi-tile-note">Columns needing attention</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-tile-label">Steps applied</div>
+          <div class="kpi-tile-value kv-blue">
+            {{ result.cleaning_plan.cleaning_steps | length | default("0") }}
+          </div>
+          <div class="kpi-tile-note">Deterministic fixes executed</div>
+        </div>
+      </div>
 
-✔ Dataset Profiling  
-<br>
+      {# Column type breakdown #}
+      {% if result.dataset_profile.numeric_column_count is defined or result.dataset_profile.categorical_column_count is defined %}
+      <div class="grid-3" style="margin-bottom:18px;">
+        <div class="mini-card" style="text-align:center;">
+          <div class="label">Numeric columns</div>
+          <div class="value kv-blue">{{ result.dataset_profile.numeric_column_count | default("—") }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">Metrics, scores, counts</div>
+        </div>
+        <div class="mini-card" style="text-align:center;">
+          <div class="label">Categorical columns</div>
+          <div class="value" style="color:#7c3aed;">{{ result.dataset_profile.categorical_column_count | default("—") }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">Segments, labels, groups</div>
+        </div>
+        <div class="mini-card" style="text-align:center;">
+          <div class="label">Date / time columns</div>
+          <div class="value kv-green">{{ result.dataset_profile.datetime_column_count | default("—") }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">Timestamps, order dates</div>
+        </div>
+      </div>
+      {% endif %}
 
-✔ Missing Value Handling  
-<br>
+      {# Date range if available #}
+      {% if result.dataset_profile.date_range_start and result.dataset_profile.date_range_end %}
+      <div class="mini-card" style="margin-bottom:18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:700;">📅 Date coverage:</span>
+        <span style="font-size:14px; font-weight:800;">{{ result.dataset_profile.date_range_start }} → {{ result.dataset_profile.date_range_end }}</span>
+        <span style="font-size:12px;color:var(--muted);">Detected from the primary date column</span>
+      </div>
+      {% endif %}
 
-✔ Duplicate Removal  
-<br>
+      {# Business metric candidates #}
+      {% if result.dataset_profile.metric_candidates %}
+      <div style="margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📊 Business metric candidates detected:</div>
+        <div class="metric-candidates">
+          {% for col in result.dataset_profile.metric_candidates %}
+            <div class="metric-candidate">📈 {{ col }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
 
-✔ Outlier Treatment  
-<br>
+      {# Per-column profile table #}
+      {% if result.dataset_profile.column_profiles %}
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Column-level profile</div>
+      <table class="col-profile-table">
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th class="type-cell">Type</th>
+            <th>Non-null %</th>
+            <th>Missing %</th>
+            <th>Unique values</th>
+            <th>Sample values</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for col in result.dataset_profile.column_profiles %}
+          <tr>
+            <td>{{ col.name }}</td>
+            <td>
+              {% if col.semantic_type == "metric" or col.semantic_type == "numeric" %}
+                <span class="col-type-badge badge-numeric">🔢 Numeric</span>
+              {% elif col.semantic_type == "datetime" %}
+                <span class="col-type-badge badge-datetime">📅 Date</span>
+              {% elif col.semantic_type == "id" %}
+                <span class="col-type-badge badge-id">🔑 ID</span>
+              {% else %}
+                <span class="col-type-badge badge-text">🏷 Text</span>
+              {% endif %}
+            </td>
+            <td>{{ col.non_null_pct | round(1) }}%</td>
+            <td>
+              <div class="missing-bar-wrap">
+                {% set missing_pct = (100 - col.non_null_pct) | round(1) %}
+                <div class="missing-bar-track">
+                  <div class="missing-bar-fill {% if missing_pct < 2 %}low{% elif missing_pct < 15 %}medium{% endif %}"
+                       style="width:{{ [missing_pct, 100] | min | string }}%"></div>
+                </div>
+                <span style="font-size:12px;white-space:nowrap;">{{ missing_pct }}%</span>
+              </div>
+            </td>
+            <td>{{ col.unique_count | default("—") }}</td>
+            <td style="font-size:12px;color:var(--muted);max-width:200px;">
+              {% if col.sample_values %}
+                {{ col.sample_values | join(", ") | truncate(60) }}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
 
-✔ Data Quality Validation  
-<br>
+    {# ── HEALTH SCORE + BEFORE/AFTER ──────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-green">📊</div>
+        <div class="section-header-text">
+          <h2>Cleaning results</h2>
+          <p>Data quality before and after the cleaning pipeline ran.</p>
+        </div>
+      </div>
 
-✔ Clean Dataset Generation  
+      {# Health score #}
+      {% set missing_after = result.cleaned_profile.overall_missing_pct | default(0) | float %}
+      {% set dups_after = result.cleaned_profile.duplicate_rows | default(0) | int %}
+      {% if missing_after < 2 and dups_after == 0 %}
+        {% set health_class = "health-high" %}
+        {% set health_score = "High" %}
+        {% set health_note = "The cleaned dataset has low missingness and no duplicates. It is ready for downstream analysis." %}
+      {% elif missing_after < 10 %}
+        {% set health_class = "health-medium" %}
+        {% set health_score = "Medium" %}
+        {% set health_note = "The cleaned dataset has some residual missingness. Consider whether remaining nulls require further handling before analysis." %}
+      {% else %}
+        {% set health_class = "health-low" %}
+        {% set health_score = "Low" %}
+        {% set health_note = "Significant missingness remains after cleaning. Review the column profile and consider dropping or imputing remaining null columns before analysis." %}
+      {% endif %}
 
-</div>
+      <div class="health-score-wrap">
+        <div class="health-circle {{ health_class }}">
+          <div class="health-circle-score">{{ health_score }}</div>
+          <div class="health-circle-label">Quality</div>
+        </div>
+        <div class="health-details">
+          <div class="health-title">Data quality: {{ health_score }}</div>
+          <div class="health-note">{{ health_note }}</div>
+        </div>
+      </div>
 
-</div>
+      {# Before/after comparison rows #}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Rows</div>
+          <div class="improvement-row" style="grid-template-columns:1fr auto 1fr;gap:8px;">
+            <div class="improve-box">
+              <div class="improve-label">Before</div>
+              <div class="improve-val">{{ result.rows_before_cleaning | default("—") }}</div>
+            </div>
+            <div class="improve-arrow">→</div>
+            <div class="improve-box">
+              <div class="improve-label">After</div>
+              <div class="improve-val kv-green">{{ result.rows_after_cleaning | default("—") }}</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Duplicates removed</div>
+          <div class="mini-card" style="height:calc(100% - 26px);">
+            <div class="improve-val {% if result.duplicates_removed | default(0) | int > 0 %}kv-amber{% else %}kv-green{% endif %}">
+              {{ result.duplicates_removed | default("0") }}
+            </div>
+            <div class="improve-note">{% if result.duplicates_removed | default(0) | int == 0 %}No duplicates found{% else %}Duplicate records removed{% endif %}</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Overall missing %</div>
+          <div class="improvement-row" style="grid-template-columns:1fr auto 1fr;gap:8px;">
+            <div class="improve-box">
+              <div class="improve-label">Before</div>
+              <div class="improve-val kv-amber">{{ result.dataset_profile.overall_missing_pct | default("—") }}%</div>
+            </div>
+            <div class="improve-arrow">→</div>
+            <div class="improve-box">
+              <div class="improve-label">After</div>
+              <div class="improve-val {% if missing_after < 2 %}kv-green{% elif missing_after < 10 %}kv-amber{% else %}kv-red{% endif %}">{{ missing_after }}%</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;">Steps executed</div>
+          <div class="mini-card" style="height:calc(100% - 26px);">
+            <div class="improve-val kv-blue">{{ result.cleaning_plan.cleaning_steps | length | default("0") }}</div>
+            <div class="improve-note">Cleaning operations applied</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
+    {# ── DETECTED ISSUES + VALIDATION ─────────────────────── #}
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon si-red">⚠️</div>
+          <div class="section-header-text">
+            <h2>Detected issues</h2>
+            <p>Problems found during profiling, before any cleaning was applied.</p>
+          </div>
+        </div>
+        {% if result.cleaning_plan.issues %}
+          <table>
+            <thead>
+              <tr><th>Column</th><th>Issue type</th><th>Severity</th><th>Recommendation</th></tr>
+            </thead>
+            <tbody>
+              {% for issue in result.cleaning_plan.issues %}
+                <tr>
+                  <td>{{ issue.column if issue.column else "Dataset-level" }}</td>
+                  <td>{{ issue.issue_type }}</td>
+                  <td>
+                    {% if issue.severity == "high" %}<span class="sev-high">High</span>
+                    {% elif issue.severity == "medium" %}<span class="sev-medium">Medium</span>
+                    {% else %}<span class="sev-low">Low</span>{% endif %}
+                  </td>
+                  <td>{{ issue.recommendation }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">No issues detected in this dataset.</p>
+        {% endif %}
+      </div>
 
-<!-- Cleaning Report -->
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon si-blue">✅</div>
+          <div class="section-header-text">
+            <h2>Validation checks</h2>
+            <p>Rules verified against the cleaned dataset to confirm quality.</p>
+          </div>
+        </div>
+        {% if result.cleaning_plan.validation_checks %}
+          <ul>
+            {% for check in result.cleaning_plan.validation_checks %}
+              <li style="padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                <span style="color:#16a34a;font-weight:700;margin-right:6px;">✓</span>{{ check }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">No validation checks returned.</p>
+        {% endif %}
+      </div>
+    </div>
 
-<div class="card">
+    {# ── CLEANING STEPS ───────────────────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-amber">🔧</div>
+        <div class="section-header-text">
+          <h2>Cleaning steps</h2>
+          <p>The exact deterministic operations applied to the dataset in sequence.</p>
+        </div>
+      </div>
+      {% if result.cleaning_plan.cleaning_steps %}
+        <table>
+          <thead>
+            <tr><th>#</th><th>Action</th><th>Column</th><th>Parameters</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            {% for step in result.cleaning_plan.cleaning_steps %}
+              <tr>
+                <td style="color:var(--muted);font-size:12px;">{{ loop.index }}</td>
+                <td><strong>{{ step.action }}</strong></td>
+                <td>{{ step.column if step.column else "Dataset-level" }}</td>
+                <td style="font-family:monospace;font-size:12px;color:var(--muted);">{{ step.parameters }}</td>
+                <td>{{ step.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">No cleaning steps returned.</p>
+      {% endif %}
+    </div>
 
-<h3>📊 Cleaning Report</h3>
+    {# ── EXECUTION LOG ────────────────────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-purple">📋</div>
+        <div class="section-header-text">
+          <h2>Execution log</h2>
+          <p>Step-by-step record of what the cleaning engine actually did.</p>
+        </div>
+      </div>
+      {% if result.execution_log %}
+        <table>
+          <thead>
+            <tr><th>Action</th><th>Column</th><th>Status</th><th>Reason / Error</th></tr>
+          </thead>
+          <tbody>
+            {% for item in result.execution_log %}
+              <tr>
+                <td>{{ item.action }}</td>
+                <td>{{ item.column if item.column else "Dataset-level" }}</td>
+                <td>
+                  {% if item.status == "applied" %}<span class="status-applied">Applied</span>
+                  {% elif item.status == "skipped" %}<span class="status-skipped">Skipped</span>
+                  {% else %}<span class="status-error">{{ item.status }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if item.error %}{{ item.error }}
+                  {% elif item.reason %}{{ item.reason }}
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">No execution log available.</p>
+      {% endif %}
+    </div>
 
-<ul>
+    {# ── DATA PREVIEW ─────────────────────────────────────── #}
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon si-amber">👁️</div>
+        <div class="section-header-text">
+          <h2>Data preview</h2>
+          <p>First 10 rows — before and after cleaning applied side by side.</p>
+        </div>
+      </div>
 
-<li><b>Status:</b> {{ result.status }}</li>
+      <div style="margin-bottom:10px;">
+        <span class="pill pill-amber" style="margin-bottom:0;">Before cleaning</span>
+      </div>
+      {% if result.preview_before %}
+        <div style="overflow-x:auto;margin-bottom:24px;">
+          <table>
+            <thead>
+              <tr>{% for key in result.preview_before[0].keys() %}<th>{{ key }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+              {% for row in result.preview_before %}
+                <tr>{% for value in row.values() %}<td>{{ value }}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted" style="margin-bottom:24px;">No preview available.</p>
+      {% endif %}
 
-<li><b>Rows Before Cleaning:</b> {{ result.report.rows_before }}</li>
+      <div style="margin-bottom:10px;">
+        <span class="pill pill-green" style="margin-bottom:0;">After cleaning</span>
+      </div>
+      {% if result.preview_after %}
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>{% for key in result.preview_after[0].keys() %}<th>{{ key }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+              {% for row in result.preview_after %}
+                <tr>{% for value in row.values() %}<td>{{ value }}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No preview available.</p>
+      {% endif %}
+    </div>
 
-<li><b>Rows After Cleaning:</b> {{ result.report.rows_after }}</li>
+    {# ── DOWNLOAD BANNER ──────────────────────────────────── #}
+    <div class="download-banner">
+      <div class="download-banner-left">
+        <h2>✅ Cleaned dataset ready</h2>
+        <p>{{ result.rows_after_cleaning | default("") }} rows · {{ result.dataset_profile.column_count | default("") }} columns · Quality: {{ health_score }} · Ready for the Data Analyst or Data Architect</p>
+      </div>
+      <a href="/{{ result.cleaned_file_path }}" class="download-btn">
+        ⬇ Download Cleaned Dataset
+      </a>
+    </div>
 
-<li><b>Duplicates Removed:</b> {{ result.report.duplicates_removed }}</li>
-
-</ul>
-
-</div>
-
-
-<!-- Missing Values -->
-
-{% if result.report.missing_values %}
-
-<div class="card">
-
-<h3>⚠ Missing Values Detected</h3>
-
-<ul>
-
-{% for col, value in result.report.missing_values.items() %}
-
-<li>{{ col }} : {{ value }}</li>
-
-{% endfor %}
-
-</ul>
-
-</div>
-
-{% endif %}
-
-
-<!-- Download Section -->
-
-<div class="card">
-
-<h3>📥 Cleaned Dataset</h3>
-
-<p>
-Your dataset has been cleaned and prepared for analysis.
-</p>
-
-<a href="/outputs/engineer/cleaned_dataset.csv">
-Download Cleaned Dataset
-</a>
-
-</div>
-
+  {% endif %}
 {% endif %}
 
 {% endblock %}

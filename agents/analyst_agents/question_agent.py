@@ -97,11 +97,44 @@ class QuestionAgent:
 
         show_kpis = any(term in q for term in kpi_terms) or intent != "distribution_analysis"
 
+        # --------------------------
+        # OVERVIEW MODE DETECTION
+        # --------------------------
+        # Fires when the question is broad/exploratory with no specific metric named.
+        # Controls answer framing in build_direct_answer and storytelling agents.
+        OVERVIEW_EXACT = {
+            "kpi overview", "kpi insights", "pki insights", "pki overview",
+            "dataset overview", "business summary", "overall performance",
+            "overview", "summary", "insights", "analysis", "show insights",
+            "general overview", "full overview", "full summary",
+        }
+
+        OVERVIEW_FRAGMENTS = [
+            "overview", "overall", "big picture", "dashboard", "snapshot",
+            "tell me about", "what can you tell", "show me the data",
+            "explore this", "general analysis", "full picture",
+        ]
+
+        SPECIFIC_METRIC_TERMS = [
+            "sales", "revenue", "profit", "quantity", "cost", "price",
+            "discount", "margin", "amount", "units", "score",
+        ]
+
+        token_count = len(q.split())
+        has_specific_metric = any(term in q for term in SPECIFIC_METRIC_TERMS)
+
+        is_overview_mode = (
+            q in OVERVIEW_EXACT
+            or (any(f in q for f in OVERVIEW_FRAGMENTS) and not has_specific_metric)
+            or (token_count <= 4 and intent in ("summary_analysis", "general_analysis") and not has_specific_metric)
+        )
+
         return {
             "question": question,
             "intent": intent,
             "show_kpis": show_kpis,
             "question_category": question_category,
             "question_goal": question_goal,
-            "is_count_question": is_count_question
+            "is_count_question": is_count_question,
+            "is_overview_mode": is_overview_mode,
         }

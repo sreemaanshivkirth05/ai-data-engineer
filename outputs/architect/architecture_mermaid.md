@@ -1,69 +1,110 @@
-flowchart TD
-    subgraph DataSources
-        A1[CRM]
-        A2[ERP]
-        A3[Web Analytics]
-        A4[Social Media]
+flowchart LR
+  %% Sources
+  subgraph S[Data Sources]
+    DB[(Transactional DBs)]
+    CSV[CSV Uploads]
+    API[Marketing APIs]
+    WEB[Web Events]
+  end
+
+  %% Ingestion
+  subgraph I[Ingestion Layer]
+    AF[Airflow Ingest]
+    KAF[Kafka Stream]
+    SEC[Secrets Manager]
+  end
+
+  %% Lakehouse Storage
+  subgraph L[Lakehouse on AWS]
+    subgraph B[Bronze]
+      BR[(Raw Landing)]
+      BQ[Quarantine]
     end
-
-    subgraph IngestionLayer
-        B1[Batch Ingestion]
-        B2[Streaming Ingestion]
+    subgraph SL[Silver]
+      ST[Standardize]
+      DQ[Validate & Dedupe]
+      PII[Tokenize / Mask PII]
+      SM[(Curated Silver)]
+      IDM[(Identity Map)]
     end
-
-    subgraph StorageLayer
-        subgraph Bronze
-            C1[Raw Data]
-        end
-        subgraph Silver
-            C2[Cleaned Data]
-            C3[Transformed Data]
-        end
-        subgraph Gold
-            C4[Curated Data]
-        end
+    subgraph G[Gold]
+      AGG[BI Views]
+      SEM[Semantic Layer]
+      FEAT[Feature Sets]
+      GD[(Gold Datasets)]
     end
+  end
 
-    subgraph Orchestration
-        D1[Airflow DAG]
-    end
+  %% Orchestration
+  subgraph O[Orchestration]
+    DAG[Airflow DAGs]
+    MON[Monitoring / Retries / Backfills]
+  end
 
-    subgraph Governance
-        E1[Data Quality Checks]
-        E2[Access Control]
-        E3[Audit Logging]
-    end
+  %% Governance
+  subgraph GRC[Data Quality / Governance]
+    CAT[Glue Catalog]
+    LF[Lake Formation]
+    AUD[CloudTrail / Audit Logs]
+    KMS[KMS Encryption]
+    RLS[RBAC / Row-Column Security]
+  end
 
-    subgraph Analytics
-        F1[BI Dashboards]
-        F2[Ad-hoc Analysis]
-    end
+  %% Consumption
+  subgraph C[Analytics / BI Consumption]
+    BI[BI Dashboards]
+    ADHOC[Analysts]
+    LEAD[Leadership Realtime]
+    ML[ML / Forecasting]
+  end
 
-    A1 -->|Ingest| B1
-    A2 -->|Ingest| B1
-    A3 -->|Ingest| B2
-    A4 -->|Ingest| B2
+  %% Flows
+  DB --> AF
+  CSV --> AF
+  API --> AF
+  WEB --> KAF
 
-    B1 --> C1
-    B2 --> C1
+  SEC --> AF
+  SEC --> KAF
 
-    C1 -->|Clean| C2
-    C2 -->|Transform| C3
-    C3 -->|Curate| C4
+  AF --> BR
+  KAF --> BR
 
-    D1 --> C1
-    D1 --> C2
-    D1 --> C3
+  BR --> BQ
+  BR --> DAG
 
-    C4 --> F1
-    C4 --> F2
+  DAG --> ST
+  DAG --> DQ
+  DAG --> PII
 
-    C1 --> E1
-    C2 --> E1
-    C3 --> E1
-    C1 --> E2
-    C2 --> E2
-    C3 --> E2
-    C1 --> E3
-    C2 --> E3
-    C3 --> E3
+  ST --> SM
+  DQ --> SM
+  PII --> SM
+  SM --> IDM
+
+  SM --> GD
+  IDM --> GD
+  GD --> AGG
+  GD --> SEM
+  GD --> FEAT
+
+  AGG --> BI
+  SEM --> BI
+  AGG --> ADHOC
+  SEM --> LEAD
+  FEAT --> ML
+
+  DAG --> MON
+  DAG --> CAT
+  CAT --> LF
+  LF --> RLS
+  KMS --> BR
+  KMS --> SM
+  KMS --> GD
+  AUD --> DAG
+  AUD --> BI
+
+  LF -. governs .-> BR
+  LF -. governs .-> SM
+  LF -. governs .-> GD
+  RLS -. controls .-> BI

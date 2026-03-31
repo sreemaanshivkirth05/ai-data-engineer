@@ -29,7 +29,9 @@ def build_phase1_product_layer(
 
     top_insights = build_top_insights(
         df=df,
+        question=question,
         target=target,
+        drivers=drivers,
         kpis=kpis,
         analysis=analysis,
         charts=charts,
@@ -95,7 +97,7 @@ def build_dataset_summary(df, intent, target, drivers, question_category=None, q
     return summary
 
 
-def build_top_insights(df, target, kpis, analysis, charts, intent):
+def build_top_insights(df, question, target, drivers, kpis, analysis, charts, intent):
     insights = []
 
     time_summary = analysis.get("time_summary", {}) or {}
@@ -103,6 +105,10 @@ def build_top_insights(df, target, kpis, analysis, charts, intent):
     correlations = analysis.get("correlations", {}) or {}
     categorical_drivers = analysis.get("categorical_drivers", {}) or {}
     outlier_summary = analysis.get("outlier_summary", {}) or {}
+
+    focus_dimension = infer_question_focus_dimension(question, drivers=drivers or [])
+    focused_segment = best_segment_for_dimension(top_segments, focus_dimension)
+    focused_driver = best_categorical_driver_for_dimension(categorical_drivers, focus_dimension)
 
     if intent == "trend_analysis" and time_summary:
         first_period = time_summary.get("first_period")
@@ -128,49 +134,67 @@ def build_top_insights(df, target, kpis, analysis, charts, intent):
                 "type": "pattern"
             })
 
-    if not insights and top_segments:
-        best = top_segments[0]
-        insights.append({
-            "title": "Top performer",
-            "value": str(best["segment"]),
-            "detail": (
-                f"The leading {format_label(best['dimension']).lower()} segment contributes strongly to "
-                f"{format_label(target).lower()}, with total {format_number(best.get('total_target'))}."
-            ),
-            "type": "positive"
-        })
-    elif not insights and kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
-        insights.append({
-            "title": "Top performer",
-            "value": str(kpis["top_dimension_value"]),
-            "detail": (
-                f"The leading {str(kpis['top_dimension_name']).lower()} contributes "
-                f"{format_number(kpis.get('top_dimension_metric'))} to {format_label(target).lower()}."
-            ),
-            "type": "positive"
-        })
+    if not insights:
+        best = focused_segment or best_non_placeholder_segment(top_segments)
+        if best:
+            insights.append({
+                "title": "Top performer",
+                "value": str(best["segment"]),
+                "detail": (
+                    f"The leading {format_label(best['dimension']).lower()} segment contributes strongly to "
+                    f"{format_label(target).lower()}, with total {format_number(best.get('total_target'))}."
+                ),
+                "type": "positive"
+            })
+        elif kpis.get("top_dimension_name") and kpis.get("top_dimension_value"):
+            insights.append({
+                "title": "Top performer",
+                "value": str(kpis["top_dimension_value"]),
+                "detail": (
+                    f"The leading {str(kpis['top_dimension_name']).lower()} contributes "
+                    f"{format_number(kpis.get('top_dimension_metric'))} to {format_label(target).lower()}."
+                ),
+                "type": "positive"
+            })
 
     if correlations:
-        top_corr = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)[0]
-        direction = "positive" if top_corr[1] > 0 else "negative"
-        insights.append({
-            "title": "Strongest numeric signal",
-            "value": format_label(top_corr[0]),
-            "detail": (
-                f"This field shows the strongest {direction} relationship with "
-                f"{format_label(target).lower()} (correlation: {top_corr[1]})."
-            ),
-            "type": "signal"
-        })
+        ranked_corr = [
+            item for item in sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
+            if is_good_numeric_followup_column(item[0])
+        ]
+        if ranked_corr:
+            top_corr = ranked_corr[0]
+            direction = "positive" if top_corr[1] > 0 else "negative"
+            insights.append({
+                "title": "Strongest numeric signal",
+                "value": format_label(top_corr[0]),
+                "detail": (
+                    f"This field shows the strongest {direction} relationship with "
+                    f"{format_label(target).lower()} (correlation: {top_corr[1]})."
+                ),
+                "type": "signal"
+            })
 
-    if categorical_drivers:
-        top_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[0]
+    if focused_driver:
         insights.append({
             "title": "Biggest group variation",
-            "value": format_label(top_cat[0]),
+            "value": format_label(focused_driver),
             "detail": "This is the clearest grouping dimension where performance differences are visible.",
             "type": "pattern"
         })
+    elif categorical_drivers:
+        ranked_cat = [
+            item for item in sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
+            if not any(bad in str(item[0]).lower() for bad in ["id", "postal", "zip", "row"])
+        ]
+        if ranked_cat:
+            top_cat = ranked_cat[0]
+            insights.append({
+                "title": "Biggest group variation",
+                "value": format_label(top_cat[0]),
+                "detail": "This is the clearest grouping dimension where performance differences are visible.",
+                "type": "pattern"
+            })
 
     if outlier_summary.get("outlier_count", 0) > 0:
         insights.append({
@@ -238,6 +262,9 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     distribution_summary = analysis.get("distribution_summary", {}) or {}
     outlier_summary = analysis.get("outlier_summary", {}) or {}
 
+    focus_dimension = infer_question_focus_dimension(question, drivers=drivers or [])
+    lead = best_segment_for_dimension(top_segments, focus_dimension)
+
     if intent == "trend_analysis":
         if top_group:
             suggestions.append(f"Which {format_label(top_group).lower()} segments are driving the biggest changes in {target_label} over time?")
@@ -279,8 +306,7 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     if distribution_summary and intent != "distribution_analysis":
         suggestions.append(f"What does the distribution of {target_label} reveal about spread and concentration?")
 
-    if top_segments:
-        lead = top_segments[0]
+    if lead:
         segment_text = str(lead.get("segment", "")).lower().strip()
         dimension_text = format_label(lead.get("dimension", "")).lower().strip()
         if segment_text and segment_text not in question_lower:
@@ -432,7 +458,7 @@ def compute_confidence_note(missing_pct, duplicate_rows, target_null_pct, usable
     return {
         "level": "Low",
         "note": "The current output is best treated as an exploratory readout because missingness, duplicates, or limited usable rows reduce confidence."
-    }
+        }
 
 
 def choose_best_grouping(categorical_cols, drivers):
@@ -476,6 +502,103 @@ def is_good_numeric_followup_column(column_name):
         return False
 
     return True
+
+
+def infer_question_focus_dimension(question, drivers=None):
+    q = str(question or "").lower().strip()
+    drivers = drivers or []
+
+    alias_map = {
+        "product": {"product", "products", "item", "items", "sku", "chocolate", "chocolates"},
+        "country": {"country", "countries", "market", "markets", "region", "regions", "geography"},
+        "sales person": {"sales person", "salesperson", "seller", "rep", "representative"},
+        "category": {"category", "categories", "segment", "segments", "group", "groups"}
+    }
+
+    for canonical, terms in alias_map.items():
+        if any(term in q for term in terms):
+            for d in drivers:
+                d_norm = str(d).lower().strip()
+                if canonical in d_norm:
+                    return d
+                if canonical == "product" and any(tok in d_norm for tok in ["product", "item"]):
+                    return d
+                if canonical == "country" and any(tok in d_norm for tok in ["country", "region", "market"]):
+                    return d
+                if canonical == "sales person" and any(tok in d_norm for tok in ["sales person", "salesperson"]):
+                    return d
+                if canonical == "category" and any(tok in d_norm for tok in ["category", "segment", "group"]):
+                    return d
+    return None
+
+
+def best_segment_for_dimension(top_segments, preferred_dimension=None):
+    if not top_segments:
+        return None
+
+    valid = [
+        seg for seg in top_segments
+        if str(seg.get("segment", "")).strip().lower() not in {"unknown", "error", "n/a", "na", "none", "null", ""}
+    ]
+    if not valid:
+        return None
+
+    if preferred_dimension:
+        focused = [
+            seg for seg in valid
+            if str(seg.get("dimension", "")).strip().lower() == str(preferred_dimension).strip().lower()
+        ]
+        if focused:
+            focused.sort(
+                key=lambda x: (
+                    x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
+                    x.get("total_target", 0)
+                ),
+                reverse=True
+            )
+            return focused[0]
+
+    valid.sort(
+        key=lambda x: (
+            x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
+            x.get("total_target", 0)
+        ),
+        reverse=True
+    )
+    return valid[0]
+
+
+def best_categorical_driver_for_dimension(categorical_drivers, preferred_dimension=None):
+    if not categorical_drivers:
+        return None
+
+    if preferred_dimension and preferred_dimension in categorical_drivers:
+        return preferred_dimension
+
+    ranked = [
+        item for item in sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
+        if not any(bad in str(item[0]).lower() for bad in ["id", "postal", "zip", "row"])
+    ]
+    return ranked[0][0] if ranked else None
+
+
+def best_non_placeholder_segment(top_segments):
+    if not top_segments:
+        return None
+    valid = [
+        seg for seg in top_segments
+        if str(seg.get("segment", "")).strip().lower() not in {"unknown", "error", "n/a", "na", "none", "null", ""}
+    ]
+    if not valid:
+        return None
+    return sorted(
+        valid,
+        key=lambda x: (
+            x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
+            x.get("total_target", 0)
+        ),
+        reverse=True
+    )[0]
 
 
 def normalize_followup_text(text):

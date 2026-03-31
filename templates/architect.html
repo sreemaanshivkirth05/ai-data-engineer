@@ -1,94 +1,568 @@
 {% extends "layout.html" %}
+{% block title %}Data Architect · AI Data Platform{% endblock %}
+{% block nav_architect %}active{% endblock %}
+
+{% block head_scripts %}
+{% if result %}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+{% endif %}
+<style>
+  /* ── ARCHITECT STYLES ──────────────────────────── */
+  .tab-nav{
+    display:flex;gap:4px;flex-wrap:wrap;
+    border-bottom:1px solid var(--border);margin-bottom:24px;
+  }
+  .tab-btn{
+    display:flex;align-items:center;gap:7px;
+    padding:10px 18px;background:none;border:none;
+    border-bottom:2px solid transparent;margin-bottom:-1px;
+    font-size:14px;font-weight:600;color:var(--muted);
+    cursor:pointer;transition:color .15s;font-family:inherit;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .section-hdr{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .sec-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+  .si-blue{background:var(--blue-soft);}
+  .si-green{background:var(--green-soft);}
+  .si-amber{background:var(--amber-soft);}
+  .si-red{background:var(--red-soft);}
+  .si-purple{background:var(--purple-soft);}
+  .sec-title{font-size:18px;font-weight:800;margin:0 0 3px;}
+  .sec-sub{font-size:13px;color:var(--muted);margin:0;}
+
+  .pipeline-layers{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+  .layer-card{border-radius:14px;padding:20px;border:1px solid var(--border);}
+  .lc-ingest{background:linear-gradient(135deg,#dbeafe,#fff);border-color:#93c5fd;}
+  .lc-bronze{background:linear-gradient(135deg,#fef9c3,#fff);border-color:#fde68a;}
+  .lc-silver{background:linear-gradient(135deg,#f1f5f9,#fff);border-color:#cbd5e1;}
+  .lc-gold{background:linear-gradient(135deg,#fef3c7,#fff);border-color:#fbbf24;}
+  .lc-serve{background:linear-gradient(135deg,#ede9fe,#fff);border-color:#c4b5fd;}
+  .lc-orch{background:linear-gradient(135deg,#dcfce7,#fff);border-color:#86efac;}
+  .layer-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+  .layer-desc{font-size:13px;color:var(--muted);line-height:1.6;}
+  .layer-svcs{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;}
+  .svc-tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.06);}
+
+  .cost-total-banner{
+    background:linear-gradient(135deg,#0f172a,#1e3a8a);
+    border-radius:14px;padding:20px 24px;
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:20px;flex-wrap:wrap;gap:12px;
+  }
+  .cost-total-lbl{font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:4px;}
+  .cost-total-val{font-size:36px;font-weight:800;color:#fff;line-height:1;}
+  .cost-total-note{font-size:12px;color:#64748b;margin-top:4px;}
+  .cost-ing-box{background:rgba(255,255,255,.07);border-radius:10px;padding:12px 18px;text-align:center;}
+  .cost-ing-lbl{font-size:11px;color:#64748b;margin-bottom:4px;}
+  .cost-ing-val{font-size:14px;font-weight:700;color:#93c5fd;}
+
+  .cost-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .cost-tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;}
+  .cost-tile-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px;}
+  .cost-tile-val{font-size:24px;font-weight:800;color:var(--primary);margin-bottom:4px;}
+  .cost-tile-note{font-size:12px;color:var(--muted);}
+
+  .tips-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .tip-card{display:flex;align-items:flex-start;gap:10px;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .tip-icon{font-size:18px;flex-shrink:0;}
+  .tip-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+  .tip-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+
+  .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .role-card{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .role-name{font-size:13px;font-weight:800;margin-bottom:6px;}
+  .role-desc{font-size:12px;color:var(--muted);line-height:1.6;}
+
+  .risk-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .risk-card{display:flex;align-items:flex-start;gap:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;}
+  .risk-num{width:24px;height:24px;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:800;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .risk-title{font-size:13px;font-weight:700;margin-bottom:3px;}
+  .risk-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+
+  .sec-section{margin-bottom:16px;}
+  .sec-section-hdr{
+    font-size:14px;font-weight:700;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;background:#f8fafc;border:1px solid var(--border);
+    border-radius:10px;cursor:pointer;user-select:none;transition:background .15s;
+  }
+  .sec-section-hdr:hover{background:#f1f5f9;}
+  .sec-section-hdr .arr{font-size:12px;transition:transform .2s;}
+  .sec-section-hdr.open .arr{transform:rotate(180deg);}
+  .sec-section-body{border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:18px;display:none;}
+  .sec-section-body.open{display:block;}
+
+  .mermaid-wrap{background:#fff;border:1px solid var(--border);border-radius:14px;padding:24px;overflow-x:auto;min-height:180px;}
+  .mermaid-wrap svg{max-width:100%;height:auto;}
+
+  .md-content h1,.md-content h2{font-size:16px;font-weight:800;margin:16px 0 8px;}
+  .md-content h3{font-size:14px;font-weight:700;margin:12px 0 6px;color:var(--muted);}
+  .md-content p{font-size:14px;line-height:1.75;color:var(--text);margin:0 0 10px;}
+  .md-content ul,.md-content ol{padding-left:20px;margin:0 0 10px;}
+  .md-content li{font-size:14px;line-height:1.75;margin-bottom:4px;}
+  .md-content code{background:#f1f5f9;border-radius:4px;padding:1px 6px;font-family:monospace;font-size:12px;}
+  .md-content strong{font-weight:700;}
+  .md-content em{font-style:italic;color:var(--muted);}
+  .md-content blockquote{border-left:3px solid var(--primary);margin:8px 0;padding:8px 14px;background:var(--blue-soft);border-radius:0 8px 8px 0;font-size:13px;color:#1d4ed8;}
+  .md-content hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
+
+  .layer-summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+
+  @media(max-width:900px){
+    .pipeline-layers,.cost-strip,.layer-summary-strip{grid-template-columns:1fr 1fr;}
+    .tips-grid,.risk-grid,.role-grid{grid-template-columns:1fr;}
+  }
+  @media(max-width:600px){
+    .pipeline-layers,.cost-strip,.layer-summary-strip{grid-template-columns:1fr;}
+    .tab-btn{padding:8px 12px;font-size:13px;}
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 
+<!-- INPUT CARD -->
 <div class="card">
+  <div class="section-hdr">
+    <div class="sec-icon si-purple">🏗️</div>
+    <div>
+      <div class="sec-title">AI Data Architect</div>
+      <p class="sec-sub">Describe your requirements and data sources — get a complete pipeline, security plan, cost estimate, and live architecture diagram.</p>
+    </div>
+  </div>
 
-<h2>🏗 AI Data Architect</h2>
+  <form action="/design" method="post">
+    <label for="requirements"><strong>Business Requirements</strong> <span style="font-weight:400;color:var(--muted);">— what the platform needs to do</span></label>
+    <textarea id="requirements" name="requirements" rows="4"
+      placeholder="Example: Build a data platform for analysing sales data from multiple regions. We need real-time dashboards, historical trend analysis, and the ability to segment by product category and geography."
+    >{{ requirements or "" }}</textarea>
 
-<p>
-Design a complete data architecture by describing your business requirements
-and the structure of your data sources.
-The AI architect agents will generate a full pipeline design.
-</p>
+    <div style="height:14px;"></div>
 
-<form action="/design" method="post">
+    <label for="schemas"><strong>Source Schemas</strong> <span style="font-weight:400;color:var(--muted);">— your tables and fields</span></label>
+    <textarea id="schemas" name="schemas" rows="4"
+      placeholder="Example: Sales(id, region, product, revenue, date), Customers(id, name, segment, country)"
+    >{{ schemas or "" }}</textarea>
 
-<label><b>Business Requirements</b></label>
-
-<br><br>
-
-<textarea
-name="requirements"
-rows="6"
-placeholder="Example: Build a data platform for analyzing sales data from multiple regions">
-</textarea>
-
-<br><br>
-
-<label><b>Source Schemas</b></label>
-
-<br><br>
-
-<textarea
-name="schemas"
-rows="6"
-placeholder="Example: Sales(id, region, product, revenue, date)">
-</textarea>
-
-<br><br>
-
-<button type="submit">Generate Architecture</button>
-
-</form>
-
+    <div style="height:16px;"></div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <button class="btn" type="submit">Generate Architecture</button>
+      <span class="muted" style="font-size:13px;">Runs 4 AI agents: Pipeline · Security · Cost · Diagram</span>
+    </div>
+  </form>
 </div>
-
 
 {% if result %}
 
-<!-- Pipeline Architecture -->
-
-<div class="card">
-
-<h3>📊 Pipeline Architecture</h3>
-
-<pre>{{ result.pipeline_architecture }}</pre>
-
+<!-- RESULTS HEADER BANNER -->
+<div class="card" style="border-left:5px solid var(--primary);padding:20px 24px;margin-bottom:12px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="pill pill-blue" style="margin-bottom:6px;">Architecture ready</div>
+      <h2 style="margin:0 0 4px;">Your data architecture is complete</h2>
+      <p class="muted" style="margin:0;font-size:14px;">Four agents ran in sequence. Use the tabs below to explore each output.</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div style="text-align:center;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px 18px;">
+        <div style="font-size:22px;font-weight:800;color:var(--primary);">4</div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Agents</div>
+      </div>
+      <div style="text-align:center;background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:10px 18px;">
+        <div style="font-size:22px;font-weight:800;color:#15803d;">✓</div>
+        <div style="font-size:11px;color:#15803d;text-transform:uppercase;letter-spacing:.06em;">Done</div>
+      </div>
+    </div>
+  </div>
 </div>
 
-
-<!-- Security -->
-
+<!-- TABBED OUTPUT CARD -->
 <div class="card">
 
-<h3>🔐 Security & Governance</h3>
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="pipeline" onclick="switchTab('pipeline')">
+      <span>⚙️</span> Pipeline Architecture
+    </button>
+    <button class="tab-btn" data-tab="security" onclick="switchTab('security')">
+      <span>🔐</span> Security &amp; Governance
+    </button>
+    <button class="tab-btn" data-tab="cost" onclick="switchTab('cost')">
+      <span>💰</span> Cost Estimation
+    </button>
+    <button class="tab-btn" data-tab="diagram" onclick="switchTab('diagram')">
+      <span>📐</span> Architecture Diagram
+    </button>
+  </div>
 
-<pre>{{ result.security }}</pre>
+  <!-- ════════ TAB: PIPELINE ════════ -->
+  <div class="tab-panel active" id="tab-pipeline">
 
-</div>
+    <div class="section-hdr">
+      <div class="sec-icon si-blue">⚙️</div>
+      <div>
+        <div class="sec-title">Pipeline Architecture</div>
+        <p class="sec-sub">End-to-end data flow from raw sources through Bronze → Silver → Gold to analytics consumers.</p>
+      </div>
+    </div>
 
+    <!-- Layer summary strip -->
+    <div class="layer-summary-strip">
+      <div class="mini-card" style="text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Data Sources</div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);">DBs · APIs · Files</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Operational, SaaS, events</div>
+      </div>
+      <div class="mini-card" style="text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Ingestion</div>
+        <div style="font-size:20px;font-weight:800;color:#1d4ed8;">Batch + CDC</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Airflow · Kafka · Kinesis</div>
+      </div>
+      <div class="mini-card" style="text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Lakehouse</div>
+        <div style="font-size:20px;font-weight:800;color:#d97706;">Bronze → Gold</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">AWS S3 + Parquet/Iceberg</div>
+      </div>
+      <div class="mini-card" style="text-align:center;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Serving</div>
+        <div style="font-size:20px;font-weight:800;color:#7c3aed;">Redshift · Athena</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Dashboards · SQL · DS</div>
+      </div>
+    </div>
 
-<!-- Cost -->
+    <!-- Lakehouse layer cards -->
+    <div class="pipeline-layers">
+      <div class="layer-card lc-ingest">
+        <div class="layer-title" style="color:#1d4ed8;">Ingestion Layer</div>
+        <div class="layer-desc">Batch via Airflow and streaming via Kafka or Kinesis based on source latency requirements.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">Airflow</span><span class="svc-tag">Kafka</span><span class="svc-tag">AWS Glue</span><span class="svc-tag">Kinesis</span>
+        </div>
+      </div>
+      <div class="layer-card lc-bronze">
+        <div class="layer-title" style="color:#92400e;">🥉 Bronze — Raw</div>
+        <div class="layer-desc">Landing zone. Immutable, encrypted, tightly restricted. No analyst access. PII intact only for reconciliation.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">S3 Raw</span><span class="svc-tag">SSE-KMS</span><span class="svc-tag">Parquet</span>
+        </div>
+      </div>
+      <div class="layer-card lc-silver">
+        <div class="layer-title" style="color:#475569;">🥈 Silver — Cleansed</div>
+        <div class="layer-desc">Standardised, validated, PII masked. Schema enforced via data contract. Engineering + governed access.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">Glue ETL</span><span class="svc-tag">Lake Formation</span><span class="svc-tag">Iceberg</span>
+        </div>
+      </div>
+      <div class="layer-card lc-gold">
+        <div class="layer-title" style="color:#92400e;">🥇 Gold — Business Ready</div>
+        <div class="layer-desc">Curated, certified aggregates. Role-based access for analysts. Only masked or tokenized identifiers exposed.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">Redshift</span><span class="svc-tag">Athena</span><span class="svc-tag">dbt</span>
+        </div>
+      </div>
+      <div class="layer-card lc-serve">
+        <div class="layer-title" style="color:#6d28d9;">Serving Layer</div>
+        <div class="layer-desc">Semantic and metrics layer exposing certified Gold to BI dashboards, analysts, and data science workloads.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">Warehouse</span><span class="svc-tag">Metrics Layer</span><span class="svc-tag">REST APIs</span>
+        </div>
+      </div>
+      <div class="layer-card lc-orch">
+        <div class="layer-title" style="color:#166534;">Orchestration</div>
+        <div class="layer-desc">Airflow DAG orchestration with retries, backfills, SLAs, data quality checks, and pipeline observability.</div>
+        <div class="layer-svcs">
+          <span class="svc-tag">Airflow DAGs</span><span class="svc-tag">CloudWatch</span><span class="svc-tag">Alerting</span>
+        </div>
+      </div>
+    </div>
 
-<div class="card">
+    <!-- Full LLM markdown -->
+    <div style="border-top:1px solid var(--border);padding-top:18px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">Full pipeline specification from AI architect</div>
+      <div class="md-content" id="pipeline-md"></div>
+    </div>
+  </div>
 
-<h3>💰 Cost Estimation</h3>
+  <!-- ════════ TAB: SECURITY ════════ -->
+  <div class="tab-panel" id="tab-security">
 
-<pre>{{ result.cost }}</pre>
+    <div class="section-hdr">
+      <div class="sec-icon si-red">🔐</div>
+      <div>
+        <div class="sec-title">Security &amp; Governance</div>
+        <p class="sec-sub">Data classification, PII handling, IAM model, encryption, audit logging, and compliance frameworks.</p>
+      </div>
+    </div>
 
-</div>
+    <!-- Layer security summary -->
+    <div class="layer-summary-strip" style="margin-bottom:20px;">
+      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#fef9c3,#fff);">
+        <div style="font-size:18px;font-weight:800;color:#92400e;">Bronze</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Raw · Restricted · Encrypted</div>
+      </div>
+      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#f1f5f9,#fff);">
+        <div style="font-size:18px;font-weight:800;color:#475569;">Silver</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Cleansed · PII Masked · Governed</div>
+      </div>
+      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#fef3c7,#fff);">
+        <div style="font-size:18px;font-weight:800;color:#d97706;">Gold</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Curated · RBAC · Certified</div>
+      </div>
+      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#dcfce7,#fff);">
+        <div style="font-size:18px;font-weight:800;color:#15803d;">KMS</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Encrypted at rest + in transit</div>
+      </div>
+    </div>
 
+    <!-- IAM Roles -->
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">IAM Roles &amp; Access Model</div>
+    <div class="role-grid">
+      <div class="role-card"><div class="role-name">🔒 Data Ingestion Role</div><div class="role-desc">Write-only to Bronze. No read access to sensitive Gold data.</div></div>
+      <div class="role-card"><div class="role-name">⚙️ Data Engineer Role</div><div class="role-desc">Read Bronze/Silver. Write Silver. Limited Gold access.</div></div>
+      <div class="role-card"><div class="role-name">📊 Data Analyst Role</div><div class="role-desc">Read approved Gold views only. No access to raw PII or Bronze.</div></div>
+      <div class="role-card"><div class="role-name">🔬 Data Scientist Role</div><div class="role-desc">De-identified Silver + approved feature sets. No production PII.</div></div>
+      <div class="role-card"><div class="role-name">📋 Data Steward Role</div><div class="role-desc">Metadata, classification, policy management. No data modification.</div></div>
+      <div class="role-card"><div class="role-name">👤 Business User Role</div><div class="role-desc">Read curated Gold aggregates and certified dashboards only.</div></div>
+    </div>
 
-<!-- Diagram -->
+    <!-- Key risks -->
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Key Security Risks</div>
+    <div class="risk-grid">
+      <div class="risk-card"><div class="risk-num">1</div><div><div class="risk-title">Re-identification risk</div><div class="risk-desc">customer_id + location + web behaviour can re-identify individuals when combined.</div></div></div>
+      <div class="risk-card"><div class="risk-num">2</div><div><div class="risk-title">Commercial data overexposure</div><div class="risk-desc">profit, cost_price, and spend may reveal strategic information if Gold access is too broad.</div></div></div>
+      <div class="risk-card"><div class="risk-num">3</div><div><div class="risk-title">Direct Bronze access</div><div class="risk-desc">Analysts or non-engineering users accessing Bronze could expose raw PII before masking.</div></div></div>
+      <div class="risk-card"><div class="risk-num">4</div><div><div class="risk-title">Permission sprawl</div><div class="risk-desc">Roles may accumulate excessive access over time without regular quarterly access reviews.</div></div></div>
+    </div>
 
-<div class="card">
+    <!-- Full spec collapsible -->
+    <div class="sec-section">
+      <div class="sec-section-hdr" onclick="toggleSection(this)">
+        Full security &amp; governance specification
+        <span class="arr">▼</span>
+      </div>
+      <div class="sec-section-body">
+        <div class="md-content" id="security-md"></div>
+      </div>
+    </div>
+  </div>
 
-<h3>📐 Architecture Diagram</h3>
+  <!-- ════════ TAB: COST ════════ -->
+  <div class="tab-panel" id="tab-cost">
 
-<pre>{{ result.diagram }}</pre>
+    <div class="section-hdr">
+      <div class="sec-icon si-amber">💰</div>
+      <div>
+        <div class="sec-title">Cost Estimation</div>
+        <p class="sec-sub">Rough-order-of-magnitude monthly breakdown by service. Not a billing quote — actual costs vary by region, growth, and query patterns.</p>
+      </div>
+    </div>
 
-</div>
+    <!-- Total banner -->
+    <div class="cost-total-banner">
+      <div>
+        <div class="cost-total-lbl">Estimated total monthly cost</div>
+        <div class="cost-total-val" id="costTotal">—</div>
+        <div class="cost-total-note">Rough estimate · Actual varies by region, data growth, and query volume</div>
+      </div>
+      <div class="cost-ing-box">
+        <div class="cost-ing-lbl">Ingestion type</div>
+        <div class="cost-ing-val" id="costIngType">—</div>
+      </div>
+    </div>
+
+    <!-- Cost tiles -->
+    <div class="cost-strip">
+      <div class="cost-tile">
+        <div class="cost-tile-lbl">🪣 Storage</div>
+        <div class="cost-tile-val" id="costStorage">—</div>
+        <div class="cost-tile-note">S3 Bronze / Silver / Gold</div>
+      </div>
+      <div class="cost-tile">
+        <div class="cost-tile-lbl">🔄 ETL / Ingestion</div>
+        <div class="cost-tile-val" id="costETL">—</div>
+        <div class="cost-tile-note">Glue, Kinesis, or Kafka compute</div>
+      </div>
+      <div class="cost-tile">
+        <div class="cost-tile-lbl">🏬 Warehouse / Query</div>
+        <div class="cost-tile-val" id="costWarehouse">—</div>
+        <div class="cost-tile-note">Redshift or Athena query engine</div>
+      </div>
+      <div class="cost-tile">
+        <div class="cost-tile-lbl">⏱️ Orchestration</div>
+        <div class="cost-tile-val" id="costOrch">—</div>
+        <div class="cost-tile-note">Airflow / Step Functions</div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;">💡 Cost optimisation ideas</div>
+    <div class="tips-grid" style="margin-bottom:20px;">
+      <div class="tip-card"><span class="tip-icon">📦</span><div><div class="tip-title">Partitioning + columnar formats</div><div class="tip-desc">Use Parquet or ORC with partition pruning to dramatically reduce Athena and Glue scan costs.</div></div></div>
+      <div class="tip-card"><span class="tip-icon">🔁</span><div><div class="tip-title">Incremental loads over full refreshes</div><div class="tip-desc">Replace nightly full-table reloads with CDC or watermark-based incremental ingestion.</div></div></div>
+      <div class="tip-card"><span class="tip-icon">🧊</span><div><div class="tip-title">Archive cold data to Glacier</div><div class="tip-desc">Move data beyond your retention window to S3 Glacier to cut storage costs by up to 80%.</div></div></div>
+      <div class="tip-card"><span class="tip-icon">⚡</span><div><div class="tip-title">Pre-materialise dashboard aggregates</div><div class="tip-desc">Cache common Gold aggregates to avoid repeated expensive warehouse scans for BI queries.</div></div></div>
+    </div>
+
+    <!-- Full spec -->
+    <div style="border-top:1px solid var(--border);padding-top:18px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">Full cost specification from AI architect</div>
+      <div class="md-content" id="cost-md"></div>
+    </div>
+  </div>
+
+  <!-- ════════ TAB: DIAGRAM ════════ -->
+  <div class="tab-panel" id="tab-diagram">
+
+    <div class="section-hdr">
+      <div class="sec-icon si-purple">📐</div>
+      <div>
+        <div class="sec-title">Architecture Diagram</div>
+        <p class="sec-sub">Live Mermaid flowchart — sources, ingestion, lakehouse layers, serving, consumers, and orchestration.</p>
+      </div>
+    </div>
+
+    <div class="mermaid-wrap">
+      <div class="mermaid" id="mermaidChart">{{ result.diagram | replace("```mermaid", "") | replace("```", "") | trim }}</div>
+    </div>
+
+    <div class="sec-section" style="margin-top:16px;">
+      <div class="sec-section-hdr" onclick="toggleSection(this)">
+        Raw Mermaid source <span class="arr">▼</span>
+      </div>
+      <div class="sec-section-body">
+        <pre style="margin:0;font-size:12px;line-height:1.6;">{{ result.diagram | replace("```mermaid", "") | replace("```", "") | trim }}</pre>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /card -->
+
+<script>
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="' + name + '"]').classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── Collapsible sections ───────────────────────────────────
+function toggleSection(el) {
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
+}
+
+// ── Simple markdown → HTML ─────────────────────────────────
+function md2html(raw) {
+  if (!raw) return '<p class="muted">No content generated.</p>';
+  let s = raw.trim().replace(/^```[a-z]*\n?/gm,'').replace(/```$/gm,'');
+  const lines = s.split('\n');
+  let html = '', inUL = false, inOL = false;
+
+  function closeLists() {
+    if (inUL) { html += '</ul>'; inUL = false; }
+    if (inOL) { html += '</ol>'; inOL = false; }
+  }
+  function inline(t) {
+    t = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+    t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    t = t.replace(/__(.+?)__/g,'<strong>$1</strong>');
+    t = t.replace(/\*(.+?)\*/g,'<em>$1</em>');
+    t = t.replace(/_(.+?)_/g,'<em>$1</em>');
+    t = t.replace(/`([^`]+)`/g,'<code>$1</code>');
+    return t;
+  }
+
+  for (const line of lines) {
+    if (/^# /.test(line))    { closeLists(); html += '<h1>'+inline(line.slice(2))+'</h1>'; continue; }
+    if (/^## /.test(line))   { closeLists(); html += '<h2>'+inline(line.slice(3))+'</h2>'; continue; }
+    if (/^### /.test(line))  { closeLists(); html += '<h3>'+inline(line.slice(4))+'</h3>'; continue; }
+    if (/^#{4,} /.test(line)){ closeLists(); html += '<h3>'+inline(line.replace(/^#+\s/,''))+'</h3>'; continue; }
+    if (/^---+$/.test(line.trim())) { closeLists(); html += '<hr>'; continue; }
+    const ulm = line.match(/^\s*[-*+] (.*)/);
+    if (ulm) { if (!inUL){closeLists();html+='<ul>';inUL=true;} html+='<li>'+inline(ulm[1])+'</li>'; continue; }
+    const olm = line.match(/^\d+\. (.*)/);
+    if (olm) { if (!inOL){closeLists();html+='<ol>';inOL=true;} html+='<li>'+inline(olm[1])+'</li>'; continue; }
+    if (/^> /.test(line)) { closeLists(); html+='<blockquote>'+inline(line.slice(2))+'</blockquote>'; continue; }
+    if (!line.trim()) { closeLists(); continue; }
+    closeLists(); html += '<p>'+inline(line)+'</p>';
+  }
+  closeLists();
+  return html;
+}
+
+// ── Parse cost numbers from LLM text ──────────────────────
+function parseCosts(text) {
+  if (!text) return {};
+  const r = {};
+  const tot = text.match(/\*{0,2}\$[\d,]+\.?\d*\s*\/?\s*month\*{0,2}/i);
+  if (tot) r.total = tot[0].replace(/\*/g,'').trim();
+  const stor = text.match(/storage[^\n$]*\$[\d,]+\.?\d*/i);
+  if (stor) { const m=stor[0].match(/\$[\d,]+\.?\d*/); if(m) r.storage=m[0]; }
+  const etl = text.match(/etl[^\n$]*\$[\d,]+\.?\d*/i);
+  if (etl) { const m=etl[0].match(/\$[\d,]+\.?\d*/); if(m) r.etl=m[0]; }
+  const wh = text.match(/warehouse[^\n$]*\$[\d,]+\.?\d*/i);
+  if (wh) { const m=wh[0].match(/\$[\d,]+\.?\d*/); if(m) r.warehouse=m[0]; }
+  const orch = text.match(/orchestration[^\n$]*\$[\d,]+\.?\d*/i);
+  if (orch) { const m=orch[0].match(/\$[\d,]+\.?\d*/); if(m) r.orchestration=m[0]; }
+  const ing = text.match(/ingestion type:\s*\*{0,2}([^\n*]+)/i);
+  if (ing) r.ingType = ing[1].trim();
+  return r;
+}
+
+// ── Initialise ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const pipeRaw = {{ result.pipeline_architecture | tojson }};
+  const secRaw  = {{ result.security | tojson }};
+  const costRaw = {{ result.cost | tojson }};
+
+  document.getElementById('pipeline-md').innerHTML = md2html(pipeRaw);
+  document.getElementById('security-md').innerHTML  = md2html(secRaw);
+  document.getElementById('cost-md').innerHTML      = md2html(costRaw);
+
+  const c = parseCosts(costRaw);
+  if (c.total)        document.getElementById('costTotal').textContent     = c.total;
+  if (c.storage)      document.getElementById('costStorage').textContent   = c.storage;
+  if (c.etl)          document.getElementById('costETL').textContent       = c.etl;
+  if (c.warehouse)    document.getElementById('costWarehouse').textContent = c.warehouse;
+  if (c.orchestration)document.getElementById('costOrch').textContent     = c.orchestration;
+  if (c.ingType)      document.getElementById('costIngType').textContent   = c.ingType;
+
+  // Mermaid
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#dbeafe',
+      primaryTextColor: '#0f172a',
+      primaryBorderColor: '#93c5fd',
+      lineColor: '#64748b',
+      secondaryColor: '#f1f5f9',
+      tertiaryColor: '#f8fafc',
+      fontSize: '13px'
+    }
+  });
+
+  const el = document.getElementById('mermaidChart');
+  if (el) {
+    const src = el.textContent.trim();
+    if (src) {
+      mermaid.render('mermaid-out', src)
+        .then(({ svg }) => {
+          el.innerHTML = svg;
+          const s = el.querySelector('svg');
+          if (s) { s.style.maxWidth='100%'; s.style.height='auto'; }
+        })
+        .catch(err => {
+          el.innerHTML = '<pre style="font-size:12px;color:var(--muted);">'+el.textContent+'</pre>';
+        });
+    }
+  }
+});
+</script>
 
 {% endif %}
 

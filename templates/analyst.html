@@ -21,6 +21,7 @@
       --amber-soft:#fef3c7;
       --purple-soft:#ede9fe;
       --red-soft:#fee2e2;
+      --slate-soft:#eef2ff;
       --shadow:0 10px 30px rgba(15, 23, 42, 0.08);
       --radius:18px;
     }
@@ -209,15 +210,51 @@
       font-weight:800;
     }
 
+    .confidence-strip{
+      display:grid;
+      grid-template-columns:2fr 1fr 1fr;
+      gap:14px;
+      margin-bottom:20px;
+    }
+
+    .confidence-card{
+      background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:18px;
+    }
+
+    .confidence-title{
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      margin-bottom:10px;
+      font-weight:700;
+    }
+
+    .confidence-value{
+      font-size:24px;
+      font-weight:800;
+      line-height:1.3;
+      margin-bottom:8px;
+    }
+
+    .confidence-note{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.6;
+    }
+
     .executive-grid{
       display:grid;
-      grid-template-columns:1.5fr 1fr;
+      grid-template-columns:1.6fr 1fr;
       gap:20px;
       margin-bottom:20px;
     }
 
     .executive-answer{
-      font-size:28px;
+      font-size:30px;
       line-height:1.35;
       font-weight:800;
       margin-bottom:14px;
@@ -555,21 +592,181 @@
     }
 
     @media (max-width: 1100px){
-      .kpi-grid, .meta-grid, .summary-grid, .insight-grid, .quality-grid{ grid-template-columns:repeat(2, 1fr); }
+      .kpi-grid, .meta-grid, .summary-grid, .insight-grid, .quality-grid, .confidence-strip{ grid-template-columns:repeat(2, 1fr); }
       .executive-grid, .info-grid, .text-layout, .chart-grid, .followup-grid, .plan-grid{ grid-template-columns:1fr; }
     }
 
     @media (max-width: 760px){
       .container{ padding:24px 14px 42px; }
       .page-title{ font-size:30px; }
-      .meta-grid, .kpi-grid, .summary-grid, .insight-grid, .quality-grid{ grid-template-columns:1fr; }
+      .meta-grid, .kpi-grid, .summary-grid, .insight-grid, .quality-grid, .confidence-strip{ grid-template-columns:1fr; }
       .chart-box-large{ height:440px; }
       .chart-box{ height:320px; }
       .executive-answer{ font-size:22px; }
     }
+
+    /* ── LEFT NAV ─────────────────────────────────────── */
+    :root{ --nav-w:224px; }
+
+    html,body{ height:100%; }
+
+    .app-shell{ display:flex; min-height:100vh; }
+
+    .side-nav{
+      width:var(--nav-w); flex-shrink:0;
+      background:#fff; border-right:1px solid var(--border);
+      display:flex; flex-direction:column;
+      position:fixed; top:0; left:0; bottom:0; z-index:50;
+      box-shadow:2px 0 12px rgba(15,23,42,.04);
+    }
+    .nav-logo{
+      padding:20px 18px 16px; border-bottom:1px solid var(--border);
+    }
+    .nav-logo-title{ font-size:15px; font-weight:800; color:var(--text); line-height:1.2; }
+    .nav-logo-sub{ font-size:11px; color:var(--muted); margin-top:2px; }
+    .nav-section-label{
+      font-size:10px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.1em; color:var(--muted); padding:16px 18px 6px;
+    }
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 18px; font-size:14px; font-weight:600; color:var(--muted);
+      cursor:pointer; border:none; background:none; width:100%; text-align:left;
+      transition:background .15s, color .15s;
+    }
+    .nav-item:hover{ background:#f8fafc; color:var(--text); }
+    .nav-item.active{ background:var(--blue-soft); color:var(--primary-2); }
+    .nav-icon{ width:20px; height:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:15px; }
+    .nav-dataset-pill{
+      margin:12px 14px 0; background:#f8fafc; border:1px solid var(--border);
+      border-radius:10px; padding:10px 12px;
+    }
+    .pill-nav-label{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:4px; }
+    .pill-nav-value{ font-size:13px; font-weight:700; color:var(--text); word-break:break-all; line-height:1.4; }
+    .pill-nav-meta{ font-size:11px; color:var(--muted); margin-top:3px; }
+    .nav-bottom{ margin-top:auto; padding:14px 18px; border-top:1px solid var(--border); font-size:11px; color:var(--muted); line-height:1.5; }
+
+    /* ── MAIN AREA ─────────────────────────────────────── */
+    .main-area{
+      margin-left:var(--nav-w); flex:1;
+      padding-bottom:96px; /* space for sticky bottom bar */
+    }
+    .container{ max-width:1200px; margin:0 auto; padding:32px 28px 0; }
+
+    /* ── LOADING SPINNER ───────────────────────────────── */
+    .spinner{
+      width:38px; height:38px; flex-shrink:0;
+      border:3px solid var(--blue-soft);
+      border-top-color:var(--primary);
+      border-radius:50%;
+      animation:spin .75s linear infinite;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+    .loading-inner{ display:flex; align-items:center; gap:18px; }
+    .loading-steps{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .loading-step{
+      font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;
+      background:#f1f5f9; color:var(--muted); transition:background .3s, color .3s;
+    }
+    .loading-step.step-active{ background:var(--blue-soft); color:var(--primary-2); }
+    .loading-step.step-done{ background:var(--green-soft); color:#15803d; }
+
+    /* ── BOTTOM QUESTION BAR ───────────────────────────── */
+    .bottom-bar{
+      position:fixed; bottom:0; left:var(--nav-w); right:0;
+      background:rgba(255,255,255,.96); backdrop-filter:blur(12px);
+      border-top:1px solid var(--border);
+      padding:14px 28px 16px; z-index:40;
+      box-shadow:0 -4px 24px rgba(15,23,42,.07);
+    }
+    .bottom-bar-inner{ max-width:1200px; margin:0 auto; display:flex; gap:10px; align-items:flex-end; }
+    .bottom-textarea{
+      flex:1; border:1px solid var(--border); border-radius:14px;
+      padding:12px 16px; font-size:15px; font-family:inherit;
+      color:var(--text); background:#fff; outline:none;
+      resize:none; min-height:48px; max-height:160px; line-height:1.5;
+      transition:border-color .15s, box-shadow .15s; overflow-y:auto;
+    }
+    .bottom-textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+    .bottom-textarea::placeholder{ color:var(--muted); }
+    .bottom-btn{
+      flex-shrink:0; border:none; border-radius:14px;
+      background:linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+      color:#fff; padding:0 22px; font-size:15px; font-weight:700;
+      cursor:pointer; height:48px; white-space:nowrap;
+      box-shadow:0 6px 18px rgba(37,99,235,.25);
+      transition:opacity .15s, transform .1s;
+    }
+    .bottom-btn:hover{ opacity:.92; transform:translateY(-1px); }
+    .bottom-btn:active{ transform:translateY(0); }
+    .bottom-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+
+    /* ── INLINE FOLLOW-UP BAR ──────────────────────────── */
+    .inline-q-bar{
+      background:#f8fafc; border:1px solid var(--border); border-radius:14px;
+      padding:16px; display:flex; gap:10px; align-items:flex-end;
+    }
+    .inline-q-bar textarea{
+      flex:1; border:1px solid var(--border); border-radius:10px;
+      padding:10px 14px; font-size:14px; font-family:inherit;
+      color:var(--text); background:#fff; outline:none;
+      resize:none; min-height:42px; max-height:120px; line-height:1.5;
+      transition:border-color .15s;
+    }
+    .inline-q-bar textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.08); }
+    .inline-q-bar textarea::placeholder{ color:var(--muted); }
+    .inline-q-bar button{
+      flex-shrink:0; height:42px; border:none; border-radius:10px;
+      background:var(--primary); color:#fff; padding:0 18px;
+      font-size:14px; font-weight:700; cursor:pointer;
+      transition:background .15s;
+    }
+    .inline-q-bar button:hover{ background:var(--primary-2); }
+
+    /* ── QUESTION THREAD DIVIDER ───────────────────────── */
+    .question-thread-label{
+      font-size:11px; font-weight:700; text-transform:uppercase;
+      letter-spacing:.08em; color:var(--muted);
+      display:flex; align-items:center; gap:10px; margin-bottom:16px;
+    }
+    .question-thread-label::before,.question-thread-label::after{
+      content:''; flex:1; height:1px; background:var(--border);
+    }
+
+    @media(max-width:800px){
+      :root{ --nav-w:0px; }
+      .side-nav{ display:none; }
+      .main-area{ margin-left:0; }
+      .bottom-bar{ left:0; }
+      .container{ padding:20px 16px 0; }
+    }
   </style>
 </head>
 <body>
+<div class="app-shell">
+
+  <!-- LEFT NAV -->
+  <nav class="side-nav">
+    <div class="nav-logo">
+      <div class="nav-logo-title">AI Data Platform</div>
+      <div class="nav-logo-sub">Multi-agent analytics</div>
+    </div>
+    <div class="nav-section-label">Workspace</div>
+    <button class="nav-item" onclick="showTab('home')"><span class="nav-icon">🏠</span> Home</button>
+    <button class="nav-item active" id="nav-analyst" onclick="showTab('analyst')"><span class="nav-icon">📊</span> Data Analysis</button>
+    <button class="nav-item" onclick="showTab('cleaner')"><span class="nav-icon">🧹</span> Data Cleaner</button>
+    <button class="nav-item" onclick="showTab('architecture')"><span class="nav-icon">🏗️</span> Data Architecture</button>
+    <div class="nav-section-label">Session</div>
+    <div class="nav-dataset-pill" id="navDatasetPill" style="display:none">
+      <div class="pill-nav-label">Dataset loaded</div>
+      <div class="pill-nav-value" id="navDatasetName">—</div>
+      <div class="pill-nav-meta" id="navDatasetMeta"></div>
+    </div>
+    <div class="nav-bottom">v1.0 · Industry Innovation Summit 2026</div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main-area">
   <div class="container">
     <div class="hero">
       <div class="page-eyebrow">AI Analytics Workspace</div>
@@ -582,113 +779,231 @@
 
     <div class="card">
       <div class="card-header">
-        <div class="section-badge badge-blue">Analysis setup</div>
-        <div class="card-title">Run analysis</div>
+        <div class="section-badge badge-blue">Step 1 — Dataset</div>
+        <div class="card-title">Upload your dataset</div>
         <p class="card-subtitle">
-          Upload a dataset and ask a question the way a stakeholder, analyst, or product manager would.
+          Upload a CSV or Excel file. Your dataset stays loaded across all questions in this session.
+          Type your question in the bar at the bottom of the screen.
         </p>
       </div>
-
-      <label for="dataset">Dataset</label>
-      <input type="file" id="dataset" />
-
-      <div style="height:16px;"></div>
-
-      <label for="question">Question</label>
-      <textarea id="question" placeholder="Example: Tell me the story behind product performance by country"></textarea>
-
-      <div style="height:16px;"></div>
-
-      <div class="actions">
-        <button class="btn" onclick="runAnalysis()">Run Analysis</button>
-        <span class="helper">Each answer includes KPI context, 4 charts, detailed narrative, and a business story.</span>
-      </div>
+      <label for="dataset">Dataset file</label>
+      <input type="file" id="dataset" accept=".csv,.xlsx" onchange="onFileSelected(this)" />
     </div>
 
     <div id="loadingBox" class="loading">
-      <div class="section-badge badge-purple">Processing</div>
-      <div class="loading-title">Your analysis is being prepared</div>
-      <div class="loading-step">Understanding your question.</div>
-      <div class="loading-step">Selecting the target metric and KPI logic.</div>
-      <div class="loading-step">Choosing the primary, supporting, and diagnostic charts.</div>
-      <div class="loading-step">Generating visualizations.</div>
-      <div class="loading-step">Building product insight blocks and writing the business narrative.</div>
+      <div class="loading-inner">
+        <div class="spinner"></div>
+        <div>
+          <div class="loading-title" id="loadingTitle">Running analysis…</div>
+          <div class="loading-steps">
+            <span class="loading-step" id="ls-question">Question Agent</span>
+            <span class="loading-step" id="ls-planner">Planner Agent</span>
+            <span class="loading-step" id="ls-selection">Selection Policy</span>
+            <span class="loading-step" id="ls-kpi">KPI Agent</span>
+            <span class="loading-step" id="ls-analysis">Analysis Agent</span>
+            <span class="loading-step" id="ls-viz">Visualization Agent</span>
+            <span class="loading-step" id="ls-narrative">Narrative Agent</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="results"></div>
 
-    <div class="footer">
-      AI Data Analyst · Multi-agent analytics workspace
-    </div>
+    <div style="height:16px;"></div>
+  </div><!-- /container -->
+  </div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<!-- BOTTOM QUESTION BAR (sticky) -->
+<div class="bottom-bar">
+  <div class="bottom-bar-inner">
+    <textarea
+      class="bottom-textarea"
+      id="question"
+      placeholder="Ask a business question about your dataset… (Enter to send, Shift+Enter for new line)"
+      rows="1"
+      onkeydown="handleQuestionKey(event)"
+      oninput="autoGrow(this)"
+    ></textarea>
+    <button class="bottom-btn" id="runBtn" onclick="runAnalysis()">Analyze →</button>
   </div>
+</div>
 
   <script>
     let mountedCharts = [];
     let analysisHistoryCount = 0;
     let questionHistory = [];
+    let loadingTimer = null;
 
-    async function runAnalysis(questionOverride = null){
-      const fileInput = document.getElementById("dataset");
-      const questionInput = document.getElementById("question");
-      const question = (questionOverride || questionInput.value || "").trim();
-      const loadingBox = document.getElementById("loadingBox");
-
-      if(!fileInput.files.length){
-        alert("Please upload a dataset first.");
-        return;
-      }
-
-      if(!question){
-        alert("Please enter a business question.");
-        return;
-      }
-
-      loadingBox.style.display = "block";
-
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-      formData.append("question", question);
-      formData.append("question_history", JSON.stringify(questionHistory));
-
-      try{
-        const response = await fetch("/analyze", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await response.json();
-        loadingBox.style.display = "none";
-
-        if(!response.ok || data.error){
-          appendErrorResult(data.error || "Something went wrong while running the analysis.");
-          return;
-        }
-
-        analysisHistoryCount += 1;
-        displayResults(data, analysisHistoryCount);
-        questionHistory.push(question);
-
-        if(!questionOverride){
-          questionInput.value = "";
-        }
-      }catch(error){
-        loadingBox.style.display = "none";
-        appendErrorResult(error.message);
+    // ── TAB SWITCHING ────────────────────────────────────────────
+    function showTab(tab) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const navEl = document.getElementById('nav-' + tab);
+      if (navEl) navEl.classList.add('active');
+      if (tab !== 'analyst') {
+        const labels = { home: 'Home', cleaner: 'Data Cleaner', architecture: 'Data Architecture' };
+        alert('Tab "' + (labels[tab] || tab) + '" coming soon.');
+        document.getElementById('nav-analyst').classList.add('active');
       }
     }
 
-    function runFollowUp(questionText){
-      const textarea = document.getElementById("question");
-      textarea.value = questionText;
+    // ── FILE SELECTED → update nav pill ─────────────────────────
+    function onFileSelected(input) {
+      if (!input.files.length) return;
+      const file = input.files[0];
+      const pill = document.getElementById('navDatasetPill');
+      document.getElementById('navDatasetName').textContent = file.name;
+      document.getElementById('navDatasetMeta').textContent = (file.size / 1024).toFixed(1) + ' KB';
+      pill.style.display = 'block';
+    }
+
+    // ── TEXTAREA AUTO-GROW ───────────────────────────────────────
+    function autoGrow(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+    }
+
+    function handleQuestionKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        runAnalysis();
+      }
+    }
+
+    // ── LOADING ANIMATION ────────────────────────────────────────
+    const LS_IDS     = ['ls-question','ls-planner','ls-selection','ls-kpi','ls-analysis','ls-viz','ls-narrative'];
+    const LS_LABELS  = [
+      'Understanding your question…',
+      'Selecting target metric and drivers…',
+      'Applying selection policy…',
+      'Computing KPIs…',
+      'Running statistical analysis…',
+      'Building visualisations…',
+      'Writing narrative and story…'
+    ];
+
+    function startLoading() {
+      clearTimeout(loadingTimer);
+      const box = document.getElementById('loadingBox');
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      LS_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('step-active','step-done');
+      });
+      let step = 0;
+      function advance() {
+        if (step > 0) {
+          document.getElementById(LS_IDS[step-1]).classList.remove('step-active');
+          document.getElementById(LS_IDS[step-1]).classList.add('step-done');
+        }
+        if (step < LS_IDS.length) {
+          document.getElementById(LS_IDS[step]).classList.add('step-active');
+          document.getElementById('loadingTitle').textContent = LS_LABELS[step];
+          step++;
+          if (step < LS_IDS.length) loadingTimer = setTimeout(advance, 820);
+        }
+      }
+      advance();
+    }
+
+    function stopLoading() {
+      clearTimeout(loadingTimer);
+      LS_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('step-active');
+        el.classList.add('step-done');
+      });
+      setTimeout(() => {
+        document.getElementById('loadingBox').style.display = 'none';
+        LS_IDS.forEach(id => document.getElementById(id).classList.remove('step-active','step-done'));
+      }, 350);
+    }
+
+    // ── MAIN RUN ─────────────────────────────────────────────────
+    async function runAnalysis(questionOverride = null) {
+      const fileInput  = document.getElementById('dataset');
+      const questionEl = document.getElementById('question');
+      const question   = (questionOverride || questionEl.value || '').trim();
+
+      if (!fileInput.files.length) {
+        alert('Please upload a dataset first.');
+        return;
+      }
+      if (!question) {
+        alert('Please enter a business question.');
+        questionEl.focus();
+        return;
+      }
+
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+
+      startLoading();
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('question', question);
+      formData.append('question_history', JSON.stringify(questionHistory));
+
+      try {
+        const response = await fetch('/analyze', { method: 'POST', body: formData });
+        const data = await response.json();
+        stopLoading();
+
+        if (!response.ok || data.error) {
+          prependErrorResult(data.error || 'Something went wrong while running the analysis.');
+        } else {
+          analysisHistoryCount += 1;
+          displayResults(data, analysisHistoryCount);
+          questionHistory.push(question);
+          if (!questionOverride) {
+            questionEl.value = '';
+            questionEl.style.height = 'auto';
+          }
+        }
+      } catch (error) {
+        stopLoading();
+        prependErrorResult(error.message);
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Analyze →';
+    }
+
+    function runFollowUp(questionText) {
+      const el = document.getElementById('question');
+      el.value = questionText;
+      autoGrow(el);
       runAnalysis(questionText);
     }
 
-    function appendErrorResult(message){
-      const results = document.getElementById("results");
-      const blockId = `result-error-${Date.now()}`;
+    // ── INLINE FOLLOW-UP (inside each result card) ───────────────
+    function handleInlineKey(e, blockId) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitInlineQuestion(blockId);
+      }
+    }
 
-      results.insertAdjacentHTML("beforeend", `
-        <div id="${blockId}" class="analysis-history-block">
+    function submitInlineQuestion(blockId) {
+      const el = document.getElementById('inline-q-' + blockId);
+      if (!el) return;
+      const q = (el.value || '').trim();
+      if (!q) { el.focus(); return; }
+      el.value = '';
+      el.style.height = 'auto';
+      runFollowUp(q);
+    }
+
+    // ── ERROR BLOCK ──────────────────────────────────────────────
+    function prependErrorResult(message) {
+      const results = document.getElementById('results');
+      const blockId = 'result-error-' + Date.now();
+      results.insertAdjacentHTML('afterbegin', `
+        <div id="${blockId}" class="analysis-history-block" style="margin-bottom:24px;">
           <div class="card">
             <div class="section-badge badge-red">Error</div>
             <div class="card-title">Analysis failed</div>
@@ -696,92 +1011,90 @@
           </div>
         </div>
       `);
-
-      const block = document.getElementById(blockId);
-      if(block){
-        block.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      document.getElementById(blockId).scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function formatLabel(value){
-      if(value === null || value === undefined || value === "") return "N/A";
-      return String(value).replaceAll("_", " ");
+    // ── FORMAT HELPERS ───────────────────────────────────────────
+    function formatLabel(value) {
+      if (value === null || value === undefined || value === '') return 'N/A';
+      return String(value).replaceAll('_', ' ');
     }
 
-    function truncateLabel(value, maxLen = 18){
-      const str = String(value ?? "");
-      return str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str;
+    function truncateLabel(value, maxLen = 18) {
+      const str = String(value ?? '');
+      return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
     }
 
-    function compactAxis(value){
+    function compactAxis(value) {
       const num = Number(value);
-      if(Number.isNaN(num)) return value;
+      if (Number.isNaN(num)) return value;
       const abs = Math.abs(num);
-      if(abs >= 1e9) return (num / 1e9).toFixed(1) + "B";
-      if(abs >= 1e6) return (num / 1e6).toFixed(1) + "M";
-      if(abs >= 1e3) return (num / 1e3).toFixed(1) + "K";
+      if (abs >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+      if (abs >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+      if (abs >= 1e3) return (num / 1e3).toFixed(1) + 'K';
       return Number.isInteger(num) ? String(num) : num.toFixed(1);
     }
 
-    function formatValue(value, label = ""){
-      if(value === null || value === undefined || value === "") return "N/A";
-
+    function formatValue(value, label = '') {
+      if (value === null || value === undefined || value === '') return 'N/A';
       const num = Number(value);
-      if(Number.isNaN(num)) return String(value);
-
-      const lower = String(label || "").toLowerCase();
-      const isPercent =
-        lower.includes("rate") ||
-        lower.includes("percent") ||
-        lower.includes("%") ||
-        lower.includes("missing") ||
-        lower.includes("coverage") ||
-        lower.includes("change");
-      const isMoney = ["revenue", "sales", "profit", "cost", "amount", "price"].some(word => lower.includes(word));
-
-      if(isPercent){
-        return `${num.toFixed(1)}%`;
-      }
-
-      if(isMoney){
-        if(Math.abs(num) >= 1e9) return `$${(num/1e9).toFixed(2)}B`;
-        if(Math.abs(num) >= 1e6) return `$${(num/1e6).toFixed(2)}M`;
-        if(Math.abs(num) >= 1e3) return `$${(num/1e3).toFixed(2)}K`;
+      if (Number.isNaN(num)) return String(value);
+      const lower = String(label || '').toLowerCase();
+      const isPercent = lower.includes('rate') || lower.includes('percent') || lower.includes('%')
+        || lower.includes('missing') || lower.includes('coverage')
+        || lower.includes('change') || lower.includes('share');
+      const isMoney = ['revenue','sales','profit','cost','amount','price'].some(w => lower.includes(w));
+      if (isPercent) return `${num.toFixed(1)}%`;
+      if (isMoney) {
+        if (Math.abs(num) >= 1e9) return `$${(num/1e9).toFixed(2)}B`;
+        if (Math.abs(num) >= 1e6) return `$${(num/1e6).toFixed(2)}M`;
+        if (Math.abs(num) >= 1e3) return `$${(num/1e3).toFixed(2)}K`;
         return `$${num.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
       }
-
-      if(Math.abs(num) >= 1e9) return `${(num/1e9).toFixed(2)}B`;
-      if(Math.abs(num) >= 1e6) return `${(num/1e6).toFixed(2)}M`;
-      if(Math.abs(num) >= 1e3) return `${(num/1e3).toFixed(2)}K`;
-
+      if (Math.abs(num) >= 1e9) return `${(num/1e9).toFixed(2)}B`;
+      if (Math.abs(num) >= 1e6) return `${(num/1e6).toFixed(2)}M`;
+      if (Math.abs(num) >= 1e3) return `${(num/1e3).toFixed(2)}K`;
       return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
     }
 
-    function reviveOption(option){
-      if(Array.isArray(option)){
-        return option.map(reviveOption);
-      }
-
-      if(option && typeof option === "object"){
-        if(option.function){
-          return new Function(
-            "truncateLabel",
-            "compactAxis",
-            `return (${option.function});`
-          )(truncateLabel, compactAxis);
+    function reviveOption(option) {
+      if (Array.isArray(option)) return option.map(reviveOption);
+      if (option && typeof option === 'object') {
+        if (option.function) {
+          return new Function('truncateLabel','compactAxis',`return (${option.function});`)(truncateLabel, compactAxis);
         }
-
         const revived = {};
-        for(const key in option){
-          revived[key] = reviveOption(option[key]);
-        }
+        for (const key in option) revived[key] = reviveOption(option[key]);
         return revived;
       }
-
       return option;
     }
 
-    function buildExecutiveSection(data){
+    // ── SECTION BUILDERS ─────────────────────────────────────────
+    function buildConfidenceStrip(data) {
+      const dq = data.data_quality_summary || {};
+      return `
+        <div class="confidence-strip">
+          <div class="confidence-card">
+            <div class="confidence-title">Confidence note</div>
+            <div class="confidence-value">${dq.confidence_level || 'Available'}</div>
+            <div class="confidence-note">${dq.confidence_note || 'This answer combines automated planning, structured analysis, and visual interpretation. Review risks and limitations before high-stakes use.'}</div>
+          </div>
+          <div class="confidence-card">
+            <div class="confidence-title">Target coverage</div>
+            <div class="confidence-value">${dq.target_null_pct !== null && dq.target_null_pct !== undefined ? formatValue(100 - Number(dq.target_null_pct), 'coverage percent') : 'N/A'}</div>
+            <div class="confidence-note">Approximate usable coverage for the selected target metric.</div>
+          </div>
+          <div class="confidence-card">
+            <div class="confidence-title">Duplicates</div>
+            <div class="confidence-value">${formatValue(dq.duplicate_rows, 'duplicate rows')}</div>
+            <div class="confidence-note">Potential duplication that may affect totals and grouped comparisons.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildExecutiveSection(data) {
       return `
         <div class="executive-grid">
           <div class="card">
@@ -790,28 +1103,27 @@
               <div class="card-title">Direct answer</div>
               <p class="card-subtitle">The clearest business readout of the question, written for decision-making.</p>
             </div>
-            <div class="executive-answer">${data.direct_answer || "No direct answer was generated."}</div>
-            <div class="executive-summary">${data.executive_summary || "No executive summary was generated."}</div>
+            <div class="executive-answer">${data.direct_answer || 'No direct answer was generated.'}</div>
+            <div class="executive-summary">${data.executive_summary || 'No executive summary was generated.'}</div>
             <div class="pill-row">
               <div class="pill">Intent: ${formatLabel(data.intent)}</div>
               <div class="pill">Target: ${formatLabel(data.target)}</div>
-              <div class="pill">Question type: ${formatLabel(data.question_category || "general")}</div>
+              <div class="pill">Question type: ${formatLabel(data.question_category || 'general')}</div>
             </div>
           </div>
-
           <div class="card">
             <div class="card-header">
               <div class="section-badge badge-purple">Decision support</div>
               <div class="card-title">Business goal</div>
               <p class="card-subtitle">Why this analysis matters and what decision it is helping support.</p>
             </div>
-            <div class="executive-summary">${data.question_goal || "No business goal was generated."}</div>
+            <div class="executive-summary">${data.question_goal || 'No business goal was generated.'}</div>
           </div>
         </div>
       `;
     }
 
-    function buildDatasetSummarySection(data){
+    function buildDatasetSummarySection(data) {
       const ds = data.dataset_summary || {};
       return `
         <div class="card">
@@ -820,16 +1132,15 @@
             <div class="card-title">What the analyst understood about the dataset</div>
             <p class="card-subtitle">A product-style readout of the uploaded data structure before deeper interpretation begins.</p>
           </div>
-
           <div class="summary-grid">
             <div class="summary-card">
               <div class="summary-title">Rows</div>
-              <div class="summary-value">${formatValue(ds.row_count, "rows")}</div>
+              <div class="summary-value">${formatValue(ds.row_count, 'rows')}</div>
               <div class="summary-footnote">Total records available for analysis.</div>
             </div>
             <div class="summary-card">
               <div class="summary-title">Columns</div>
-              <div class="summary-value">${formatValue(ds.column_count, "columns")}</div>
+              <div class="summary-value">${formatValue(ds.column_count, 'columns')}</div>
               <div class="summary-footnote">Total fields detected in the uploaded dataset.</div>
             </div>
             <div class="summary-card">
@@ -843,26 +1154,22 @@
               <div class="summary-footnote">Detected analytical pattern for this question.</div>
             </div>
           </div>
-
           <div style="height:18px;"></div>
-
           <div class="info-grid">
             <div class="summary-card">
               <div class="summary-title">Column profile</div>
               <ul class="mini-list">
-                <li>Numeric columns: ${formatValue(ds.numeric_column_count, "numeric columns")}</li>
-                <li>Categorical columns: ${formatValue(ds.categorical_column_count, "categorical columns")}</li>
-                <li>Date/time columns: ${formatValue(ds.datetime_column_count, "datetime columns")}</li>
-                ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} → ${ds.date_range_end}</li>` : ""}
+                <li>Numeric columns: ${formatValue(ds.numeric_column_count, 'numeric columns')}</li>
+                <li>Categorical columns: ${formatValue(ds.categorical_column_count, 'categorical columns')}</li>
+                <li>Date/time columns: ${formatValue(ds.datetime_column_count, 'datetime columns')}</li>
+                ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} → ${ds.date_range_end}</li>` : ''}
               </ul>
             </div>
-
             <div class="summary-card">
               <div class="summary-title">Detected drivers</div>
-              ${
-                ds.driver_columns && ds.driver_columns.length
-                  ? `<ul class="driver-list">${ds.driver_columns.map(item => `<li>${formatLabel(item)}</li>`).join("")}</ul>`
-                  : `<div class="empty-state">No strong driver columns were identified for this question.</div>`
+              ${ds.driver_columns && ds.driver_columns.length
+                ? `<ul class="driver-list">${ds.driver_columns.map(item => `<li>${formatLabel(item)}</li>`).join('')}</ul>`
+                : `<div class="empty-state">No strong driver columns were identified for this question.</div>`
               }
             </div>
           </div>
@@ -870,12 +1177,11 @@
       `;
     }
 
-    function buildPlannerSection(data){
+    function buildPlannerSection(data) {
       const plan = data.plan || {};
       const reasoning = plan.reasoning || {};
       const warnings = Array.isArray(reasoning.warnings) ? reasoning.warnings : [];
       const driversWhy = Array.isArray(reasoning.drivers_why) ? reasoning.drivers_why : [];
-
       return `
         <div class="card">
           <div class="card-header">
@@ -883,55 +1189,43 @@
             <div class="card-title">How the analyst planned this answer</div>
             <p class="card-subtitle">This section shows what the AI selected before running the analysis engine.</p>
           </div>
-
           <div class="plan-grid">
             <div class="plan-card">
               <div class="plan-title">Chosen plan</div>
               <div class="plan-value">Target: ${formatLabel(data.target)}</div>
               <ul class="mini-list">
                 <li>Intent: ${formatLabel(data.intent)}</li>
-                <li>Aggregation: ${formatLabel(data.aggregation || "N/A")}</li>
-                <li>Preferred chart: ${formatLabel(data.preferred_chart || "N/A")}</li>
-                <li>Time column: ${formatLabel(data.time_column || "N/A")}</li>
-                <li>Drivers: ${(data.drivers && data.drivers.length) ? data.drivers.map(formatLabel).join(", ") : "None"}</li>
+                <li>Aggregation: ${formatLabel(data.aggregation || 'N/A')}</li>
+                <li>Preferred chart: ${formatLabel(data.preferred_chart || 'N/A')}</li>
+                <li>Time column: ${formatLabel(data.time_column || 'N/A')}</li>
+                <li>Drivers: ${(data.drivers && data.drivers.length) ? data.drivers.map(formatLabel).join(', ') : 'None'}</li>
               </ul>
             </div>
-
             <div class="plan-card">
               <div class="plan-title">Planner reasoning</div>
               <div class="summary-footnote" style="margin-bottom:12px;">
-                ${reasoning.target_why || "No planner reasoning was returned for the target selection."}
+                ${reasoning.target_why || 'No planner reasoning was returned for the target selection.'}
               </div>
-
-              ${
-                driversWhy.length
-                  ? `<ul class="mini-list">${driversWhy.map(item => `<li>${item}</li>`).join("")}</ul>`
-                  : `<div class="empty-state">No detailed driver reasoning was returned.</div>`
+              ${driversWhy.length
+                ? `<ul class="mini-list">${driversWhy.map(item => `<li>${item}</li>`).join('')}</ul>`
+                : `<div class="empty-state">No detailed driver reasoning was returned.</div>`
               }
             </div>
           </div>
-
-          ${
-            warnings.length
-              ? `
-                <div style="height:18px;"></div>
-                <div class="plan-card" style="background:#fff7ed; border-color:#fed7aa;">
-                  <div class="plan-title" style="color:#9a3412;">Planner warnings</div>
-                  <ul class="warning-list">
-                    ${warnings.map(item => `<li>${item}</li>`).join("")}
-                  </ul>
-                </div>
-              `
-              : ""
-          }
+          ${warnings.length ? `
+            <div style="height:18px;"></div>
+            <div class="plan-card" style="background:#fff7ed; border-color:#fed7aa;">
+              <div class="plan-title" style="color:#9a3412;">Planner warnings</div>
+              <ul class="warning-list">${warnings.map(item => `<li>${item}</li>`).join('')}</ul>
+            </div>
+          ` : ''}
         </div>
       `;
     }
 
-    function buildInsightCards(data){
+    function buildInsightCards(data) {
       const insights = Array.isArray(data.top_insights) ? data.top_insights : [];
-      if(!insights.length) return "";
-
+      if (!insights.length) return '';
       return `
         <div class="card">
           <div class="card-header">
@@ -942,36 +1236,33 @@
           <div class="insight-grid">
             ${insights.map(item => `
               <div class="insight-card insight-${item.type || 'info'}">
-                <div class="insight-label">${item.title || "Insight"}</div>
-                <div class="insight-value">${item.value || "N/A"}</div>
-                <div class="insight-detail">${item.detail || ""}</div>
+                <div class="insight-label">${item.title || 'Insight'}</div>
+                <div class="insight-value">${item.value || 'N/A'}</div>
+                <div class="insight-detail">${item.detail || ''}</div>
               </div>
-            `).join("")}
+            `).join('')}
           </div>
         </div>
       `;
     }
 
-    function buildKPIHtml(data){
+    function buildKPIHtml(data) {
       const kpis = data.kpis || {};
-
       const kpiItems = [
-        { title: "Rows analyzed", value: kpis.row_count, footnote: "Records included after target validation and null handling." },
-        { title: "Columns available", value: kpis.column_count, footnote: "Total available fields in the loaded dataset." },
-        { title: `Total ${formatLabel(data.target || "target")}`, value: kpis.total_target, footnote: "Overall aggregate of the primary metric." },
-        { title: `Average ${formatLabel(data.target || "target")}`, value: kpis.average_target, footnote: "Average value per usable record." },
-        { title: `Median ${formatLabel(data.target || "target")}`, value: kpis.median_target, footnote: "Middle value for the selected target metric." },
-        { title: "Top segment", value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : "Leading category based on aggregate contribution." },
-        { title: "Top segment value", value: kpis.top_dimension_metric, footnote: "Measured contribution of the leading segment." },
-        { title: "Date coverage", value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: "Observed time range in the dataset." },
-        { title: "Best period", value: kpis.best_period, footnote: "Strongest observed time period for the selected metric." },
-        { title: "Worst period", value: kpis.worst_period, footnote: "Weakest observed time period for the selected metric." },
-        { title: "Period change %", value: kpis.period_change_pct, footnote: "Overall change from first period to last period." },
-        { title: "Coverage %", value: kpis.target_coverage_pct, footnote: "Usable target coverage across all uploaded rows." }
+        { title: 'Rows analyzed', value: kpis.row_count, footnote: 'Records included after target validation and null handling.' },
+        { title: 'Columns available', value: kpis.column_count, footnote: 'Total available fields in the loaded dataset.' },
+        { title: `Total ${formatLabel(data.target || 'target')}`, value: kpis.total_target, footnote: 'Overall aggregate of the primary metric.' },
+        { title: `Average ${formatLabel(data.target || 'target')}`, value: kpis.average_target, footnote: 'Average value per usable record.' },
+        { title: `Median ${formatLabel(data.target || 'target')}`, value: kpis.median_target, footnote: 'Middle value for the selected target metric.' },
+        { title: 'Top segment', value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : 'Leading category based on aggregate contribution.' },
+        { title: 'Top segment value', value: kpis.top_dimension_metric, footnote: 'Measured contribution of the leading segment.' },
+        { title: 'Date coverage', value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: 'Observed time range in the dataset.' },
+        { title: 'Best period', value: kpis.best_period, footnote: 'Strongest observed time period for the selected metric.' },
+        { title: 'Worst period', value: kpis.worst_period, footnote: 'Weakest observed time period for the selected metric.' },
+        { title: 'Period change %', value: kpis.period_change_pct, footnote: 'Overall change from first period to last period.' },
+        { title: 'Coverage %', value: kpis.target_coverage_pct, footnote: 'Usable target coverage across all uploaded rows.' }
       ].filter(item => item.value !== undefined);
-
-      if(!kpiItems.length) return "";
-
+      if (!kpiItems.length) return '';
       return `
         <div class="card">
           <div class="card-header">
@@ -986,34 +1277,26 @@
                 <div class="kpi-value">${formatValue(item.value, item.title)}</div>
                 <div class="kpi-footnote">${item.footnote}</div>
               </div>
-            `).join("")}
+            `).join('')}
           </div>
         </div>
       `;
     }
 
-    function buildTakeaways(data){
+    function buildTakeaways(data) {
       const takeaways = [];
       const kpis = data.kpis || {};
-
-      if(data.executive_summary) takeaways.push(data.executive_summary);
-
-      if(kpis.top_dimension_name && kpis.top_dimension_value){
+      if (data.executive_summary) takeaways.push(data.executive_summary);
+      if (kpis.top_dimension_name && kpis.top_dimension_value) {
         takeaways.push(`The leading ${String(kpis.top_dimension_name).toLowerCase()} is ${kpis.top_dimension_value}, making it the strongest visible contributor in the current analysis.`);
       }
-
-      if(kpis.total_target !== undefined){
-        takeaways.push(`The total ${String(data.target || "target").toLowerCase()} across the analyzed data is ${formatValue(kpis.total_target, data.target)}.`);
+      if (kpis.total_target !== undefined) {
+        takeaways.push(`The total ${String(data.target || 'target').toLowerCase()} across the analyzed data is ${formatValue(kpis.total_target, data.target)}.`);
       }
-
-      if(data.charts && data.charts.length >= 4){
+      if (data.charts && data.charts.length >= 4) {
         takeaways.push(`The answer combines a primary chart, supporting views, and a diagnostic chart so the question can be understood from multiple angles.`);
       }
-
-      if(!takeaways.length){
-        takeaways.push("The main chart below represents the clearest visual answer to your question.");
-      }
-
+      if (!takeaways.length) takeaways.push('The main chart below represents the clearest visual answer to your question.');
       return `
         <div class="card">
           <div class="card-header">
@@ -1021,34 +1304,29 @@
             <div class="card-title">Key takeaways</div>
             <p class="card-subtitle">A quick readout of the most important conclusions before exploring the full visuals and written interpretation.</p>
           </div>
-          <ul class="takeaway-list">
-            ${takeaways.slice(0, 4).map(item => `<li>${item}</li>`).join("")}
-          </ul>
+          <ul class="takeaway-list">${takeaways.slice(0,4).map(item => `<li>${item}</li>`).join('')}</ul>
         </div>
       `;
     }
 
-    function renderMainChart(chart, blockId){
-      if(!chart) return "";
-
-      const role = chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : "";
-
+    function renderMainChart(chart, blockId) {
+      if (!chart) return '';
+      const role = chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : '';
       return `
         <div class="card">
           <div class="card-header">
             <div class="section-badge badge-blue">Primary visualization</div>
-            <div class="card-title">${chart.title || "Main chart"} ${role}</div>
+            <div class="card-title">${chart.title || 'Main chart'} ${role}</div>
             <p class="card-subtitle">The main visual answer to the business question.</p>
           </div>
           <div id="${blockId}-chart-main" class="chart-box-large"></div>
-          <div class="chart-caption">${chart.description || ""}</div>
+          <div class="chart-caption">${chart.description || ''}</div>
         </div>
       `;
     }
 
-    function renderSupportingCharts(charts, blockId){
-      if(!charts || !charts.length) return "";
-
+    function renderSupportingCharts(charts, blockId) {
+      if (!charts || !charts.length) return '';
       return `
         <div class="card">
           <div class="card-header">
@@ -1060,24 +1338,21 @@
             ${charts.map((chart, idx) => `
               <div>
                 <div style="font-size:18px; font-weight:800; margin-bottom:10px;">
-                  ${chart.title || `Chart ${idx + 2}`}
-                  ${chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : ""}
+                  ${chart.title || 'Chart ' + (idx + 2)}
+                  ${chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : ''}
                 </div>
                 <div id="${blockId}-chart-${idx}" class="chart-box"></div>
-                <div class="chart-caption">${chart.description || ""}</div>
+                <div class="chart-caption">${chart.description || ''}</div>
               </div>
-            `).join("")}
+            `).join('')}
           </div>
         </div>
       `;
     }
 
-    function buildDataQualitySection(data){
+    function buildDataQualitySection(data) {
       const dq = data.data_quality_summary || {};
-      const dateRange = dq.date_range
-        ? `${dq.date_range.start} → ${dq.date_range.end}`
-        : "Not available";
-
+      const dateRange = dq.date_range ? `${dq.date_range.start} → ${dq.date_range.end}` : 'Not available';
       return `
         <div class="card">
           <div class="card-header">
@@ -1085,43 +1360,39 @@
             <div class="card-title">Trust and reliability checks</div>
             <p class="card-subtitle">A compact data-quality layer so the result feels serious, realistic, and decision-safe.</p>
           </div>
-
           <div class="quality-grid">
             <div class="quality-card">
               <div class="quality-title">Overall missingness</div>
-              <div class="quality-value">${formatValue(dq.overall_missing_pct, "missing percent")}</div>
+              <div class="quality-value">${formatValue(dq.overall_missing_pct, 'missing percent')}</div>
               <div class="quality-note">Average missing value rate across the dataset.</div>
             </div>
             <div class="quality-card">
               <div class="quality-title">Duplicate rows</div>
-              <div class="quality-value">${formatValue(dq.duplicate_rows, "duplicate rows")}</div>
+              <div class="quality-value">${formatValue(dq.duplicate_rows, 'duplicate rows')}</div>
               <div class="quality-note">Potential duplication affecting totals and aggregations.</div>
             </div>
             <div class="quality-card">
               <div class="quality-title">Target null rate</div>
-              <div class="quality-value">${dq.target_null_pct !== null && dq.target_null_pct !== undefined ? formatValue(dq.target_null_pct, "target missing percent") : "N/A"}</div>
+              <div class="quality-value">${dq.target_null_pct !== null && dq.target_null_pct !== undefined ? formatValue(dq.target_null_pct, 'target missing percent') : 'N/A'}</div>
               <div class="quality-note">Missingness specifically in the selected target metric.</div>
             </div>
             <div class="quality-card">
               <div class="quality-title">Confidence level</div>
-              <div class="quality-value">${dq.confidence_level || "N/A"}</div>
-              <div class="quality-note">${dq.confidence_note || "No confidence note generated."}</div>
+              <div class="quality-value">${dq.confidence_level || 'N/A'}</div>
+              <div class="quality-note">${dq.confidence_note || 'No confidence note generated.'}</div>
             </div>
           </div>
-
           <div class="info-grid">
             <div class="summary-card">
               <div class="summary-title">Date coverage</div>
               <div class="summary-value" style="font-size:20px;">${dateRange}</div>
               <div class="summary-footnote">Detected date range from the first usable datetime column.</div>
             </div>
-
             <div class="summary-card">
               <div class="summary-title">High-cardinality columns</div>
-              ${
-                dq.high_cardinality_columns && dq.high_cardinality_columns.length
-                  ? `<ul class="mini-list">${dq.high_cardinality_columns.map(item => `<li>${formatLabel(item.column)} · ${formatValue(item.unique_values, "unique values")} unique values</li>`).join("")}</ul>`
-                  : `<div class="empty-state">No major high-cardinality categorical columns were flagged.</div>`
+              ${dq.high_cardinality_columns && dq.high_cardinality_columns.length
+                ? `<ul class="mini-list">${dq.high_cardinality_columns.map(item => `<li>${formatLabel(item.column)} · ${formatValue(item.unique_values, 'unique values')} unique values</li>`).join('')}</ul>`
+                : `<div class="empty-state">No major high-cardinality categorical columns were flagged.</div>`
               }
             </div>
           </div>
@@ -1129,11 +1400,10 @@
       `;
     }
 
-    function buildDecisionSupportSection(data){
-      const impact = Array.isArray(data.business_impact) ? data.business_impact : [];
-      const actions = Array.isArray(data.recommended_actions) ? data.recommended_actions : [];
-      const risks = Array.isArray(data.risks_or_limitations) ? data.risks_or_limitations : [];
-
+    function buildDecisionSupportSection(data) {
+      const impact  = Array.isArray(data.business_impact)       ? data.business_impact       : [];
+      const actions = Array.isArray(data.recommended_actions)   ? data.recommended_actions   : [];
+      const risks   = Array.isArray(data.risks_or_limitations)  ? data.risks_or_limitations  : [];
       return `
         <div class="info-grid">
           <div class="card">
@@ -1142,24 +1412,15 @@
               <div class="card-title">Why this matters</div>
               <p class="card-subtitle">The practical business meaning of the result.</p>
             </div>
-            ${
-              impact.length
-                ? `<ul class="info-list">${impact.map(item => `<li>${item}</li>`).join("")}</ul>`
-                : `<div class="empty-state">No business impact notes were generated.</div>`
-            }
+            ${impact.length ? `<ul class="info-list">${impact.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No business impact notes were generated.</div>`}
           </div>
-
           <div class="card">
             <div class="card-header">
               <div class="section-badge badge-blue">Recommended actions</div>
               <div class="card-title">What to do next</div>
               <p class="card-subtitle">Suggested next steps based on the current evidence.</p>
             </div>
-            ${
-              actions.length
-                ? `<ul class="info-list">${actions.map(item => `<li>${item}</li>`).join("")}</ul>`
-                : `<div class="empty-state">No recommended actions were generated.</div>`
-            }
+            ${actions.length ? `<ul class="info-list">${actions.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No recommended actions were generated.</div>`}
           </div>
         </div>
         <div class="card">
@@ -1168,57 +1429,39 @@
             <div class="card-title">Read this result with context</div>
             <p class="card-subtitle">Important caveats that help keep the analysis realistic and decision-safe.</p>
           </div>
-          ${
-            risks.length
-              ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join("")}</ul>`
-              : `<div class="empty-state">No risks or limitations were generated.</div>`
-          }
+          ${risks.length ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No risks or limitations were generated.</div>`}
         </div>
       `;
     }
 
-    function renderNarrative(narrative){
+    function renderNarrative(narrative) {
       if (!narrative || (!narrative.summary && !narrative.paragraphs?.length)) {
-        return `
-          <div class="text-panel">
-            <div class="empty-state">
-              No strong analytical narrative was generated for this query, but the KPIs and charts above still summarize the result.
-            </div>
-          </div>
-        `;
+        return `<div class="text-panel"><div class="empty-state">No strong analytical narrative was generated for this query, but the KPIs and charts above still summarize the result.</div></div>`;
       }
-
       return `
         <div class="text-panel">
-          <div class="text-headline">${narrative.title || "Analyst Narrative"}</div>
-          <div class="text-summary">${narrative.summary || ""}</div>
-          ${(narrative.paragraphs || []).map(p => `<div class="text-paragraph">${p}</div>`).join("")}
+          <div class="text-headline">${narrative.title || 'Analyst Narrative'}</div>
+          <div class="text-summary">${narrative.summary || ''}</div>
+          ${(narrative.paragraphs || []).map(p => `<div class="text-paragraph">${p}</div>`).join('')}
         </div>
       `;
     }
 
-    function renderStory(story){
+    function renderStory(story) {
       if (!story || (!story.headline && !story.key_points?.length && !story.business_view?.length)) {
-        return `
-          <div class="text-panel">
-            <div class="empty-state">
-              No extended data story was generated for this query.
-            </div>
-          </div>
-        `;
+        return `<div class="text-panel"><div class="empty-state">No extended data story was generated for this query.</div></div>`;
       }
-
       return `
         <div class="text-panel">
-          <div class="text-headline">${story.title || "Data Story"}</div>
-          <div class="text-summary">${story.headline || ""}</div>
-          ${story.key_points?.length ? `<ul class="story-points">${story.key_points.map(item => `<li>${item}</li>`).join("")}</ul>` : ""}
-          ${story.business_view?.length ? story.business_view.map(p => `<div class="text-paragraph">${p}</div>`).join("") : ""}
+          <div class="text-headline">${story.title || 'Data Story'}</div>
+          <div class="text-summary">${story.headline || ''}</div>
+          ${story.key_points?.length ? `<ul class="story-points">${story.key_points.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
+          ${story.business_view?.length ? story.business_view.map(p => `<div class="text-paragraph">${p}</div>`).join('') : ''}
         </div>
       `;
     }
 
-    function renderTextSection(data){
+    function renderTextSection(data) {
       return `
         <div class="card">
           <div class="card-header">
@@ -1234,82 +1477,87 @@
       `;
     }
 
-    function buildFollowUpQuestions(data){
+    // Inline follow-up bar + suggested questions — shown at bottom of every result
+    function buildFollowUpSection(data, blockId) {
       const questions = Array.isArray(data.follow_up_questions) ? data.follow_up_questions : [];
-      if(!questions.length) return "";
-
       return `
-        <div class="card">
+        <div class="card" style="border-top:3px solid var(--primary);">
           <div class="card-header">
-            <div class="section-badge badge-purple">Follow-up questions</div>
-            <div class="card-title">Recommended next questions</div>
-            <p class="card-subtitle">Click any suggested question to continue the analysis, or type your own question above.</p>
+            <div class="section-badge badge-blue">Continue the analysis</div>
+            <div class="card-title">Ask a follow-up question</div>
+            <p class="card-subtitle">Click a suggestion or type your own question. The dataset stays loaded.</p>
           </div>
-          <div class="followup-grid">
-            ${questions.map(q => `
-              <button
-                type="button"
-                class="followup-card"
-                style="cursor:pointer; text-align:left;"
-                onclick='runFollowUp(${JSON.stringify(q)})'
-              >
-                ${q}
-              </button>
-            `).join("")}
+          ${questions.length ? `
+            <div class="followup-grid" style="margin-bottom:16px;">
+              ${questions.map(q => `
+                <button type="button" class="followup-card" style="cursor:pointer; text-align:left;"
+                  onclick='runFollowUp(${JSON.stringify(q)})'>${q}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div class="inline-q-bar">
+            <textarea
+              id="inline-q-${blockId}"
+              placeholder="Type your next question…"
+              rows="1"
+              onkeydown="handleInlineKey(event, '${blockId}')"
+              oninput="autoGrow(this)"
+            ></textarea>
+            <button onclick="submitInlineQuestion('${blockId}')">Ask →</button>
           </div>
         </div>
       `;
     }
 
-    function mountCharts(data, blockId){
-      if(!(data.charts && data.charts.length > 0)){
-        return;
-      }
-
-      const primaryChart = data.charts.find(c => c.primary) || data.charts[0];
+    // ── CHART MOUNTING ───────────────────────────────────────────
+    function mountCharts(data, blockId) {
+      if (!(data.charts && data.charts.length > 0)) return;
+      const primaryChart    = data.charts.find(c => c.primary) || data.charts[0];
       const supportingCharts = data.charts.filter(c => c !== primaryChart);
 
       const mainDom = document.getElementById(`${blockId}-chart-main`);
-      if(mainDom && primaryChart.option){
-        const chartInstance = echarts.init(mainDom);
-        chartInstance.setOption(reviveOption(primaryChart.option));
-        mountedCharts.push(chartInstance);
+      if (mainDom && primaryChart.option) {
+        const ci = echarts.init(mainDom);
+        ci.setOption(reviveOption(primaryChart.option));
+        mountedCharts.push(ci);
       }
 
       supportingCharts.forEach((chart, idx) => {
         const dom = document.getElementById(`${blockId}-chart-${idx}`);
-        if(dom && chart.option){
-          const chartInstance = echarts.init(dom);
-          chartInstance.setOption(reviveOption(chart.option));
-          mountedCharts.push(chartInstance);
+        if (dom && chart.option) {
+          const ci = echarts.init(dom);
+          ci.setOption(reviveOption(chart.option));
+          mountedCharts.push(ci);
         }
       });
 
       resizeAllCharts();
     }
 
-    function resizeAllCharts(){
-      mountedCharts.forEach(chart => {
-        try{ chart.resize(); } catch(e){}
-      });
+    function resizeAllCharts() {
+      mountedCharts.forEach(chart => { try { chart.resize(); } catch(e){} });
     }
 
-    function displayResults(data, questionNumber){
-      const results = document.getElementById("results");
-      const blockId = `result-${Date.now()}`;
+    // ── DISPLAY RESULTS ──────────────────────────────────────────
+    // NEW BEHAVIOUR:
+    //   • Results are PREPENDED (afterbegin) so the newest question always
+    //     appears at the top — older results scroll down below it.
+    //   • Each result starts with a "Question N" thread divider.
+    //   • An inline follow-up bar is appended at the bottom of every result.
+    function displayResults(data, questionNumber) {
+      const results = document.getElementById('results');
+      const blockId = 'result-' + Date.now();
 
-      const primaryChart = data.charts && data.charts.length > 0
-        ? (data.charts.find(c => c.primary) || data.charts[0])
-        : null;
-
-      const supportingCharts = data.charts && data.charts.length > 0
-        ? data.charts.filter(c => c !== primaryChart)
-        : [];
+      const primaryChart    = data.charts && data.charts.length > 0 ? (data.charts.find(c => c.primary) || data.charts[0]) : null;
+      const supportingCharts = data.charts && data.charts.length > 0 ? data.charts.filter(c => c !== primaryChart) : [];
 
       const html = `
-        <div id="${blockId}" class="analysis-history-block" style="margin-bottom:32px;">
-          <div class="card" style="border-left:6px solid #2563eb;">
-            <div style="font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">
+        <div id="${blockId}" class="analysis-history-block" style="margin-bottom:40px;">
+
+          <div class="question-thread-label">Question ${questionNumber}</div>
+
+          <div class="card" style="border-left:5px solid var(--primary);">
+            <div style="font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">
               Question ${questionNumber}
             </div>
             <div class="card-header">
@@ -1319,11 +1567,9 @@
                 We identified the primary metric, selected relevant supporting dimensions, and built a 4-chart answer set with detailed written interpretation.
               </p>
             </div>
-
             <div style="font-size:22px; font-weight:800; line-height:1.5; margin-bottom:18px;">
-              ${data.question || "No question returned"}
+              ${data.question || 'No question returned'}
             </div>
-
             <div class="meta-grid">
               <div class="meta-item">
                 <div class="meta-label">Intent</div>
@@ -1335,7 +1581,7 @@
               </div>
               <div class="meta-item">
                 <div class="meta-label">KPI Mode</div>
-                <div class="meta-value">${data.show_kpis ? "Enabled" : "Not needed"}</div>
+                <div class="meta-value">${data.show_kpis ? 'Enabled' : 'Not needed'}</div>
               </div>
               <div class="meta-item">
                 <div class="meta-label">Charts Returned</div>
@@ -1343,40 +1589,41 @@
               </div>
               <div class="meta-item">
                 <div class="meta-label">Aggregation</div>
-                <div class="meta-value">${formatLabel(data.aggregation || "N/A")}</div>
+                <div class="meta-value">${formatLabel(data.aggregation || 'N/A')}</div>
               </div>
               <div class="meta-item">
                 <div class="meta-label">Time Column</div>
-                <div class="meta-value">${formatLabel(data.time_column || "N/A")}</div>
+                <div class="meta-value">${formatLabel(data.time_column || 'N/A')}</div>
               </div>
             </div>
           </div>
 
+          ${buildConfidenceStrip(data)}
           ${buildExecutiveSection(data)}
+          ${buildInsightCards(data)}
+          ${data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0 ? buildKPIHtml(data) : ''}
+          ${buildTakeaways(data)}
+          ${primaryChart ? renderMainChart(primaryChart, blockId) : ''}
+          ${supportingCharts.length ? renderSupportingCharts(supportingCharts, blockId) : ''}
+          ${buildDecisionSupportSection(data)}
+          ${buildDataQualitySection(data)}
           ${buildDatasetSummarySection(data)}
           ${buildPlannerSection(data)}
-          ${buildInsightCards(data)}
-          ${data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0 ? buildKPIHtml(data) : ""}
-          ${buildTakeaways(data)}
-          ${primaryChart ? renderMainChart(primaryChart, blockId) : ""}
-          ${supportingCharts.length ? renderSupportingCharts(supportingCharts, blockId) : ""}
-          ${buildDataQualitySection(data)}
-          ${buildDecisionSupportSection(data)}
           ${renderTextSection(data)}
-          ${buildFollowUpQuestions(data)}
+          ${buildFollowUpSection(data, blockId)}
+
         </div>
       `;
 
-      results.insertAdjacentHTML("beforeend", html);
+      // PREPEND — newest result at the top
+      results.insertAdjacentHTML('afterbegin', html);
       mountCharts(data, blockId);
 
-      const block = document.getElementById(blockId);
-      if(block){
-        block.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      // Scroll to the top of the new result
+      document.getElementById(blockId).scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    window.addEventListener("resize", resizeAllCharts);
+    window.addEventListener('resize', resizeAllCharts);
   </script>
 </body>
 </html>

@@ -5,3 +5,6 @@ python-multipart
 jinja2
 pandas
 requests
+huggingface_hub
+python-dotenv
+openpyxl

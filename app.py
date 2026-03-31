@@ -128,6 +128,18 @@ async def analyze_dataset(
 # ENGINEER ENDPOINT
 # ======================================================
 
+@app.get("/clean")
+async def clean_page(request: Request):
+    return templates.TemplateResponse(
+        "engineer.html",
+        {
+            "request": request,
+            "result": None,
+            "business_requirements": ""
+        }
+    )
+
+
 @app.post("/clean")
 async def clean_dataset(
     request: Request,
@@ -146,11 +158,13 @@ async def clean_dataset(
             "engineer.html",
             {
                 "request": request,
-                "result": result
+                "result": result,
+                "business_requirements": business_requirements
             }
         )
 
     except Exception as e:
+        print("CLEANING ENDPOINT ERROR:", str(e))
         return templates.TemplateResponse(
             "engineer.html",
             {
@@ -158,7 +172,8 @@ async def clean_dataset(
                 "result": {
                     "status": "error",
                     "report": {"error": str(e)}
-                }
+                },
+                "business_requirements": business_requirements
             }
         )
 
