@@ -1,110 +1,73 @@
 flowchart LR
-  %% Sources
-  subgraph S[Data Sources]
-    DB[(Transactional DBs)]
-    CSV[CSV Uploads]
-    API[Marketing APIs]
-    WEB[Web Events]
-  end
 
-  %% Ingestion
-  subgraph I[Ingestion Layer]
-    AF[Airflow Ingest]
-    KAF[Kafka Stream]
-    SEC[Secrets Manager]
-  end
+subgraph SRC[Data Sources]
+  Web[Website]
+  Pay[Payments]
+  Ord[Orders DB]
+  Ship[Shipping]
+  Mkt[Marketing]
+end
 
-  %% Lakehouse Storage
-  subgraph L[Lakehouse on AWS]
-    subgraph B[Bronze]
-      BR[(Raw Landing)]
-      BQ[Quarantine]
-    end
-    subgraph SL[Silver]
-      ST[Standardize]
-      DQ[Validate & Dedupe]
-      PII[Tokenize / Mask PII]
-      SM[(Curated Silver)]
-      IDM[(Identity Map)]
-    end
-    subgraph G[Gold]
-      AGG[BI Views]
-      SEM[Semantic Layer]
-      FEAT[Feature Sets]
-      GD[(Gold Datasets)]
-    end
-  end
+subgraph ING[Ingestion]
+  Kaf[Kafka\nStreaming]
+  Air[Airflow\nBatch]
+end
 
-  %% Orchestration
-  subgraph O[Orchestration]
-    DAG[Airflow DAGs]
-    MON[Monitoring / Retries / Backfills]
-  end
+subgraph ORCH[Orchestration]
+  DAG[Airflow DAGs\nMonitor • Retry • Backfill]
+end
 
-  %% Governance
-  subgraph GRC[Data Quality / Governance]
-    CAT[Glue Catalog]
-    LF[Lake Formation]
-    AUD[CloudTrail / Audit Logs]
-    KMS[KMS Encryption]
-    RLS[RBAC / Row-Column Security]
-  end
+subgraph GOV[Governance & Security]
+  Cat[Catalog / Lineage]
+  DQ[Data Quality\nSchema • Nulls • Dups • Freshness]
+  LF[Lake Formation\nRBAC • RLS • CLS]
+  KMS[KMS / Secrets]
+  Audit[CloudTrail / Logs]
+end
 
-  %% Consumption
-  subgraph C[Analytics / BI Consumption]
-    BI[BI Dashboards]
-    ADHOC[Analysts]
-    LEAD[Leadership Realtime]
-    ML[ML / Forecasting]
-  end
+subgraph LAKE[Lakehouse on AWS]
+  Brz[Bronze\nRaw • Restricted • Immutable]
+  Slv[Silver\nCleansed • Standardized\nMasked / Tokenized]
+  Gld[Gold\nCurated • Aggregated\nLeast Privilege]
+end
 
-  %% Flows
-  DB --> AF
-  CSV --> AF
-  API --> AF
-  WEB --> KAF
+subgraph CONSUME[Analytics / BI]
+  BI[BI Dashboards]
+  Adhoc[Ad hoc Analysis]
+  DS[Data Science / ML Features]
+  Exec[Leadership Metrics]
+end
 
-  SEC --> AF
-  SEC --> KAF
+Web --> Kaf
+Pay --> Air
+Ord --> Air
+Ship --> Air
+Mkt --> Air
 
-  AF --> BR
-  KAF --> BR
+Kaf --> DAG
+Air --> DAG
 
-  BR --> BQ
-  BR --> DAG
+DAG --> Brz
+Brz --> DQ
+DQ --> Slv
+Slv --> DQ
+DQ --> Gld
 
-  DAG --> ST
-  DAG --> DQ
-  DAG --> PII
+Brz --> Cat
+Slv --> Cat
+Gld --> Cat
 
-  ST --> SM
-  DQ --> SM
-  PII --> SM
-  SM --> IDM
+LF --- Brz
+LF --- Slv
+LF --- Gld
+KMS --- Brz
+KMS --- Slv
+KMS --- Gld
+Audit --- DAG
+Audit --- LF
+Audit --- Cat
 
-  SM --> GD
-  IDM --> GD
-  GD --> AGG
-  GD --> SEM
-  GD --> FEAT
-
-  AGG --> BI
-  SEM --> BI
-  AGG --> ADHOC
-  SEM --> LEAD
-  FEAT --> ML
-
-  DAG --> MON
-  DAG --> CAT
-  CAT --> LF
-  LF --> RLS
-  KMS --> BR
-  KMS --> SM
-  KMS --> GD
-  AUD --> DAG
-  AUD --> BI
-
-  LF -. governs .-> BR
-  LF -. governs .-> SM
-  LF -. governs .-> GD
-  RLS -. controls .-> BI
+Gld --> BI
+Gld --> Exec
+Gld --> Adhoc
+Slv --> DS

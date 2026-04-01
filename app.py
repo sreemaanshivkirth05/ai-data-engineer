@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from analyst_runtime.analysis_pipeline import run_analysis_pipeline
 from engineer_runtime.cleaning_pipeline import run_cleaning_pipeline
-from architect_runtime.architecture_pipeline import run_architecture_pipeline
+from architect_runtime.architect_pipeline import run_architect_pipeline
 from orchestrator import run_full_pipeline
 
 # ======================================================
@@ -32,10 +32,8 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 def save_upload_file(upload_file: UploadFile, folder: str = "datasets") -> str:
     os.makedirs(folder, exist_ok=True)
     dataset_path = os.path.join(folder, upload_file.filename)
-
     with open(dataset_path, "wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
-
     return dataset_path
 
 
@@ -45,26 +43,17 @@ def save_upload_file(upload_file: UploadFile, folder: str = "datasets") -> str:
 
 @app.get("/")
 async def home(request: Request):
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/home")
 async def home_alt(request: Request):
-    return templates.TemplateResponse(
-        "home.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("home.html", {"request": request})
 
 
 @app.get("/analyst")
 async def analyst_page(request: Request):
-    return templates.TemplateResponse(
-        "analyst.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("analyst.html", {"request": request})
 
 
 @app.get("/engineer")
@@ -118,10 +107,7 @@ async def analyze_dataset(
         return JSONResponse(report)
 
     except Exception as e:
-        return JSONResponse(
-            {"error": str(e)},
-            status_code=500
-        )
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ======================================================
@@ -132,11 +118,7 @@ async def analyze_dataset(
 async def clean_page(request: Request):
     return templates.TemplateResponse(
         "engineer.html",
-        {
-            "request": request,
-            "result": None,
-            "business_requirements": ""
-        }
+        {"request": request, "result": None, "business_requirements": ""}
     )
 
 
@@ -169,10 +151,7 @@ async def clean_dataset(
             "engineer.html",
             {
                 "request": request,
-                "result": {
-                    "status": "error",
-                    "report": {"error": str(e)}
-                },
+                "result": {"status": "error", "report": {"error": str(e)}},
                 "business_requirements": business_requirements
             }
         )
@@ -186,20 +165,39 @@ async def clean_dataset(
 async def design_architecture(
     request: Request,
     requirements: str = Form(""),
-    schemas: str = Form("")
+    schemas: str = Form(""),
+    dataset: UploadFile = File(None)
 ):
     try:
-        result = run_architecture_pipeline(
-            requirements_text=requirements,
-            schemas_text=schemas
+        dataset_profile = {}
+        if dataset and dataset.filename:
+            try:
+                dataset_path = save_upload_file(dataset)
+                from agents.engineer_agents.dataset_profiler import DatasetProfilerAgent
+                profiler = DatasetProfilerAgent(dataset_path)
+                profile_result = profiler.run()
+                dataset_profile = profile_result.get("profile", {})
+            except Exception as profile_err:
+                print(f"Dataset profiling skipped: {profile_err}")
+
+        result = run_architect_pipeline(
+            business_requirements=requirements,
+            dataset_profile=dataset_profile,
+            enable_web_search=True
         )
+
+        # Map new key names → old key names that architect.html expects
+        result["pipeline_architecture"] = result.get("ingestion_strategy", "")
+        result["security"]              = result.get("security_governance", "")
+        result["cost"]                  = result.get("cost_estimation", "")
+        result["diagram"]               = result.get("mermaid_diagram", "")
+        result["data_contract"]         = result.get("data_contract", "")
+        result["storage"]               = result.get("storage_layout", "")
+        result["orchestration"]         = result.get("orchestration", "")
 
         return templates.TemplateResponse(
             "architect.html",
-            {
-                "request": request,
-                "result": result
-            }
+            {"request": request, "result": result}
         )
 
     except Exception as e:
@@ -212,11 +210,13 @@ async def design_architecture(
                     "pipeline_architecture": f"Error: {str(e)}",
                     "security": "",
                     "cost": "",
-                    "diagram": ""
+                    "diagram": "",
+                    "data_contract": "",
+                    "storage": "",
+                    "orchestration": ""
                 }
             }
         )
-
 
 # ======================================================
 # FULL AI DATA PLATFORM ENDPOINT
@@ -226,7 +226,8 @@ async def design_architecture(
 async def run_full_system(
     file: UploadFile = File(...),
     requirements: str = Form(""),
-    schemas: str = Form("")
+    schemas: str = Form(""),
+    enable_web_search: bool = Form(True)
 ):
     try:
         dataset_path = save_upload_file(file)
@@ -234,13 +235,11 @@ async def run_full_system(
         result = run_full_pipeline(
             dataset_path=dataset_path,
             requirements_text=requirements,
-            schemas_text=schemas
+            schemas_text=schemas,
+            enable_web_search=enable_web_search
         )
 
         return JSONResponse(result)
 
     except Exception as e:
-        return JSONResponse(
-            {"error": str(e)},
-            status_code=500
-        )
+        return JSONResponse({"error": str(e)}, status_code=500)

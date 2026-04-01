@@ -59,8 +59,10 @@ def to_period_string(series, freq):
 
 
 class KPIAgent:
-    def run(self, df, target, time_column=None, aggregation="sum", drivers=None, question=""):
+    def run(self, df, target, time_column=None, aggregation="sum", drivers=None, question="",
+            dataset_context=None):
         kpis = {}
+        dataset_context = dataset_context or {}
 
         if target not in df.columns:
             return kpis
@@ -106,59 +108,87 @@ class KPIAgent:
 
         # --------------------------
         # TIME-AWARE KPIs
+        # FIX: Only use columns with actual datetime64 dtype for date range.
+        # Year/month integer columns (e.g. arrival_date_year) were being
+        # passed here and producing 1970-01-01 because pandas treated
+        # integer 0 as epoch when no valid dates were found.
         # --------------------------
         chosen_time_col = None
-        datetime_cols = working_df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
+
+        # Only consider columns that are actual datetime64 types
+        datetime_cols = [
+            col for col in working_df.columns
+            if pd.api.types.is_datetime64_any_dtype(working_df[col])
+        ]
 
         if time_column and time_column in working_df.columns:
-            chosen_time_col = time_column
-        elif len(datetime_cols) > 0:
+            # Only use the provided time_column if it is genuinely datetime dtype
+            if pd.api.types.is_datetime64_any_dtype(working_df[time_column]):
+                chosen_time_col = time_column
+            # else: don't use it — it's probably an integer year column
+        elif datetime_cols:
             chosen_time_col = self._choose_best_time_column(working_df, datetime_cols, drivers)
 
         if chosen_time_col:
             valid_dates = working_df[chosen_time_col].dropna()
 
             if len(valid_dates) > 0:
-                kpis["date_column_used"] = chosen_time_col
-                kpis["date_range_start"] = str(valid_dates.min().date())
-                kpis["date_range_end"] = str(valid_dates.max().date())
-
                 try:
-                    time_df = working_df.dropna(subset=[chosen_time_col, target]).copy()
-                    freq = infer_time_frequency(time_df, chosen_time_col)
-                    time_df["_period"] = to_period_string(time_df[chosen_time_col], freq)
+                    # Verify the dates are not all NaT or epoch
+                    min_date = valid_dates.min()
+                    max_date = valid_dates.max()
 
-                    grouped = (
-                        time_df.groupby("_period")[target]
-                        .agg(resolve_pandas_agg(agg))
-                        .reset_index()
-                        .sort_values("_period")
-                    )
+                    # Guard: skip if dates look like epoch (year 1970)
+                    if min_date.year == 1970 and max_date.year == 1970:
+                        chosen_time_col = None
+                    else:
+                        kpis["date_column_used"] = chosen_time_col
+                        kpis["date_range_start"] = str(min_date.date())
+                        kpis["date_range_end"] = str(max_date.date())
 
-                    if len(grouped) >= 2:
-                        first_value = float(grouped[target].iloc[0])
-                        last_value = float(grouped[target].iloc[-1])
+                        try:
+                            time_df = working_df.dropna(subset=[chosen_time_col, target]).copy()
+                            freq = infer_time_frequency(time_df, chosen_time_col)
+                            time_df["_period"] = to_period_string(time_df[chosen_time_col], freq)
 
-                        kpis["time_frequency"] = freq
-                        kpis["first_period"] = str(grouped["_period"].iloc[0])
-                        kpis["last_period"] = str(grouped["_period"].iloc[-1])
-                        kpis["first_period_value"] = round(first_value, 2)
-                        kpis["last_period_value"] = round(last_value, 2)
-
-                        if first_value != 0:
-                            kpis["period_change_pct"] = round(
-                                ((last_value - first_value) / abs(first_value)) * 100, 2
+                            grouped = (
+                                time_df.groupby("_period")[target]
+                                .agg(resolve_pandas_agg(agg))
+                                .reset_index()
+                                .sort_values("_period")
                             )
 
-                        best_idx = grouped[target].idxmax()
-                        worst_idx = grouped[target].idxmin()
+                            if len(grouped) >= 2:
+                                first_value = float(grouped[target].iloc[0])
+                                last_value = float(grouped[target].iloc[-1])
 
-                        kpis["best_period"] = str(grouped.loc[best_idx, "_period"])
-                        kpis["best_period_value"] = round(float(grouped.loc[best_idx, target]), 2)
-                        kpis["worst_period"] = str(grouped.loc[worst_idx, "_period"])
-                        kpis["worst_period_value"] = round(float(grouped.loc[worst_idx, target]), 2)
+                                kpis["time_frequency"] = freq
+                                kpis["first_period"] = str(grouped["_period"].iloc[0])
+                                kpis["last_period"] = str(grouped["_period"].iloc[-1])
+                                kpis["first_period_value"] = round(first_value, 2)
+                                kpis["last_period_value"] = round(last_value, 2)
+
+                                if first_value != 0:
+                                    kpis["period_change_pct"] = round(
+                                        ((last_value - first_value) / abs(first_value)) * 100, 2
+                                    )
+
+                                best_idx = grouped[target].idxmax()
+                                worst_idx = grouped[target].idxmin()
+
+                                kpis["best_period"] = str(grouped.loc[best_idx, "_period"])
+                                kpis["best_period_value"] = round(float(grouped.loc[best_idx, target]), 2)
+                                kpis["worst_period"] = str(grouped.loc[worst_idx, "_period"])
+                                kpis["worst_period_value"] = round(float(grouped.loc[worst_idx, target]), 2)
+                        except Exception:
+                            pass
                 except Exception:
-                    pass
+                    chosen_time_col = None
+
+        # If no valid datetime column found, record None (not 1970-01-01)
+        if not chosen_time_col:
+            kpis["date_range_start"] = None
+            kpis["date_range_end"] = None
 
         # --------------------------
         # GROUPING KPIs
@@ -334,6 +364,11 @@ class KPIAgent:
         return scored[0][0] if scored and scored[0][1] > 0 else None
 
     def _choose_best_time_column(self, df, datetime_cols, drivers=None):
+        """
+        Only called with actual datetime64 dtype columns.
+        Strongly prefers synthesised full datetime columns (full year+month+day)
+        over component columns. Wide date ranges score much higher.
+        """
         drivers = drivers or []
         if not datetime_cols:
             return None
@@ -341,20 +376,39 @@ class KPIAgent:
         scored = []
         for col in datetime_cols:
             score = 0.0
+            col_lower = col.lower().strip().replace("_", " ")
+
             if col in drivers:
                 score += 5.0
 
             non_null_pct = float(df[col].notna().mean())
             score += non_null_pct * 3.0
 
-            name = col.lower()
-            if "date" in name:
+            # Wide date range = full datetime column, not a date-part component.
+            # Generic detection — works for any dataset.
+            try:
+                valid = df[col].dropna()
+                if len(valid) > 1:
+                    date_range_days = (valid.max() - valid.min()).days
+                    if date_range_days > 365:
+                        score += 10.0   # multi-year: full datetime column
+                    elif date_range_days > 90:
+                        score += 5.0
+                    elif date_range_days > 30:
+                        score += 2.0
+                    else:
+                        score -= 6.0    # narrow range = component column, avoid
+            except Exception:
+                pass
+
+            # Full date column names — generic check, no dataset-specific names
+            date_part_words = {"year", "month", "week", "day", "quarter"}
+            col_tokens = set(col_lower.replace("_", " ").split())
+            if "date" in col_lower and not col_tokens.intersection(date_part_words):
                 score += 3.0
-            if "time" in name:
+            if "timestamp" in col_lower:
                 score += 2.0
-            if "order" in name:
-                score += 1.5
-            if "ship" in name:
+            if "time" in col_lower:
                 score += 1.0
 
             scored.append((col, score))

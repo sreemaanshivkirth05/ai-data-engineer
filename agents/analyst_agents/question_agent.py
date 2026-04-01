@@ -42,9 +42,20 @@ class QuestionAgent:
         count_terms = [
             "count", "counts", "how many", "number of", "total number"
         ]
+        totals_terms = [
+            "total revenue", "total bookings", "total sales", "total profit",
+            "total amount", "overall revenue", "overall total",
+            "grand total", "sum of", "how much revenue", "how much profit",
+            "what is the total", "what was the total"
+        ]
+        rate_terms = [
+            "rate", "cancellation rate", "booking rate", "conversion rate",
+            "what is the overall", "overall cancellation", "overall booking"
+        ]
 
-        if any(term in q for term in count_terms):
-            is_count_question = True
+        is_count_question = any(term in q for term in count_terms)
+        is_totals_question = any(term in q for term in totals_terms)
+        is_rate_question = any(term in q for term in rate_terms)
 
         if any(term in q for term in trend_terms):
             intent = "trend_analysis"
@@ -86,7 +97,12 @@ class QuestionAgent:
             question_category = "summary"
             question_goal = "Provide a business-friendly summary of overall performance."
 
-        if is_count_question:
+        # Override question_goal for specific question types
+        if is_totals_question:
+            question_goal = "Calculate the aggregate total and understand how it is distributed across segments."
+        elif is_rate_question:
+            question_goal = "Calculate the rate or proportion and identify which segments drive it."
+        elif is_count_question:
             question_goal = "Count records or entities and compare how those counts vary across groups."
 
         kpi_terms = [
@@ -136,5 +152,7 @@ class QuestionAgent:
             "question_category": question_category,
             "question_goal": question_goal,
             "is_count_question": is_count_question,
+            "is_totals_question": is_totals_question,
+            "is_rate_question": is_rate_question,
             "is_overview_mode": is_overview_mode,
         }

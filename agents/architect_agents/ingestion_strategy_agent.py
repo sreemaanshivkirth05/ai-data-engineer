@@ -1,26 +1,30 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from llm.openai_client import OpenAIClient
 
+
 class IngestionStrategyAgent:
-    def __init__(self, context: Dict[str, Any]):
+    def __init__(self, context: Dict[str, Any], rag_context: Optional[str] = None):
         self.context = context
+        self.rag_context = rag_context or ""
         self.llm = OpenAIClient()
 
     def run(self) -> Dict[str, Any]:
         prompt = self._build_prompt()
         strategy_doc = self.llm.generate(prompt)
-
-        return {
-            "markdown": strategy_doc
-        }
+        return {"markdown": strategy_doc}
 
     def _build_prompt(self) -> str:
         dataset_profile = self.context.get("dataset_profile", {})
         data_contract = self.context.get("data_contract", "")
         business_requirements = self.context.get("business_requirements", "")
 
-        return f"""
-You are a Senior Data Engineer designing a production-grade data ingestion strategy on AWS.
+        return f"""{self.rag_context}
+
+You are a Senior Data Engineer designing a production-grade data ingestion strategy.
+
+You have been given retrieved reference architecture patterns and web research above.
+Use them to inform your design — choose the ingestion approach that best matches
+the detected domain and requirements. Cite which pattern influenced your choices.
 
 You are given:
 - Dataset profile (size, columns, nulls, keys, PII hints)
@@ -28,9 +32,9 @@ You are given:
 - Business requirements
 
 Your job:
-- Decide ingestion approach: Batch vs CDC vs Streaming
-- Choose AWS services (e.g., S3, Glue, DMS, Kinesis, Lambda, EventBridge)
-- Define ingestion frequency (hourly, daily, near-real-time, etc.)
+- Decide ingestion approach: Batch vs CDC vs Streaming (informed by the RAG context)
+- Choose appropriate cloud services
+- Define ingestion frequency
 - Define file formats and landing zones
 - Define idempotency and deduplication strategy
 - Define failure handling, retries, and reprocessing
@@ -39,10 +43,10 @@ Your job:
 
 Output MUST be in Markdown with these sections:
 
-1. Overview
+1. Overview & Pattern Choice (cite which reference pattern you drew from)
 2. Ingestion Sources
-3. Ingestion Approach (Batch / CDC / Streaming)
-4. AWS Services & Components
+3. Ingestion Approach (Batch / CDC / Streaming) with justification
+4. Cloud Services & Components
 5. Load Frequency & Scheduling
 6. Data Landing & File Formats
 7. Idempotency, Deduplication & Backfills

@@ -1,9 +1,11 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from llm.openai_client import OpenAIClient
 
+
 class SecurityGovernanceAgent:
-    def __init__(self, context: Dict[str, Any]):
+    def __init__(self, context: Dict[str, Any], rag_context: Optional[str] = None):
         self.context = context
+        self.rag_context = rag_context or ""
         self.llm = OpenAIClient()
 
     def run(self) -> Dict[str, Any]:
@@ -12,30 +14,31 @@ class SecurityGovernanceAgent:
         return {"markdown": doc}
 
     def _build_prompt(self) -> str:
-        return f"""
+        return f"""{self.rag_context}
+
 You are a Senior Data Platform Architect responsible for security and governance.
 
-Inputs:
-- Dataset Profile (PII hints)
-- Data Contract
-- Storage Layout
+You have been given retrieved reference architecture patterns above.
+Apply the security model from the most relevant pattern to this specific domain.
+For example: if the domain is healthcare, apply HIPAA controls; if finance, apply
+SOX/regulatory audit requirements. Cite which pattern informed your design.
 
 Your job:
-- Design IAM and access control
-- Define PII handling and masking
+- Design IAM and access control appropriate to the detected domain
+- Define PII/sensitive data handling and masking
 - Define encryption (at rest, in transit)
 - Define audit logging and lineage
 - Define data governance practices
-- Define compliance considerations
+- Define compliance considerations specific to the domain
 
 Output MUST be in Markdown with sections:
-1. Overview
-2. Data Classification & PII Handling
-3. Access Control & IAM
+1. Overview & Compliance Framework (cite pattern + domain-specific regulations)
+2. Data Classification & Sensitive Data Handling
+3. Access Control & IAM (role definitions, least privilege)
 4. Encryption & Secrets Management
-5. Audit Logging & Lineage
-6. Governance Processes
-7. Compliance Considerations
+5. Audit Logging & Data Lineage
+6. Governance Processes (data catalog, data quality, ownership)
+7. Compliance Considerations (GDPR/HIPAA/SOX/PCI-DSS as applicable)
 8. Risks & Gaps
 
 Dataset Profile:

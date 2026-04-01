@@ -1,399 +1,366 @@
 # 1. Overview
 
-This design assumes a **Bronze / Silver / Gold lakehouse on AWS** with mixed operational and analytical data across orders, customers, products, inventory, marketing, web traffic, and suppliers.
+This lakehouse design on AWS contains operational and analytical data across orders, customers, products, payments, shipments, returns, website events, and marketing campaigns. Even though the dataset profile does not explicitly list PII columns, the contract clearly includes **direct and indirect personal data** and **financial data**.
 
-## Security and governance objectives
-- Protect **customer PII** and any derived sensitive attributes.
-- Enforce **least privilege** across ingestion, transformation, and consumption layers.
-- Apply **data minimization** and **purpose-based access**.
-- Maintain **end-to-end lineage**, auditability, and traceability.
-- Support compliance with common privacy and security obligations.
+Recommended security posture:
 
-## Data sensitivity summary
-Based on the contract, the dataset contains:
-- **Direct identifiers / PII**: `customer_name`, `email`, potentially `customer_id` if it maps to a person.
-- **Quasi-identifiers**: `state`, `city`, `country`, `device_type`, `traffic_source`, `session_id`.
-- **Commercially sensitive data**: `unit_price`, `discount`, `sales`, `profit`, `cost_price`, `spend`, `impressions`, `clicks`, `conversions`, `stock_on_hand`, `reorder_level`, `lead_time_days`.
-- **Low sensitivity operational data**: `order_date`, `signup_date`, `campaign_date`, `last_updated`, product/category metadata.
+- **Bronze**: raw, restricted, immutable ingestion zone
+- **Silver**: cleansed, standardized, access-controlled curated zone
+- **Gold**: business-ready, aggregated, least-privilege consumption zone
+
+Primary goals:
+
+- Protect customer and payment-related data
+- Enforce least privilege and separation of duties
+- Support auditability, lineage, and compliance
+- Minimize exposure of PII through masking, tokenization, and aggregation
 
 ---
 
 # 2. Data Classification & PII Handling
 
-## Recommended classification model
-Use four data classes:
+## 2.1 Data Classification
 
-| Class | Definition | Examples |
-|---|---|---|
-| Public | Safe for broad internal use | product category, generic campaign metadata |
-| Internal | Non-public but low risk | order dates, inventory levels |
-| Confidential | Business-sensitive | sales, profit, spend, supplier terms |
-| Restricted | PII, identifiers, regulated or highly sensitive | customer_name, email, customer_id if linkable to person |
-
-## Column-level classification
-### Restricted
-- `Customers.customer_name`
+### Highly Sensitive
 - `Customers.email`
-- `Customers.customer_id` if it is a persistent customer identifier tied to a person
-- `WebTraffic.customer_id` if linkable to a person
-- Any joined/derived dataset that can re-identify a customer
+- `Customers.name`
+- `Payments.payment_id` if linkable to a person/order
+- `WebsiteEvents.customer_id`, `session_id` when linked to identity
+- Any joinable identifiers that can re-identify a person
+- Payment-related records and refund data
+- Potentially `Shipping` records if they can be linked to a customer identity
 
-### Confidential
-- `Orders.sales`, `Orders.profit`, `Orders.unit_price`, `Orders.discount`
-- `Products.cost_price`
-- `Inventory.stock_on_hand`, `Inventory.reorder_level`
+### Sensitive / Confidential
+- `customer_id`, `order_id`, `payment_id`, `shipping_id`, `session_id`
+- `order_date`, `signup_date`, `event_time`, `delivered_date` when combined with identity
+- `country`, `city`, `segment`, `device_type`, `source`, `page_name`, `product_id`
+- `return_reason` if it may reveal personal circumstances
+
+### Internal / Business Confidential
+- `Products.cost_price`, `supplier_id`
 - `MarketingCampaigns.spend`, `impressions`, `clicks`, `conversions`
-- `Suppliers.lead_time_days`
-- `supplier_name` if supplier relationships are sensitive
+- `Orders.quantity`, `unit_price`, `discount`, `total_amount`
+- `Payments.amount`, `payment_status`
+- `Shipments.carrier`, `shipping_status`, `region`
 
-### Internal
-- Dates, geography, product metadata, campaign names, traffic source, device type, session metrics
+## 2.2 PII Handling Strategy
 
-## PII handling rules
-### Bronze layer
-- Store raw ingested data in a **restricted landing zone**.
-- No broad analyst access.
-- Apply **immutable retention controls** and **object-level encryption**.
-- Do not transform or mask in-place unless required for ingestion safety.
+### Bronze Layer
+- Store raw data with **restricted access only**
+- No broad analyst access
+- Encrypt and isolate by account/bucket/prefix
+- Retain original values for traceability and replay, but only for approved engineering/security roles
 
-### Silver layer
-- Standardize and validate data.
-- **Tokenize or pseudonymize** direct identifiers where possible:
-  - Replace `customer_name` with a surrogate key or token.
-  - Replace `email` with a hashed/tokenized value for matching use cases.
-- Keep a separate **secure identity mapping table** in a highly restricted account or schema.
+### Silver Layer
+- Apply **standardization and minimization**
+- Replace direct identifiers with pseudonymous keys where possible
+- Mask or tokenize:
+  - `name` → masked or tokenized
+  - `email` → hashed/tokenized, domain optionally retained only if business-approved
+  - `session_id` → pseudonymous token
+- Remove unnecessary fields if not required for downstream use
 
-### Gold layer
-- Publish only **minimum necessary fields**.
-- Default to:
-  - masked email
-  - pseudonymized customer identifiers
-  - aggregated or thresholded outputs for sensitive metrics
-- Avoid exposing direct PII unless there is a documented business need and approval.
+### Gold Layer
+- Prefer **aggregated, de-identified outputs**
+- Expose only business metrics and dimensions approved for analytics
+- Avoid row-level customer views unless explicitly required and approved
+- If customer-level reporting is needed, use masked identifiers and strict row-level security
 
-## Masking strategy
-### Static masking
-Use for non-production copies, QA, and analytics sandboxes:
-- `customer_name` → `J*** D***`
-- `email` → `j***@domain.com`
-- `customer_id` → surrogate token
+## 2.3 Masking Rules
 
-### Dynamic masking
-Use at query time for restricted fields:
-- Analysts see masked values.
-- Privileged users see unmasked values only with approved role and purpose.
+### Static Masking
+Use for non-production copies, QA, and sandbox environments:
+- `name`: `J*** D***`
+- `email`: `j***@domain.com` or fully tokenized
+- `customer_id`: surrogate key or token
+- `session_id`: random token
+- `return_reason`: redact free-text if it may contain personal details
 
-### Tokenization / hashing
-- Use **deterministic tokenization** for joinability across datasets.
-- If hashing emails, use **salted HMAC** rather than plain hashing to reduce re-identification risk.
-- Store salts/keys in AWS KMS or a dedicated secrets service.
+### Dynamic Masking
+Use in production query paths:
+- Analysts see masked `email`, `name`, and any direct identifiers
+- Privileged users can access unmasked values only through approved break-glass or controlled workflows
 
-## De-identification guidance
-- Remove direct identifiers from Gold unless explicitly required.
-- Apply **k-anonymity style review** for small segments or geographic slices.
-- Suppress or aggregate low-count groups to prevent re-identification.
+### Tokenization / Hashing
+- Use deterministic tokenization for joinability across domains
+- Use salted hashing only when reversibility is not required
+- Keep token vault separate from analytics environment
+
+## 2.4 Data Minimization
+- Do not replicate PII into Gold unless explicitly justified
+- Remove unused columns during Silver transformation
+- Limit retention of raw event-level identity data
+- Prefer aggregated customer segments and cohorts over individual records
 
 ---
 
 # 3. Access Control & IAM
 
-## AWS control plane design
-Use separate AWS accounts or at minimum separate environments for:
-- **Ingestion / Bronze**
-- **Transformation / Silver**
-- **Serving / Gold**
-- **Security / Audit**
-- **Sandbox / Non-prod**
-
-## IAM principles
+## 3.1 IAM Principles
 - **Least privilege**
 - **Separation of duties**
-- **Deny by default**
-- **Role-based access control (RBAC)** with optional attribute-based controls (ABAC)
-- **No long-lived access keys** for humans
+- **Default deny**
+- **Need-to-know**
+- **Environment isolation**: dev / test / prod separated by AWS accounts or strong boundaries
 
-## Recommended roles
-### Platform roles
-- `data-platform-admin`
-- `lakehouse-security-admin`
-- `data-engineering-role`
-- `etl-service-role`
+## 3.2 Recommended AWS Control Model
 
-### Data consumer roles
-- `analyst-read-gold`
-- `analyst-read-aggregated`
-- `marketing-analyst-limited`
-- `finance-analyst-confidential`
-- `customer-ops-privileged`
-- `auditor-readonly`
+### Storage and Compute
+- Use **AWS IAM roles** for workloads, not long-lived access keys
+- Use **S3 bucket policies**, **Lake Formation permissions**, and **IAM** together
+- Use **KMS key policies** to restrict decryption
+- Use **VPC endpoints** for private access to S3, Glue, Athena, Redshift, and KMS where applicable
 
-### PII-specific roles
-- `pii-steward`
-- `privacy-officer`
-- `restricted-data-access`
+### Role-Based Access Control
 
-## Access by layer
-### Bronze
-- Write access: ingestion service roles only
-- Read access: data engineering, security, audit
-- No general analyst access
+#### Data Engineering
+- Read/write Bronze and Silver
+- No access to Gold business consumption unless needed
+- No access to unmasked PII unless explicitly approved
 
-### Silver
-- Read/write: transformation jobs, data engineering
-- Read: limited operational users and stewards
-- PII access only if required for matching or quality checks
+#### Analytics Engineers
+- Read Silver
+- Write Gold
+- Limited access to Bronze for debugging only
 
-### Gold
-- Read: business users based on domain and purpose
-- Restricted columns masked by default
-- Separate views for:
-  - aggregated reporting
-  - row-level operational access
-  - privileged PII access
+#### Data Analysts
+- Read Gold only
+- Masked or aggregated access to Silver if approved
+- No direct access to raw PII
 
-## Fine-grained controls
+#### Data Scientists
+- Read approved Silver datasets
+- Access to pseudonymized customer-level data only if business case approved
+- No direct access to raw identifiers unless governed exception exists
+
+#### Security / Compliance
+- Read audit logs, lineage, and metadata
+- Access to sensitive datasets only for investigations
+
+#### Business Users
+- Gold only, via governed BI tools and semantic layer
+
+## 3.3 Row-Level and Column-Level Security
 Implement:
-- **Lake Formation** for table/column/row permissions
-- **Column-level security** for PII fields
-- **Row-level security** by region, business unit, or tenant if applicable
-- **Tag-based access control** using data classification tags
+- **Column-level security** for `name`, `email`, `session_id`, payment identifiers
+- **Row-level security** for:
+  - region-based access
+  - business unit access
+  - customer segment restrictions if needed
+- Use Lake Formation LF-tags or equivalent policy tags to classify and enforce access
 
-## Recommended policy patterns
-- Analysts can query Gold views, not raw tables.
-- Only approved service roles can access Bronze/Silver raw objects.
-- PII access requires:
-  - business justification
-  - time-bound approval
-  - logged access
-  - periodic recertification
+## 3.4 Privileged Access
+- Break-glass access for incident response only
+- Time-bound approvals
+- Session logging and post-access review
+- MFA required for all privileged roles
 
-## Network and identity controls
-- Use **IAM Identity Center / SSO** for human access.
-- Enforce **MFA** for privileged roles.
-- Restrict access via **VPC endpoints / private connectivity** where possible.
-- Use **cross-account roles** instead of sharing credentials.
+## 3.5 Service-to-Service Access
+- Use short-lived credentials via IAM roles
+- No embedded secrets in code
+- Restrict cross-account access with explicit trust policies
+- Separate ingestion, transformation, and consumption roles
 
 ---
 
 # 4. Encryption & Secrets Management
 
-## Encryption at rest
-Enable encryption for all storage and services:
-- **S3 SSE-KMS** for all lakehouse buckets
-- **AWS KMS customer-managed keys** for sensitive datasets
-- Separate keys by environment and, ideally, by domain or sensitivity tier
+## 4.1 Encryption at Rest
+Use **AWS KMS-managed encryption** for all storage and services:
 
-### Key management recommendations
+- **S3**: SSE-KMS for Bronze, Silver, Gold
+- **Glue Data Catalog** metadata encryption where applicable
+- **Athena query results** encrypted with KMS
+- **Redshift / EMR / RDS** if used in the platform, encrypted with KMS
+- **Backups and snapshots** encrypted
+
+### Key Management
+- Separate KMS keys by environment and, ideally, by sensitivity tier
 - Rotate keys regularly
-- Restrict KMS key administration to security admins
-- Use key policies plus IAM policies
-- Log all KMS usage in CloudTrail
+- Restrict key usage to approved roles and services
+- Log all KMS decrypt and key administration events
 
-## Encryption in transit
+## 4.2 Encryption in Transit
 - Enforce **TLS 1.2+** for all data movement
-- Use HTTPS for S3 access
-- Use encrypted JDBC/ODBC connections for query engines
-- Require private networking where feasible
+- Require HTTPS for S3 access
+- Use private networking where possible:
+  - VPC endpoints
+  - PrivateLink
+  - no public bucket access
+- Encrypt inter-service traffic for ETL/ELT pipelines and BI tools
 
-## Secrets management
-- Store credentials, API keys, and tokens in **AWS Secrets Manager** or **SSM Parameter Store**
-- Never embed secrets in code, notebooks, or CI/CD variables in plaintext
-- Use short-lived credentials via IAM roles and federation
-- Rotate secrets automatically where supported
+## 4.3 Secrets Management
+- Store credentials in **AWS Secrets Manager** or **SSM Parameter Store**
+- Rotate secrets automatically where possible
+- Never store secrets in notebooks, code repositories, or environment files
+- Use IAM roles instead of static credentials for AWS-native access
+- For tokenization systems, keep token vault credentials isolated and tightly controlled
 
-## Sensitive derived data
-- Treat tokenization keys, salts, and mapping tables as highly restricted secrets
-- Keep identity resolution assets in a separate secure boundary
+## 4.4 Sensitive Field Protection
+- Hash/tokenize direct identifiers before broad distribution
+- Consider format-preserving encryption for operational compatibility if needed
+- Use deterministic encryption only when joinability is required and risk is accepted
 
 ---
 
 # 5. Audit Logging & Lineage
 
-## Audit logging requirements
+## 5.1 Audit Logging
+Enable and retain logs for:
+
+- **AWS CloudTrail** for API activity
+- **S3 access logs / CloudTrail data events** for object-level access
+- **Lake Formation access logs** for governed table access
+- **KMS logs** for decrypt and key usage
+- **Glue job logs**, workflow logs, and failure events
+- **Athena query logs** and query history
+- BI tool access logs if dashboards expose sensitive data
+
+## 5.2 Logging Requirements
 Capture:
-- Data access events
-- Permission changes
-- Query execution logs
-- Object read/write/delete events
-- KMS key usage
-- Failed authentication and authorization attempts
-- Data export/download events
+- Who accessed what
+- When access occurred
+- From where access occurred
+- What action was taken
+- Which dataset/version was used
+- Whether masking was applied
+- Whether access was approved or denied
 
-## AWS logging stack
-Recommended services:
-- **AWS CloudTrail** for API and IAM activity
-- **S3 server access logs** or CloudTrail data events for object access
-- **Lake Formation audit logs**
-- **CloudWatch Logs** for application and pipeline logs
-- **Glue job logs** or equivalent ETL logs
-- **Athena/warehouse query logs** if used
+## 5.3 Retention
+- Retain security logs according to policy and regulatory requirements
+- Store logs in a separate, immutable security account or log archive
+- Apply WORM/immutability controls where required
+- Protect logs from alteration and deletion
 
-## Audit log retention
-- Retain security logs per policy, typically **1–7 years** depending on regulatory needs
-- Protect logs from tampering with:
-  - separate security account
-  - write-once or immutable storage controls
-  - restricted delete permissions
+## 5.4 Lineage
+Implement end-to-end lineage across:
+- Source system → Bronze ingestion
+- Bronze → Silver transformations
+- Silver → Gold models
+- Gold → BI dashboards / ML features
 
-## Lineage requirements
-Track lineage at:
-- source file / source table
-- Bronze object
-- Silver transformation
-- Gold dataset / semantic layer
-- downstream dashboard or ML feature set
+Recommended metadata capture:
+- Source file/table name
+- Ingestion timestamp
+- Transformation job ID
+- Schema version
+- Column mappings
+- Data quality checks
+- Downstream dependencies
 
-## Lineage implementation
-- Use a metadata catalog such as **AWS Glue Data Catalog**
-- Capture transformation metadata in orchestration jobs
-- Record:
-  - source-to-target mappings
-  - schema changes
-  - job version
-  - run ID
-  - data quality checks
-  - owner and steward
-- If available, integrate with a lineage tool or OpenLineage-compatible framework
-
-## Operational expectations
-- Every Gold dataset should be traceable back to source tables.
-- Every PII field should have a documented purpose and masking rule.
-- Every access to restricted data should be attributable to a user or service principal.
+Use a metadata catalog and lineage tooling integrated with Glue, orchestration, and BI layers.
 
 ---
 
 # 6. Governance Processes
 
-## Data ownership model
+## 6.1 Data Ownership
 Assign:
-- **Data Owner**: accountable for business use and access approval
-- **Data Steward**: manages definitions, quality, and classification
-- **Security/Privacy Officer**: approves restricted data handling
-- **Platform Owner**: manages infrastructure and controls
+- **Data Owner** for each domain: Orders, Customers, Products, Payments, Shipments, Returns, WebsiteEvents, MarketingCampaigns
+- **Data Steward** for definitions, quality, and access approvals
+- **Platform Owner** for infrastructure and controls
+- **Security/Privacy Owner** for policy enforcement
 
-## Required governance artifacts
-- Data classification register
-- Data dictionary / business glossary
-- Data contract with schema and quality rules
-- Access request and approval workflow
-- Retention schedule
-- Masking and tokenization standards
-- Exception register for approved deviations
+## 6.2 Data Contract Governance
+- Version the contract
+- Define schema evolution rules:
+  - backward-compatible additions allowed with review
+  - breaking changes require approval and migration plan
+- Validate incoming data against contract at ingestion
+- Reject or quarantine non-conforming records
 
-## Change management
-- Schema changes require:
-  - contract review
-  - backward compatibility assessment
-  - impact analysis on downstream consumers
-- Breaking changes must be versioned and communicated before deployment
-
-## Data quality governance
-- Validate:
-  - primary keys
-  - referential integrity
-  - null thresholds
-  - allowed values
-  - freshness and completeness
-- Quarantine bad records in Bronze/Silver with error codes
-- Track quality metrics over time
-
-## Retention and deletion
-- Define retention by data class and use case
-- Implement deletion workflows for:
-  - expired records
-  - legal holds
-  - privacy requests
-- Ensure deletes propagate to derived datasets where required
-
-## Periodic reviews
+## 6.3 Access Review Process
 - Quarterly access recertification
-- Annual classification review
-- Regular privacy impact assessment for new use cases
-- Review of privileged access and break-glass usage
+- Review privileged roles monthly
+- Remove stale permissions automatically
+- Track exceptions with expiry dates
+
+## 6.4 Data Quality and Control Gates
+Before promotion from Bronze to Silver and Silver to Gold:
+- schema validation
+- null/duplicate checks
+- referential integrity checks
+- PII detection checks
+- anomaly detection on key metrics
+- completeness and freshness checks
+
+## 6.5 Retention and Deletion
+- Define retention by dataset and sensitivity
+- Minimize retention of raw PII
+- Support legal hold and deletion workflows
+- Ensure downstream deletion propagation where required
+
+## 6.6 Change Management
+- All pipeline, schema, and permission changes via IaC and code review
+- Approval workflow for sensitive data exposure changes
+- Maintain release notes for data products
 
 ---
 
 # 7. Compliance Considerations
 
-## Likely applicable frameworks
-Depending on geography and business model, consider:
-- **GDPR / UK GDPR** for EU/UK personal data
-- **CCPA/CPRA** for California residents
-- **SOC 2** for security, availability, confidentiality
-- **ISO 27001** alignment for security management
-- **PCI DSS** only if payment card data is introduced later
-- Sector-specific rules if customers or suppliers fall under regulated industries
+## 7.1 Likely Applicable Regulations
+Depending on geography and customer base:
+- **GDPR / UK GDPR**: customer identity, event tracking, profiling, deletion rights
+- **CCPA/CPRA**: personal information, sharing, deletion, access rights
+- **PCI DSS**: if payment data ever includes cardholder data; current contract does not show PAN, but payment data is still sensitive
+- **SOX**: if financial reporting relies on these datasets
+- **ISO 27001 / SOC 2**: security controls, logging, access management
+- **Data residency laws**: if country-specific storage restrictions apply
 
-## GDPR/Privacy controls
+## 7.2 GDPR/Privacy Controls
 - Lawful basis and purpose limitation
 - Data minimization
-- Right to access, rectify, delete, and restrict processing
+- Right to access, rectification, deletion
 - Pseudonymization for analytics
-- Records of processing activities
-- Data processing agreements with vendors
+- DPIA for high-risk processing such as behavioral tracking in `WebsiteEvents`
+- Consent management for marketing and tracking data where required
 
-## CCPA/CPRA controls
-- Notice at collection
-- Consumer rights handling
-- Data sharing/sale assessment
-- Sensitive personal information handling if expanded later
+## 7.3 Payment Data
+- Do not store card numbers, CVV, or sensitive authentication data unless explicitly required and PCI-scoped
+- If payment processor data is ingested, isolate PCI-relevant fields and scope
+- Prefer processor tokens over raw payment credentials
 
-## Security compliance controls
-- MFA for privileged access
-- Encryption at rest and in transit
-- Logging and monitoring
-- Vulnerability management
-- Incident response procedures
-- Least privilege and periodic access reviews
+## 7.4 Cross-Border and Residency
+- Enforce region-specific storage and processing if required
+- Restrict replication of PII across regions
+- Document data transfer mechanisms and legal basis
 
-## Cross-border and residency
-- If data includes customer or supplier records across countries, assess:
-  - data residency requirements
-  - cross-border transfer restrictions
-  - regional storage and processing boundaries
-
-## Retention and legal hold
-- Ensure retention schedules do not conflict with legal obligations
-- Support legal hold to prevent deletion during investigations or disputes
+## 7.5 Auditability
+- Maintain evidence for:
+  - access approvals
+  - masking enforcement
+  - encryption configuration
+  - retention policies
+  - deletion requests
+  - lineage and data quality controls
 
 ---
 
 # 8. Risks & Gaps
 
-## Key risks
-1. **Re-identification risk**
-   - Joining `customer_id`, geography, and web traffic can reveal individuals even if names/emails are masked.
+## 8.1 Key Risks
+- **PII not explicitly listed in the profile but present in the contract**: `name`, `email`, `customer_id`, `session_id`
+- **Re-identification risk** from joins across Orders, Customers, WebsiteEvents, Shipments, and Returns
+- **Behavioral profiling risk** from event tracking and campaign attribution
+- **Overexposure in Gold** if row-level customer data is published broadly
+- **Payment sensitivity** if payment records are not properly scoped
+- **Free-text risk** in `return_reason` if users enter personal information
 
-2. **Overexposure in Gold**
-   - Business users may receive more detail than necessary, especially on customer-level or campaign-level data.
+## 8.2 Gaps to Resolve
+- Confirm whether `customer_id` is a direct identifier or surrogate key
+- Confirm whether `payment_id` links to cardholder data or only internal transaction IDs
+- Define exact masking rules for BI and ad hoc analysis
+- Define retention periods per dataset and jurisdiction
+- Confirm whether `WebsiteEvents` requires consent gating and cookie/trackers governance
+- Define whether supplier data is confidential or shared externally
+- Establish a formal data classification standard and tag all columns
 
-3. **Weak identity mapping protection**
-   - Tokenization tables or salts becoming accessible would undermine masking controls.
+## 8.3 Recommended Next Actions
+- Implement column-level classification tags in the catalog
+- Enforce Lake Formation permissions by sensitivity tier
+- Add automated PII detection in ingestion and CI/CD
+- Create approved masked Gold views for analysts
+- Set up audit log centralization and immutable retention
+- Document privacy notices, consent handling, and deletion workflows
 
-4. **Inconsistent classification**
-   - If classification is not automated and enforced, sensitive fields may leak into downstream datasets.
-
-5. **Uncontrolled extracts**
-   - CSV exports, notebooks, and ad hoc shares can bypass lakehouse controls.
-
-6. **Lineage gaps**
-   - Without strong metadata capture, it will be difficult to prove provenance or support audits.
-
-7. **Privilege creep**
-   - Access granted for one project may persist beyond its need.
-
-## Gaps to address before production
-- Confirm whether `customer_id` is a true pseudonymous key or directly linkable to a person.
-- Define exact masking rules for each restricted field.
-- Implement row/column-level security in the query layer.
-- Establish a secure tokenization service and key custody model.
-- Define retention periods for each dataset and layer.
-- Add formal approval workflow for PII access.
-- Validate whether any jurisdictional privacy laws apply to customers, employees, or suppliers.
-
-## Recommended next steps
-- Create a **data classification matrix** for every column.
-- Implement **Lake Formation permissions** and **KMS key separation**.
-- Build **masked Gold views** as the default consumption layer.
-- Set up **CloudTrail, audit logs, and lineage capture** from day one.
-- Run a **privacy impact assessment** before broad analyst access is enabled.

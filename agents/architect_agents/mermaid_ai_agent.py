@@ -1,18 +1,40 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from llm.openai_client import OpenAIClient
+
 
 class MermaidAIAgent:
     """
-    Uses an LLM to generate a Mermaid architecture diagram based on the full design context.
-    Outputs ONLY valid Mermaid code.
+    Uses an LLM to generate a Mermaid architecture diagram based on the
+    full design context, grounded by RAG-retrieved reference patterns.
     """
 
-    def __init__(self, context: Dict[str, Any], model: str = None):
+    def __init__(
+        self,
+        context: Dict[str, Any],
+        model: str = None,
+        rag_context: Optional[str] = None
+    ):
         self.context = context
+        self.rag_context = rag_context or ""
         self.llm = OpenAIClient(model=model) if model else OpenAIClient()
 
     def run(self) -> Dict[str, Any]:
-        # Gather relevant context pieces
+        prompt = self._build_prompt()
+        mermaid_code = self.llm.generate(prompt).strip()
+
+        # Strip markdown fences if LLM wrapped the code
+        if "```mermaid" in mermaid_code:
+            mermaid_code = mermaid_code.split("```mermaid")[-1].split("```")[0].strip()
+        elif "```" in mermaid_code:
+            mermaid_code = mermaid_code.split("```")[1].split("```")[0].strip()
+
+        # Ensure valid Mermaid directive
+        if not mermaid_code.lower().startswith(("flowchart", "graph")):
+            mermaid_code = "flowchart LR\n" + mermaid_code
+
+        return {"markdown": mermaid_code}
+
+    def _build_prompt(self) -> str:
         requirements = self.context.get("requirements_analysis", "")
         ingestion = self.context.get("ingestion_strategy", "")
         storage = self.context.get("storage_layout", "")
@@ -21,59 +43,46 @@ class MermaidAIAgent:
         analytics = self.context.get("analytics_bi", "")
         data_model = self.context.get("data_model", "")
 
-        prompt = f"""
-You are a senior data platform architect.
+        return f"""{self.rag_context}
 
-Your task:
-Generate a CLEAR, PROFESSIONAL Mermaid diagram that represents the full data platform architecture.
+You are a senior data platform architect generating a Mermaid diagram.
+
+You have been given retrieved reference architecture patterns above.
+Use the structure of the most relevant pattern as your diagram's foundation,
+adapted to the specific design decisions made in the sections below.
 
 Rules:
-- Output ONLY valid Mermaid code
-- Use Mermaid "flowchart LR" or "flowchart TD"
-- Include:
-  - Data sources
-  - Ingestion layer
-  - Storage layers (bronze/silver/gold or equivalent)
-  - Orchestration
-  - Data quality / governance
+- Output ONLY valid Mermaid code — no markdown fences, no explanations
+- Use "flowchart LR" or "flowchart TD"
+- Include clearly labelled subgraphs for each layer:
+  - Sources → Ingestion → Storage (Bronze/Silver/Gold or equivalent)
+  - Orchestration, Data Quality, Security
   - Analytics / BI consumption
-- Use short, readable node names
-- Group layers using subgraphs where appropriate
-- Show main data flows with arrows
-- Do NOT include explanations or markdown fences
+- Use short readable node names (max 4 words)
+- Show data flow direction with arrows
+- Reflect the actual design decisions below (not generic defaults)
+- Use the reference pattern's node structure as inspiration
 
-Context:
-
-# Requirements
+# Business Requirements
 {requirements}
 
 # Ingestion Strategy
-{ingestion}
+{ingestion[:800]}
 
 # Storage Layout
-{storage}
+{storage[:800]}
 
 # Orchestration
-{orchestration}
+{orchestration[:600]}
 
 # Security & Governance
-{security}
+{security[:400]}
 
 # Data Model
-{data_model}
+{data_model[:400]}
 
 # Analytics / BI
-{analytics}
+{analytics[:400]}
 
-Now generate the Mermaid diagram.
+Generate the Mermaid diagram now. Output ONLY the Mermaid code.
 """
-
-        mermaid_code = self.llm.generate(prompt).strip()
-
-        # Safety: ensure it starts with a mermaid directive
-        if not mermaid_code.lower().startswith("flowchart"):
-            mermaid_code = "flowchart LR\n" + mermaid_code
-
-        return {
-            "markdown": mermaid_code
-        }

@@ -29,9 +29,7 @@ def build_phase1_product_layer(
 
     top_insights = build_top_insights(
         df=df,
-        question=question,
         target=target,
-        drivers=drivers,
         kpis=kpis,
         analysis=analysis,
         charts=charts,
@@ -61,10 +59,39 @@ def build_phase1_product_layer(
     }
 
 
+def _get_valid_date_range(df):
+    """
+    FIX: Returns (start_str, end_str) from the first actual datetime64 column
+    that has a non-epoch date range. Returns (None, None) if no valid column found.
+
+    Previously, year/month integer columns (e.g. arrival_date_year) were being
+    parsed via pd.to_datetime which treated integer 0 as 1970-01-01 epoch.
+    Now we only use columns that are already datetime64 dtype AND have dates
+    outside the 1970 epoch range.
+    """
+    datetime_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
+
+    for col in datetime_cols:
+        valid_dates = df[col].dropna()
+        if len(valid_dates) == 0:
+            continue
+        try:
+            min_date = valid_dates.min()
+            max_date = valid_dates.max()
+            # Guard: skip epoch dates — they indicate the column was wrongly parsed
+            if min_date.year == 1970 and max_date.year == 1970:
+                continue
+            return str(min_date.date()), str(max_date.date()), col
+        except Exception:
+            continue
+
+    return None, None, None
+
+
 def build_dataset_summary(df, intent, target, drivers, question_category=None, question_goal=None, kpis=None, analysis=None, plan=None):
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
-    datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
+    datetime_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
 
     analysis_metadata = (analysis or {}).get("analysis_metadata", {}) or {}
     plan = plan or {}
@@ -87,28 +114,23 @@ def build_dataset_summary(df, intent, target, drivers, question_category=None, q
         "preferred_chart": plan.get("chart")
     }
 
-    if datetime_cols:
-        date_col = datetime_cols[0]
-        valid_dates = df[date_col].dropna()
-        if len(valid_dates) > 0:
-            summary["date_range_start"] = str(valid_dates.min().date())
-            summary["date_range_end"] = str(valid_dates.max().date())
+    date_start, date_end, _ = _get_valid_date_range(df)
+    if date_start:
+        summary["date_range_start"] = date_start
+        summary["date_range_end"] = date_end
 
     return summary
 
 
-def build_top_insights(df, question, target, drivers, kpis, analysis, charts, intent):
+def build_top_insights(df, target, kpis, analysis, charts, intent):
     insights = []
 
     time_summary = analysis.get("time_summary", {}) or {}
     top_segments = analysis.get("top_segments", []) or []
-    correlations = analysis.get("correlations", {}) or {}
+    top_bottom_segments = analysis.get("top_bottom_segments", {}) or {}
     categorical_drivers = analysis.get("categorical_drivers", {}) or {}
+    correlations = analysis.get("correlations", {}) or {}
     outlier_summary = analysis.get("outlier_summary", {}) or {}
-
-    focus_dimension = infer_question_focus_dimension(question, drivers=drivers or [])
-    focused_segment = best_segment_for_dimension(top_segments, focus_dimension)
-    focused_driver = best_categorical_driver_for_dimension(categorical_drivers, focus_dimension)
 
     if intent == "trend_analysis" and time_summary:
         first_period = time_summary.get("first_period")
@@ -134,8 +156,12 @@ def build_top_insights(df, question, target, drivers, kpis, analysis, charts, in
                 "type": "pattern"
             })
 
+    # FIX: use best_headline_segment for correct dimension-segment pairing in insights
     if not insights:
-        best = focused_segment or best_non_placeholder_segment(top_segments)
+        best = _best_headline_segment(top_bottom_segments, categorical_drivers)
+        if not best and top_segments:
+            best = top_segments[0]
+
         if best:
             insights.append({
                 "title": "Top performer",
@@ -158,12 +184,13 @@ def build_top_insights(df, question, target, drivers, kpis, analysis, charts, in
             })
 
     if correlations:
-        ranked_corr = [
-            item for item in sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-            if is_good_numeric_followup_column(item[0])
-        ]
-        if ranked_corr:
-            top_corr = ranked_corr[0]
+        # Filter out year/month columns from correlation insights
+        filtered_corr = {
+            k: v for k, v in correlations.items()
+            if not any(bad in k.lower() for bad in ["year", "month", "quarter", "week", "day", "id", "postal", "zip"])
+        }
+        if filtered_corr:
+            top_corr = sorted(filtered_corr.items(), key=lambda x: abs(x[1]), reverse=True)[0]
             direction = "positive" if top_corr[1] > 0 else "negative"
             insights.append({
                 "title": "Strongest numeric signal",
@@ -175,26 +202,14 @@ def build_top_insights(df, question, target, drivers, kpis, analysis, charts, in
                 "type": "signal"
             })
 
-    if focused_driver:
+    if categorical_drivers:
+        top_cat = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)[0]
         insights.append({
             "title": "Biggest group variation",
-            "value": format_label(focused_driver),
+            "value": format_label(top_cat[0]),
             "detail": "This is the clearest grouping dimension where performance differences are visible.",
             "type": "pattern"
         })
-    elif categorical_drivers:
-        ranked_cat = [
-            item for item in sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
-            if not any(bad in str(item[0]).lower() for bad in ["id", "postal", "zip", "row"])
-        ]
-        if ranked_cat:
-            top_cat = ranked_cat[0]
-            insights.append({
-                "title": "Biggest group variation",
-                "value": format_label(top_cat[0]),
-                "detail": "This is the clearest grouping dimension where performance differences are visible.",
-                "type": "pattern"
-            })
 
     if outlier_summary.get("outlier_count", 0) > 0:
         insights.append({
@@ -231,6 +246,50 @@ def build_top_insights(df, question, target, drivers, kpis, analysis, charts, in
     return deduped[:4]
 
 
+def _best_headline_segment(top_bottom_segments, categorical_drivers):
+    """
+    Pick top segment from the most discriminating dimension.
+    Two-pass: pass 1 skips dominant dims (top segment >80% share),
+    pass 2 falls back to highest-variance dim if nothing passes.
+    """
+    if not top_bottom_segments or not categorical_drivers:
+        return None
+
+    ranked_dims = sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
+
+    def _get(dim_name):
+        if any(bad in dim_name.lower() for bad in ["id", "postal", "zip", "row"]):
+            return None
+        dim_data = top_bottom_segments.get(dim_name)
+        if not dim_data:
+            return None
+        top_seg = dim_data.get("top")
+        if not top_seg:
+            return None
+        seg_label = str(top_seg.get("segment", "")).strip().lower()
+        if seg_label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+            return None
+        return top_seg
+
+    # Pass 1: skip dominant dims where top segment share > 80% or < 1%
+    for dim_name, _ in ranked_dims:
+        top_seg = _get(dim_name)
+        if top_seg is None:
+            continue
+        share = top_seg.get("share_pct")
+        if share is not None and (share > 80 or share < 1):
+            continue
+        return top_seg
+
+    # Pass 2: fallback to any valid segment
+    for dim_name, _ in ranked_dims:
+        top_seg = _get(dim_name)
+        if top_seg is not None:
+            return top_seg
+
+    return None
+
+
 def build_follow_up_questions(df, question, intent, target, drivers, analysis, question_history=None):
     suggestions = []
     question_lower = normalize_followup_text(question)
@@ -240,7 +299,7 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     target_label = format_label(target).lower() if target else "the target metric"
 
     categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
-    datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
+    datetime_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
     categorical_cols = filter_bad_followup_dimensions(categorical_cols)
@@ -250,9 +309,14 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     strongest_signal = None
     correlations = analysis.get("correlations", {}) or {}
     if correlations:
+        # Filter out date/year columns from follow-up suggestions
+        filtered_corr = {
+            k: v for k, v in correlations.items()
+            if is_good_numeric_followup_column(k)
+            and not any(bad in k.lower() for bad in ["year", "month", "quarter", "week", "day"])
+        }
         ranked_corr = [
-            col for col, _ in sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-            if is_good_numeric_followup_column(col)
+            col for col, _ in sorted(filtered_corr.items(), key=lambda x: abs(x[1]), reverse=True)
         ]
         if ranked_corr:
             strongest_signal = ranked_corr[0]
@@ -262,8 +326,8 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     distribution_summary = analysis.get("distribution_summary", {}) or {}
     outlier_summary = analysis.get("outlier_summary", {}) or {}
 
-    focus_dimension = infer_question_focus_dimension(question, drivers=drivers or [])
-    lead = best_segment_for_dimension(top_segments, focus_dimension)
+    # Only include time-based follow-ups if real datetime columns exist
+    has_valid_time = bool(datetime_cols)
 
     if intent == "trend_analysis":
         if top_group:
@@ -277,7 +341,7 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     elif intent == "relationship_analysis":
         if top_group:
             suggestions.append(f"Does the relationship in {target_label} change across {format_label(top_group).lower()} groups?")
-        if datetime_cols:
+        if has_valid_time:
             suggestions.append(f"Has the relationship affecting {target_label} changed over time?")
         suggestions.append(f"Are there outliers that may be distorting the relationship with {target_label}?")
 
@@ -285,11 +349,11 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
         if top_group:
             suggestions.append(f"How does the distribution of {target_label} differ across {format_label(top_group).lower()} groups?")
         suggestions.append(f"Which records appear to be the main outliers in {target_label}?")
-        if datetime_cols:
+        if has_valid_time:
             suggestions.append(f"Has the distribution of {target_label} changed over time?")
 
     else:
-        if datetime_cols:
+        if has_valid_time:
             suggestions.append(f"How has {target_label} changed over time?")
 
         if top_group:
@@ -306,13 +370,14 @@ def build_follow_up_questions(df, question, intent, target, drivers, analysis, q
     if distribution_summary and intent != "distribution_analysis":
         suggestions.append(f"What does the distribution of {target_label} reveal about spread and concentration?")
 
-    if lead:
+    if top_segments:
+        lead = top_segments[0]
         segment_text = str(lead.get("segment", "")).lower().strip()
         dimension_text = format_label(lead.get("dimension", "")).lower().strip()
         if segment_text and segment_text not in question_lower:
             suggestions.append(f"Why is {lead['segment']} leading within {dimension_text} for {target_label}?")
 
-    if time_summary.get("best_period") and intent != "trend_analysis":
+    if time_summary.get("best_period") and intent != "trend_analysis" and has_valid_time:
         suggestions.append(f"Why was {time_summary['best_period']} the strongest period for {target_label}?")
 
     deduped = []
@@ -345,17 +410,15 @@ def build_data_quality_summary(df, target):
         target_null_pct = round(float(df[target].isna().mean() * 100), 1)
         usable_target_rows = int(df[target].notna().sum())
 
-    datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
+    # FIX: use _get_valid_date_range to avoid 1970-01-01 epoch dates
+    date_start, date_end, date_col = _get_valid_date_range(df)
     date_range = None
-    if datetime_cols:
-        date_col = datetime_cols[0]
-        valid_dates = df[date_col].dropna()
-        if len(valid_dates) > 0:
-            date_range = {
-                "column": date_col,
-                "start": str(valid_dates.min().date()),
-                "end": str(valid_dates.max().date())
-            }
+    if date_start:
+        date_range = {
+            "column": date_col,
+            "start": date_start,
+            "end": date_end
+        }
 
     object_cols = df.select_dtypes(include=["object"]).columns.tolist()
     high_cardinality = []
@@ -458,7 +521,7 @@ def compute_confidence_note(missing_pct, duplicate_rows, target_null_pct, usable
     return {
         "level": "Low",
         "note": "The current output is best treated as an exploratory readout because missingness, duplicates, or limited usable rows reduce confidence."
-        }
+    }
 
 
 def choose_best_grouping(categorical_cols, drivers):
@@ -466,7 +529,7 @@ def choose_best_grouping(categorical_cols, drivers):
         if driver in categorical_cols:
             return driver
 
-    priorities = ["product", "country", "region", "category", "segment", "channel", "customer"]
+    priorities = ["product", "country", "region", "category", "segment", "channel", "customer", "department", "brand", "type"]
     for pref in priorities:
         for col in categorical_cols:
             if pref in col.lower():
@@ -504,109 +567,12 @@ def is_good_numeric_followup_column(column_name):
     return True
 
 
-def infer_question_focus_dimension(question, drivers=None):
-    q = str(question or "").lower().strip()
-    drivers = drivers or []
-
-    alias_map = {
-        "product": {"product", "products", "item", "items", "sku", "chocolate", "chocolates"},
-        "country": {"country", "countries", "market", "markets", "region", "regions", "geography"},
-        "sales person": {"sales person", "salesperson", "seller", "rep", "representative"},
-        "category": {"category", "categories", "segment", "segments", "group", "groups"}
-    }
-
-    for canonical, terms in alias_map.items():
-        if any(term in q for term in terms):
-            for d in drivers:
-                d_norm = str(d).lower().strip()
-                if canonical in d_norm:
-                    return d
-                if canonical == "product" and any(tok in d_norm for tok in ["product", "item"]):
-                    return d
-                if canonical == "country" and any(tok in d_norm for tok in ["country", "region", "market"]):
-                    return d
-                if canonical == "sales person" and any(tok in d_norm for tok in ["sales person", "salesperson"]):
-                    return d
-                if canonical == "category" and any(tok in d_norm for tok in ["category", "segment", "group"]):
-                    return d
-    return None
-
-
-def best_segment_for_dimension(top_segments, preferred_dimension=None):
-    if not top_segments:
-        return None
-
-    valid = [
-        seg for seg in top_segments
-        if str(seg.get("segment", "")).strip().lower() not in {"unknown", "error", "n/a", "na", "none", "null", ""}
-    ]
-    if not valid:
-        return None
-
-    if preferred_dimension:
-        focused = [
-            seg for seg in valid
-            if str(seg.get("dimension", "")).strip().lower() == str(preferred_dimension).strip().lower()
-        ]
-        if focused:
-            focused.sort(
-                key=lambda x: (
-                    x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
-                    x.get("total_target", 0)
-                ),
-                reverse=True
-            )
-            return focused[0]
-
-    valid.sort(
-        key=lambda x: (
-            x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
-            x.get("total_target", 0)
-        ),
-        reverse=True
-    )
-    return valid[0]
-
-
-def best_categorical_driver_for_dimension(categorical_drivers, preferred_dimension=None):
-    if not categorical_drivers:
-        return None
-
-    if preferred_dimension and preferred_dimension in categorical_drivers:
-        return preferred_dimension
-
-    ranked = [
-        item for item in sorted(categorical_drivers.items(), key=lambda x: x[1], reverse=True)
-        if not any(bad in str(item[0]).lower() for bad in ["id", "postal", "zip", "row"])
-    ]
-    return ranked[0][0] if ranked else None
-
-
-def best_non_placeholder_segment(top_segments):
-    if not top_segments:
-        return None
-    valid = [
-        seg for seg in top_segments
-        if str(seg.get("segment", "")).strip().lower() not in {"unknown", "error", "n/a", "na", "none", "null", ""}
-    ]
-    if not valid:
-        return None
-    return sorted(
-        valid,
-        key=lambda x: (
-            x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
-            x.get("total_target", 0)
-        ),
-        reverse=True
-    )[0]
-
-
 def normalize_followup_text(text):
     return " ".join(
         str(text or "")
         .lower()
         .replace("?", "")
-        .replace("’", "'")
+        .replace("'", "'")
         .replace('"', "")
         .split()
     )

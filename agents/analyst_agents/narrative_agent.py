@@ -31,16 +31,15 @@ class NarrativeAgent:
     # --------------------------
 
     def _build_summary(self, question, analysis, kpis, target, business_layer):
-        top_segments = analysis.get("top_segments", []) or []
+        top_bottom_segments = analysis.get("top_bottom_segments", {}) or {}
+        categorical_drivers = analysis.get("categorical_drivers", {}) or {}
         time_summary = analysis.get("time_summary", {}) or {}
         direct_answer = business_layer.get("direct_answer")
         target_label = self._label(target).lower()
-        ranking_direction = self._infer_ranking_direction(question, target)
 
+        # Prefer direct_answer from business_layer (already uses best_headline_segment)
         if direct_answer:
             return direct_answer
-
-        focus_dim = self._infer_focus_dimension(question, top_segments)
 
         if time_summary and time_summary.get("trend_direction") not in {None, "unknown"}:
             direction = time_summary.get("trend_direction")
@@ -49,16 +48,13 @@ class NarrativeAgent:
                 f"The clearest visible pattern is a {direction} trend over time."
             )
 
-        best_segment = self._best_segment_for_dimension(
-            top_segments,
-            preferred_dimension=focus_dim,
-            ranking_direction=ranking_direction
-        )
+        # FIX: use best_headline_segment instead of flat top_segments sort
+        # to prevent dimension-segment label mismatch
+        best_segment = self._best_headline_segment(top_bottom_segments, categorical_drivers)
         if best_segment:
-            descriptor = "lowest" if ranking_direction == "ascending" else "leading"
             return (
                 f"This analysis is centered on {target_label}. "
-                f"The clearest visible {descriptor} group is {best_segment['segment']} within {self._label(best_segment['dimension']).lower()}."
+                f"The clearest visible leader is {best_segment['segment']} within {self._label(best_segment['dimension']).lower()}."
             )
 
         return (
@@ -75,6 +71,7 @@ class NarrativeAgent:
 
         target_label = self._label(target).lower()
         top_segments = analysis.get("top_segments", []) or []
+        top_bottom_segments = analysis.get("top_bottom_segments", {}) or {}
         correlations = analysis.get("correlations", {}) or {}
         categorical_drivers = analysis.get("categorical_drivers", {}) or {}
         distribution_summary = analysis.get("distribution_summary", {}) or {}
@@ -84,36 +81,29 @@ class NarrativeAgent:
         performance_diagnostics = analysis.get("performance_diagnostics", {}) or {}
         risks = business_layer.get("risks_or_limitations", []) or []
         business_impact = business_layer.get("business_impact", []) or []
-        ranking_direction = self._infer_ranking_direction(question, target)
 
+        # Paragraph 1: framing
         paragraphs.append(
             f"This analysis focuses on {target_label} because it is the primary metric most relevant to the question."
         )
 
-        focus_dim = self._infer_focus_dimension(question, top_segments)
-        best_segment = self._best_segment_for_dimension(
-            top_segments,
-            preferred_dimension=focus_dim,
-            ranking_direction=ranking_direction
-        )
+        # Paragraph 2: direct answer / strongest visible segment
+        # FIX: use best_headline_segment for consistent dimension-segment pairing
+        best_segment = self._best_headline_segment(top_bottom_segments, categorical_drivers)
+        if not best_segment:
+            best_segment = self._best_non_placeholder_segment(top_segments)
+
         if best_segment:
             share_text = ""
             if best_segment.get("share_pct") is not None:
                 share_text = f", contributing about {best_segment['share_pct']:.2f}% of the total"
+            paragraphs.append(
+                f"The clearest answer is that {best_segment['segment']} is the leading "
+                f"{self._label(best_segment['dimension']).lower()} for {target_label}{share_text}. "
+                f"This makes it a useful benchmark when comparing weaker groups."
+            )
 
-            if ranking_direction == "ascending":
-                paragraphs.append(
-                    f"The clearest answer is that {best_segment['segment']} is the lowest "
-                    f"{self._label(best_segment['dimension']).lower()} for {target_label}{share_text}. "
-                    f"This highlights the weakest-performing group that may need closer attention."
-                )
-            else:
-                paragraphs.append(
-                    f"The clearest answer is that {best_segment['segment']} is the leading "
-                    f"{self._label(best_segment['dimension']).lower()} for {target_label}{share_text}. "
-                    f"This makes it a useful benchmark when comparing weaker groups."
-                )
-
+        # Paragraph 3: overall scale
         if kpis.get("total_target") is not None and kpis.get("average_target") is not None:
             paragraphs.append(
                 f"At the overall level, total {target_label} is {self._format_value(kpis.get('total_target'), target)}, "
@@ -121,6 +111,7 @@ class NarrativeAgent:
                 f"This gives a useful sense of scale before looking at deeper variation."
             )
 
+        # Paragraph 4: time interpretation
         if time_summary and time_summary.get("period_count"):
             direction = time_summary.get("trend_direction", "unknown")
             volatility = time_summary.get("volatility_level", "unknown")
@@ -146,18 +137,15 @@ class NarrativeAgent:
 
             paragraphs.append(sentence)
 
+        # Paragraph 5: strongest grouping dimensions
         strong_group_dims = self._top_meaningful_group_dims(categorical_drivers)
-
-        if focus_dim:
-            focus_label = self._label(focus_dim)
-            strong_group_dims = [focus_label] + [d for d in strong_group_dims if d != focus_label]
-
         if strong_group_dims:
             paragraphs.append(
                 f"The most meaningful group-level differences appear across {', '.join(strong_group_dims[:2])}. "
                 f"This suggests that performance is not evenly distributed and that segment-level decisions are more useful than one-size-fits-all actions."
             )
 
+        # Paragraph 6: numeric signals
         strong_numeric_signals = self._top_meaningful_numeric_signals(correlations)
         if strong_numeric_signals:
             formatted_signals = ", ".join(
@@ -168,6 +156,7 @@ class NarrativeAgent:
                 f"These should be treated as directional relationships rather than proof of causation."
             )
 
+        # Paragraph 7: distribution and outliers
         if distribution_summary:
             mean_val = distribution_summary.get("mean")
             median_val = distribution_summary.get("median")
@@ -195,7 +184,8 @@ class NarrativeAgent:
                     f"{outlier_pct:.2f}% of usable records. This suggests that unusually high or low values may be influencing averages or totals."
                 )
 
-        best_concentration = self._best_concentration_summary(concentration_summary, preferred_dimension=focus_dim)
+        # Paragraph 8: concentration / business implication
+        best_concentration = self._best_concentration_summary(concentration_summary)
         if best_concentration:
             risk = best_concentration.get("concentration_risk", "unknown")
             top3 = best_concentration.get("top_3_share_pct")
@@ -211,29 +201,26 @@ class NarrativeAgent:
             text += f". This points to a {risk} concentration risk profile."
             paragraphs.append(text)
 
-        diag_text = self._build_diagnostics_paragraph(performance_diagnostics, preferred_dimension=focus_dim)
+        # Paragraph 9: performance diagnostics
+        diag_text = self._build_diagnostics_paragraph(performance_diagnostics)
         if diag_text:
             paragraphs.append(diag_text)
 
+        # Paragraph 10: business impact
         if business_impact:
             cleaned_impact = [self._clean_sentence(x) for x in business_impact if x]
             if cleaned_impact:
                 paragraphs.append(
-                    "From a business perspective, " + " ".join(cleaned_impact[:3])
+                    "Performance is not evenly distributed: " + " ".join(cleaned_impact[:2])
                 )
 
+        # Paragraph 11: risks / caveats
         if risks:
             cleaned_risks = [self._clean_sentence(x) for x in risks if x]
             if cleaned_risks:
                 paragraphs.append(
-                    "At the same time, the analysis should be read with a few caveats in mind: "
-                    + " ".join(cleaned_risks[:3])
+                    "A further caution is that " + " ".join(cleaned_risks[:2]).lower()
                 )
-
-        paragraphs.append(
-            "Taken together, the results show not just what is happening in the dataset, "
-            "but where performance is concentrated, which patterns are most important, and where further action or deeper analysis would be most useful."
-        )
 
         return paragraphs
 
@@ -241,103 +228,82 @@ class NarrativeAgent:
     # Helpers
     # --------------------------
 
-    def _infer_focus_dimension(self, question, top_segments):
-        q = str(question or "").lower().strip()
 
-        if any(word in q for word in ["sub-category", "sub category", "subcategory", "subcategories"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "sub-category" in dim or "sub category" in dim:
-                    return seg.get("dimension")
+    def _best_headline_segment(self, top_bottom_segments, categorical_drivers):
+        """
+        Pick the top segment from the most discriminating dimension.
+        Two-pass: pass 1 skips dominant dims (top segment >80% share),
+        pass 2 falls back to highest-variance dim if nothing passes.
+        """
+        if not top_bottom_segments or not categorical_drivers:
+            return None
 
-        if any(word in q for word in ["product", "products", "item", "items", "chocolate", "chocolates"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "product" in dim or "item" in dim:
-                    return seg.get("dimension")
+        ranked_dims = sorted(
+            categorical_drivers.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-        if any(word in q for word in ["country", "countries", "market", "markets", "region", "regions"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "country" in dim or "region" in dim or "market" in dim:
-                    return seg.get("dimension")
+        def _get(dim_name):
+            if any(bad in dim_name.lower() for bad in ["id", "postal", "zip", "row"]):
+                return None
+            dim_data = top_bottom_segments.get(dim_name)
+            if not dim_data:
+                return None
+            top_seg = dim_data.get("top")
+            if not top_seg:
+                return None
+            seg_label = str(top_seg.get("segment", "")).strip().lower()
+            if seg_label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+                return None
+            return top_seg
 
-        if any(word in q for word in ["sales person", "salesperson", "seller", "rep", "representative"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "sales person" in dim or "salesperson" in dim:
-                    return seg.get("dimension")
+        # Pass 1: skip dominant dims (top seg > 80% share or < 1%)
+        for dim_name, _ in ranked_dims:
+            top_seg = _get(dim_name)
+            if top_seg is None:
+                continue
+            share = top_seg.get("share_pct")
+            if share is not None and (share > 80 or share < 1):
+                continue
+            return top_seg
 
-        if any(word in q for word in ["category", "categories"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "category" in dim and "sub-category" not in dim and "sub category" not in dim:
-                    return seg.get("dimension")
-
-        if any(word in q for word in ["segment", "segments", "group", "groups"]):
-            for seg in top_segments:
-                dim = str(seg.get("dimension", "")).lower()
-                if "segment" in dim or "group" in dim:
-                    return seg.get("dimension")
+        # Pass 2: fallback to any valid segment
+        for dim_name, _ in ranked_dims:
+            top_seg = _get(dim_name)
+            if top_seg is not None:
+                return top_seg
 
         return None
 
-    def _best_segment_for_dimension(self, segments, preferred_dimension=None, ranking_direction="descending"):
-        if not segments:
-            return None
+        ranked_dims = sorted(
+            categorical_drivers.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-        valid = []
-        for seg in segments:
-            label = str(seg.get("segment", "")).strip().lower()
-            if label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+        for dim_name, _ in ranked_dims:
+            if any(bad in dim_name.lower() for bad in ["id", "postal", "zip", "row"]):
                 continue
-            valid.append(seg)
 
-        if not valid:
-            return None
+            dim_data = top_bottom_segments.get(dim_name)
+            if not dim_data:
+                continue
 
-        candidates = valid
-        if preferred_dimension:
-            focused = [
-                seg for seg in valid
-                if str(seg.get("dimension", "")).strip().lower() == str(preferred_dimension).strip().lower()
-            ]
-            if focused:
-                candidates = focused
+            top_seg = dim_data.get("top")
+            if not top_seg:
+                continue
 
-        reverse = ranking_direction != "ascending"
-        return sorted(
-            candidates,
-            key=lambda x: (
-                x.get("share_pct") if x.get("share_pct") is not None else x.get("total_target", 0),
-                x.get("total_target", 0)
-            ),
-            reverse=reverse
-        )[0]
+            seg_label = str(top_seg.get("segment", "")).strip().lower()
+            if seg_label in {"unknown", "error", "n/a", "na", "none", "null", ""}:
+                continue
 
-    def _infer_ranking_direction(self, question, target=None):
-        q = str(question or "").lower().strip()
-        target_lower = str(target or "").lower().strip()
+            return top_seg
 
-        ascending_terms = {
-            "least", "lowest", "bottom", "worst", "smallest", "minimum", "min",
-            "least profitable", "least profit", "lowest profit", "lowest sales",
-            "lowest revenue", "smallest contribution", "most negative"
-        }
-        descending_terms = {
-            "most", "highest", "top", "leading", "largest", "biggest", "maximum", "max",
-            "most profitable", "highest profit", "highest sales", "highest revenue"
-        }
-
-        if any(term in q for term in ascending_terms):
-            return "ascending"
-        if any(term in q for term in descending_terms):
-            return "descending"
-        if "profit" in target_lower and any(term in q for term in ["least", "lowest", "worst"]):
-            return "ascending"
-        return "descending"
+        return None
 
     def _best_non_placeholder_segment(self, segments):
+        """Legacy fallback — used when top_bottom_segments is not populated."""
         if not segments:
             return None
 
@@ -394,14 +360,9 @@ class NarrativeAgent:
 
         return cleaned[:3]
 
-    def _best_concentration_summary(self, concentration_summary, preferred_dimension=None):
+    def _best_concentration_summary(self, concentration_summary):
         if not concentration_summary:
             return None
-
-        if preferred_dimension and preferred_dimension in concentration_summary:
-            best_obj = dict(concentration_summary[preferred_dimension])
-            best_obj["dimension"] = preferred_dimension
-            return best_obj
 
         best_dim = None
         best_obj = None
@@ -419,20 +380,11 @@ class NarrativeAgent:
 
         return best_obj
 
-    def _build_diagnostics_paragraph(self, performance_diagnostics, preferred_dimension=None):
+    def _build_diagnostics_paragraph(self, performance_diagnostics):
         if not performance_diagnostics:
             return None
 
-        dims_to_check = []
-        if preferred_dimension and preferred_dimension in performance_diagnostics:
-            dims_to_check.append((preferred_dimension, performance_diagnostics[preferred_dimension]))
-
         for dim, info in performance_diagnostics.items():
-            if preferred_dimension and dim == preferred_dimension:
-                continue
-            dims_to_check.append((dim, info))
-
-        for dim, info in dims_to_check:
             high_total_low_avg = info.get("high_total_low_avg_segments", []) or []
             high_avg_low_volume = info.get("high_avg_low_volume_segments", []) or []
             long_tail_count = info.get("long_tail_segment_count")
@@ -489,7 +441,7 @@ class NarrativeAgent:
             return f"{num / 1_000_000:.2f}M"
         if abs(num) >= 1_000:
             return f"{num / 1_000:.2f}K"
-        if num.is_integer():
+        if num == int(num):
             return f"{int(num):,}"
         return f"{num:,.2f}"
 

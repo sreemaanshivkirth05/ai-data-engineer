@@ -10,11 +10,8 @@ class AnalysisAgent:
         drivers=None,
         intent="general_analysis",
         time_column=None,
-        aggregation="sum",
-        question=""
+        aggregation="sum"
     ):
-        ranking_direction = self._infer_ranking_direction(question, target=target)
-
         results = {
             "correlations": {},
             "categorical_drivers": {},
@@ -30,8 +27,7 @@ class AnalysisAgent:
                 "intent": intent,
                 "time_column_used": time_column,
                 "aggregation_used": aggregation,
-                "driver_priority": drivers or [],
-                "ranking_direction": ranking_direction
+                "driver_priority": drivers or []
             }
         }
 
@@ -60,9 +56,6 @@ class AnalysisAgent:
         categorical_cols = working_df.select_dtypes(include=["object"]).columns.tolist()
         datetime_cols = working_df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
 
-        # --------------------------
-        # Numeric correlations
-        # --------------------------
         for col in numeric_cols:
             if col == target:
                 continue
@@ -84,9 +77,6 @@ class AnalysisAgent:
             except Exception:
                 continue
 
-        # --------------------------
-        # Categorical group analysis
-        # --------------------------
         preferred_cats = self._rank_categorical_columns(categorical_cols, drivers)
 
         for col in preferred_cats:
@@ -137,68 +127,55 @@ class AnalysisAgent:
                 if metric_col not in grouped.columns:
                     metric_col = "sum"
 
-                grouped_sorted_desc = grouped.sort_values(metric_col, ascending=False)
-                grouped_sorted_asc = grouped.sort_values(metric_col, ascending=True)
+                grouped_sorted = grouped.sort_values(metric_col, ascending=False)
 
-                preferred_desc = grouped_sorted_desc[~grouped_sorted_desc["_is_placeholder"]].copy()
-                preferred_asc = grouped_sorted_asc[~grouped_sorted_asc["_is_placeholder"]].copy()
+                preferred_sorted = grouped_sorted[~grouped_sorted["_is_placeholder"]].copy()
+                leadership_df = preferred_sorted if len(preferred_sorted) > 0 else grouped_sorted
 
-                leadership_desc = preferred_desc if len(preferred_desc) > 0 else grouped_sorted_desc
-                leadership_asc = preferred_asc if len(preferred_asc) > 0 else grouped_sorted_asc
-
-                best_row = leadership_desc.iloc[0]
-                worst_row = leadership_asc.iloc[0]
+                top_row = leadership_df.iloc[0]
+                bottom_row = leadership_df.iloc[-1]
 
                 total_target = float(working_df[target].sum())
                 total_records = int(len(working_df))
 
-                best_info = {
+                top_info = {
                     "dimension": col,
-                    "segment": self._safe_label(best_row[col]),
-                    "total_target": round(float(best_row["sum"]), 2),
-                    "average_target": round(float(best_row["mean"]), 2),
-                    "median_target": round(float(best_row["median"]), 2),
-                    "count": int(best_row["count"]),
-                    "share_pct": round((float(best_row["sum"]) / total_target * 100), 2) if total_target != 0 else None
+                    "segment": self._safe_label(top_row[col]),
+                    "total_target": round(float(top_row["sum"]), 2),
+                    "average_target": round(float(top_row["mean"]), 2),
+                    "median_target": round(float(top_row["median"]), 2),
+                    "count": int(top_row["count"]),
+                    "share_pct": round((float(top_row["sum"]) / total_target * 100), 2) if total_target > 0 else None
                 }
 
-                worst_info = {
+                bottom_info = {
                     "dimension": col,
-                    "segment": self._safe_label(worst_row[col]),
-                    "total_target": round(float(worst_row["sum"]), 2),
-                    "average_target": round(float(worst_row["mean"]), 2),
-                    "median_target": round(float(worst_row["median"]), 2),
-                    "count": int(worst_row["count"]),
-                    "share_pct": round((float(worst_row["sum"]) / total_target * 100), 2) if total_target != 0 else None
+                    "segment": self._safe_label(bottom_row[col]),
+                    "total_target": round(float(bottom_row["sum"]), 2),
+                    "average_target": round(float(bottom_row["mean"]), 2),
+                    "median_target": round(float(bottom_row["median"]), 2),
+                    "count": int(bottom_row["count"]),
+                    "share_pct": round((float(bottom_row["sum"]) / total_target * 100), 2) if total_target > 0 else None
                 }
-
-                selected_top = worst_info if ranking_direction == "ascending" else best_info
-                selected_bottom = best_info if ranking_direction == "ascending" else worst_info
 
                 results["top_bottom_segments"][col] = {
-                    "top": selected_top,
-                    "bottom": selected_bottom,
-                    "best": best_info,
-                    "worst": worst_info
+                    "top": top_info,
+                    "bottom": bottom_info
                 }
 
-                results["top_segments"].append(selected_top)
-                results["bottom_segments"].append(selected_bottom)
+                results["top_segments"].append(top_info)
+                results["bottom_segments"].append(bottom_info)
 
-                if total_target != 0:
-                    grouped_sorted_desc["share_pct"] = (grouped_sorted_desc["sum"] / total_target) * 100
-                    grouped_sorted_desc["cumulative_share_pct"] = grouped_sorted_desc["share_pct"].cumsum()
+                if total_target > 0:
+                    grouped_sorted["share_pct"] = (grouped_sorted["sum"] / total_target) * 100
+                    grouped_sorted["cumulative_share_pct"] = grouped_sorted["share_pct"].cumsum()
 
-                    top_3_share = float(grouped_sorted_desc["share_pct"].head(3).sum())
-                    top_5_share = (
-                        float(grouped_sorted_desc["share_pct"].head(5).sum())
-                        if len(grouped_sorted_desc) >= 5
-                        else float(grouped_sorted_desc["share_pct"].sum())
-                    )
+                    top_3_share = float(grouped_sorted["share_pct"].head(3).sum())
+                    top_5_share = float(grouped_sorted["share_pct"].head(5).sum()) if len(grouped_sorted) >= 5 else float(grouped_sorted["share_pct"].sum())
 
                     results["concentration_summary"][col] = {
-                        "top_segment": self._safe_label(best_row[col]),
-                        "top_segment_share_pct": round(float(best_row["sum"] / total_target * 100), 2) if total_target != 0 else None,
+                        "top_segment": self._safe_label(top_row[col]),
+                        "top_segment_share_pct": round(float(top_row["sum"] / total_target * 100), 2) if total_target > 0 else None,
                         "top_3_share_pct": round(top_3_share, 2),
                         "top_5_share_pct": round(top_5_share, 2),
                         "group_count": int(grouped[col].nunique()),
@@ -233,19 +210,9 @@ class AnalysisAgent:
             except Exception:
                 continue
 
-        results["top_segments"] = self._sort_segments(
-            self._dedupe_segment_list(results["top_segments"]),
-            reverse=(ranking_direction != "ascending")
-        )[:5]
+        results["top_segments"] = self._sort_segments(self._dedupe_segment_list(results["top_segments"]))[:5]
+        results["bottom_segments"] = self._sort_segments(self._dedupe_segment_list(results["bottom_segments"]), reverse=False)[:5]
 
-        results["bottom_segments"] = self._sort_segments(
-            self._dedupe_segment_list(results["bottom_segments"]),
-            reverse=(ranking_direction == "ascending")
-        )[:5]
-
-        # --------------------------
-        # Distribution and outliers
-        # --------------------------
         try:
             target_series = pd.to_numeric(working_df[target], errors="coerce").dropna()
 
@@ -288,16 +255,52 @@ class AnalysisAgent:
         except Exception:
             pass
 
-        # --------------------------
-        # Time summary
-        # --------------------------
         try:
             chosen_time_col = None
 
             if time_column and time_column in working_df.columns:
-                chosen_time_col = time_column
-            elif datetime_cols:
-                chosen_time_col = datetime_cols[0]
+                # Only use provided time_column if it is actual datetime dtype
+                if pd.api.types.is_datetime64_any_dtype(working_df[time_column]):
+                    chosen_time_col = time_column
+            
+            if not chosen_time_col and datetime_cols:
+                # Generic: prefer full datetime columns over date-part components.
+                # Score by date range width — wider range = higher precision column.
+                # No dataset-specific column names hardcoded.
+                best_col = None
+                best_score = -1
+                for col in datetime_cols:
+                    score = 0.0
+                    col_lower = col.lower().strip().replace("_", " ")
+                    col_tokens = set(col_lower.split())
+                    date_part_words = {"year", "month", "week", "day", "quarter"}
+
+                    # Wide date range = full datetime column
+                    try:
+                        valid = working_df[col].dropna()
+                        if len(valid) > 1:
+                            days = (valid.max() - valid.min()).days
+                            if days > 365:
+                                score += 10.0
+                            elif days > 90:
+                                score += 5.0
+                            elif days > 30:
+                                score += 2.0
+                            else:
+                                score -= 5.0  # narrow = component column
+                    except Exception:
+                        pass
+
+                    # Full date name bonus
+                    if "date" in col_lower and not col_tokens.intersection(date_part_words):
+                        score += 3.0
+                    if "timestamp" in col_lower:
+                        score += 2.0
+
+                    if score > best_score:
+                        best_score = score
+                        best_col = col
+                chosen_time_col = best_col
 
             results["analysis_metadata"]["time_column_used"] = chosen_time_col
 
@@ -367,30 +370,6 @@ class AnalysisAgent:
 
         return results
 
-    def _infer_ranking_direction(self, question, target=None):
-        q = str(question or "").lower().strip()
-        target_lower = str(target or "").lower().strip()
-
-        ascending_terms = {
-            "least", "lowest", "bottom", "worst", "smallest", "minimum", "min",
-            "least profitable", "least profit", "lowest profit", "lowest sales",
-            "lowest revenue", "smallest contribution", "most negative"
-        }
-        descending_terms = {
-            "most", "highest", "top", "leading", "largest", "biggest", "maximum", "max",
-            "most profitable", "highest profit", "highest sales", "highest revenue"
-        }
-
-        if any(term in q for term in ascending_terms):
-            return "ascending"
-        if any(term in q for term in descending_terms):
-            return "descending"
-
-        if "profit" in target_lower and any(term in q for term in ["least", "lowest", "worst"]):
-            return "ascending"
-
-        return "descending"
-
     def _is_bad_numeric_signal_column(self, col_name, series):
         name = str(col_name).strip().lower()
 
@@ -424,9 +403,9 @@ class AnalysisAgent:
                 seen.add(col)
 
         preferred_keywords = [
-            "sub-category", "sub category", "category", "segment", "region", "country", "state", "city",
-            "ship mode", "channel", "market", "brand", "status", "item",
-            "product", "customer type", "department", "sales person"
+            "region", "country", "state", "city",
+            "category", "segment", "product", "sub category",
+            "channel", "customer", "ship mode", "market", "brand", "status"
         ]
 
         for keyword in preferred_keywords:

@@ -24,7 +24,9 @@ class PlannerAgent:
                 "sample_values": [100.5, 220.0, 99.9],
                 "is_probable_id": False,
                 "is_probable_metric": True,
-                "is_probable_datetime": False
+                "is_probable_datetime": False,
+                "llm_target_hint": True,           # optional: from ColumnSelectorAgent
+                "llm_semantic_hint": "revenue proxy" # optional: from ColumnSelectorAgent
             },
             ...
         ]
@@ -62,59 +64,33 @@ class PlannerAgent:
 
         plan = self._validate_plan(raw_plan, column_profiles, question_lower)
 
-        # ---------------------------
-        # NEW: explicit metric/group disentangling
-        # ---------------------------
-        metric_candidate, grouping_candidate, metric_group_warnings = self._resolve_metric_and_grouping(
-            question_lower=question_lower,
-            column_profiles=column_profiles
-        )
-        plan["reasoning"]["warnings"].extend(metric_group_warnings)
+        # FIX: Only run explicit_metric_target override if the LLM did NOT already
+        # return a valid target. Previously this always ran and could replace a good
+        # LLM answer (e.g. "adr") with a keyword-matched column.
+        if not plan["target"]:
+            explicit_target = self._explicit_metric_target(column_profiles, question_lower)
+            if explicit_target:
+                plan["target"] = explicit_target
+                if not plan["reasoning"]["target_why"]:
+                    plan["reasoning"]["target_why"] = (
+                        f"Selected {explicit_target} because it strongly matches the business metric named in the question."
+                    )
 
-        # Explicit metric from question wins over weak LLM target
-        if metric_candidate:
-            current_target_profile = self._get_profile(plan.get("target"), column_profiles) if plan.get("target") else None
-            if (
-                not plan.get("target")
-                or (current_target_profile and current_target_profile.get("semantic_type") in {"categorical", "text", "id", "boolean"})
-            ):
-                plan["target"] = metric_candidate
-                plan["reasoning"]["target_why"] = (
-                    f"Selected {metric_candidate} because it best matches the measurable business metric named in the question."
-                )
-
-        # If LLM accidentally chose grouping column as target while we have a metric, repair it
-        if grouping_candidate and metric_candidate:
-            if plan.get("target") == grouping_candidate:
-                plan["target"] = metric_candidate
-                if grouping_candidate not in plan["drivers"]:
-                    plan["drivers"] = [grouping_candidate] + plan["drivers"]
-                plan["reasoning"]["warnings"].append(
-                    f"Grouping column {grouping_candidate} was moved from target to drivers because the question asks to measure {metric_candidate} by group."
-                )
-
-        explicit_target = self._explicit_metric_target(column_profiles, question_lower)
-        if explicit_target:
-            plan["target"] = explicit_target
-            if not plan["reasoning"]["target_why"]:
-                plan["reasoning"]["target_why"] = (
-                    f"Selected {explicit_target} because it strongly matches the business metric named in the question."
-                )
+        # Check for ColumnSelectorAgent hint in profiles
+        if not plan["target"]:
+            for prof in column_profiles:
+                if prof.get("llm_target_hint"):
+                    plan["target"] = prof["name"]
+                    plan["reasoning"]["target_why"] = (
+                        f"Selected {prof['name']} based on ColumnSelectorAgent semantic mapping hint."
+                    )
+                    break
 
         if not plan["target"]:
             fallback_target, fallback_reason = self._fallback_target(column_profiles, question_lower)
             plan["target"] = fallback_target
             if fallback_reason:
                 plan["reasoning"]["warnings"].append(fallback_reason)
-
-        # If fallback still lands on grouping while we know the intended grouping separately, fix it
-        if grouping_candidate and metric_candidate and plan.get("target") == grouping_candidate:
-            plan["target"] = metric_candidate
-            if grouping_candidate not in plan["drivers"]:
-                plan["drivers"] = [grouping_candidate] + plan["drivers"]
-            plan["reasoning"]["warnings"].append(
-                f"Fallback target was corrected from grouping column {grouping_candidate} to metric {metric_candidate}."
-            )
 
         if not plan["drivers"]:
             plan["drivers"] = self._fallback_drivers(
@@ -123,16 +99,6 @@ class PlannerAgent:
                 question_lower,
                 analysis_type=plan.get("analysis_type")
             )
-
-        # Ensure detected grouping stays in drivers when relevant
-        if grouping_candidate and grouping_candidate != plan.get("target") and grouping_candidate not in plan["drivers"]:
-            plan["drivers"] = [grouping_candidate] + plan["drivers"]
-
-        if plan.get("target") in plan["drivers"]:
-            plan["drivers"] = [d for d in plan["drivers"] if d != plan["target"]]
-
-        if plan["time_column"] and plan["time_column"] not in [c["name"] for c in column_profiles]:
-            plan["time_column"] = None
 
         if not plan["time_column"] and self._question_is_trend_like(question_lower):
             best_time = self._best_time_column(column_profiles)
@@ -159,7 +125,7 @@ class PlannerAgent:
 
         plan["reasoning"]["warnings"] = self._dedupe_keep_order(
             [w for w in plan["reasoning"].get("warnings", []) if str(w).strip()]
-        )[:6]
+        )[:5]
 
         return plan
 
@@ -168,6 +134,10 @@ class PlannerAgent:
     # ---------------------------
 
     def _prepare_column_profiles(self, columns):
+        """
+        Converts either list[str] or list[dict] into a uniform profile format.
+        Preserves llm_target_hint and llm_semantic_hint from ColumnSelectorAgent.
+        """
         if not columns:
             return []
 
@@ -211,6 +181,9 @@ class PlannerAgent:
                     "is_probable_datetime": bool(
                         item.get("is_probable_datetime", self._looks_like_datetime(name) or self._dtype_is_datetime(dtype))
                     ),
+                    # Preserve ColumnSelectorAgent hints
+                    "llm_target_hint": bool(item.get("llm_target_hint", False)),
+                    "llm_semantic_hint": item.get("llm_semantic_hint", ""),
                 }
 
                 profile["semantic_type"] = self._refine_semantic_type(profile)
@@ -234,6 +207,8 @@ class PlannerAgent:
                     "is_probable_id": self._looks_like_id(name),
                     "is_probable_metric": self._looks_like_metric(name),
                     "is_probable_datetime": self._looks_like_datetime(name),
+                    "llm_target_hint": False,
+                    "llm_semantic_hint": "",
                 })
 
         return profiles
@@ -246,6 +221,14 @@ class PlannerAgent:
         if self._dtype_is_bool(dtype) or self._looks_like_boolean(name):
             return "boolean"
         if self._dtype_is_numeric(dtype):
+            # FIX: check if integer values look like years before marking as metric
+            if "int" in dtype.lower() and sample_values:
+                try:
+                    if all(1900 <= int(float(v)) <= 2100 for v in sample_values[:5]):
+                        if self._looks_like_datetime(name):
+                            return "datetime"
+                except (ValueError, TypeError):
+                    pass
             return "metric"
         if self._looks_like_text(name):
             return "text"
@@ -259,6 +242,7 @@ class PlannerAgent:
         name = profile["name"]
         dtype = str(profile.get("dtype", "unknown"))
         unique_ratio = self._safe_float(profile.get("unique_ratio"), 0.0)
+        sample_values = profile.get("sample_values", [])
 
         if profile.get("is_probable_id", False):
             return "id"
@@ -267,6 +251,13 @@ class PlannerAgent:
         if self._dtype_is_bool(dtype) or self._looks_like_boolean(name):
             return "boolean"
         if self._dtype_is_numeric(dtype):
+            # FIX: check for year-like integer columns (e.g. arrival_date_year)
+            if "int" in dtype.lower() and sample_values and self._looks_like_datetime(name):
+                try:
+                    if all(1900 <= int(float(v)) <= 2100 for v in sample_values[:5]):
+                        return "datetime"
+                except (ValueError, TypeError):
+                    pass
             return "metric"
         if self._looks_like_text(name):
             return "text"
@@ -296,7 +287,25 @@ class PlannerAgent:
     # ---------------------------
 
     def _build_planner_prompt(self, question, column_profiles):
-        schema_json = json.dumps(column_profiles, indent=2)
+        # Build a compact schema for the prompt, including semantic hints from ColumnSelectorAgent
+        schema_for_prompt = []
+        for c in column_profiles:
+            entry = {
+                "name": c["name"],
+                "dtype": c["dtype"],
+                "semantic_type": c["semantic_type"],
+                "non_null_pct": c["non_null_pct"],
+                "sample_values": c["sample_values"][:3],
+                "is_probable_metric": c["is_probable_metric"],
+                "is_probable_datetime": c["is_probable_datetime"],
+            }
+            if c.get("llm_semantic_hint"):
+                entry["semantic_hint"] = c["llm_semantic_hint"]
+            if c.get("llm_target_hint"):
+                entry["suggested_target"] = True
+            schema_for_prompt.append(entry)
+
+        schema_json = json.dumps(schema_for_prompt, indent=2)
 
         return f"""
 You are a senior analytics planning agent for a production AI Data Analysis system.
@@ -312,30 +321,28 @@ DATASET SCHEMA:
 STRICT RULES:
 1. Use ONLY exact column names from the provided schema.
 2. Never invent columns, aliases, or derived fields that are not listed.
-3. Choose ONE best numeric or aggregatable target column, unless the question is impossible to answer from this schema.
-4. Separately identify grouping dimensions inside drivers. Do not confuse the grouping entity with the measured target.
-5. Choose up to 5 driver columns that help explain, segment, group, or trend the target.
-6. Do NOT include the target inside drivers.
-7. Prefer business metrics as targets:
+3. Choose ONE best target column, unless the question is impossible to answer from this schema.
+4. Choose up to 5 driver columns that help explain, segment, group, or trend the target.
+5. Do NOT include the target inside drivers.
+6. Prefer business metrics as targets:
    - numeric continuous metrics such as sales, revenue, profit, cost, quantity, amount, price, margin
    - count-based targets only when no stronger metric exists or the question asks for counts
-8. Prefer temporal columns for trend questions.
-9. Prefer low-to-medium cardinality categorical columns for grouping/comparison.
-10. Avoid IDs, UUIDs, row numbers, postal codes, zip codes, free-text notes, and nearly unique columns as drivers unless the user explicitly asks for them.
-11. If the user asks about a metric that does not exist, choose the closest valid metric only if strongly supported by the schema; otherwise set target to null and explain why in warnings.
-12. Respect data types:
+7. Prefer temporal columns for trend questions.
+8. Prefer low-to-medium cardinality categorical columns for grouping/comparison.
+9. Avoid IDs, UUIDs, row numbers, postal codes, zip codes, free-text notes, and nearly unique columns as drivers unless the user explicitly asks for them.
+10. If the user asks about a metric that does not exist by that exact name, look at sample_values and semantic_hint to find the closest column. Use the semantic_hint (provided by the dataset understanding agent) to map business terms to actual column names. Example: if the semantic_hint says a float column is a "revenue proxy", use it for revenue questions regardless of the column's raw name.
+11. Respect data types:
    - line chart requires a temporal or ordered x-axis
    - scatter requires 2 numeric variables
    - histogram/box plot require numeric target
    - bar chart is preferred for categorical comparisons
-13. If a date/time column exists and the question implies trend, include it as time_column.
-14. If multiple date columns exist, choose the most semantically relevant one.
-15. Prefer columns with lower missingness and meaningful business semantics.
-16. Return valid JSON only. No markdown, no comments, no prose outside JSON.
+12. If a date/time column exists and the question implies trend, include it as time_column.
+13. If multiple date columns exist, choose the most semantically relevant one. Prefer full date columns (dtype datetime64) over year/month integer columns.
+14. Prefer columns with lower missingness and meaningful business semantics.
+15. Return valid JSON only. No markdown, no comments, no prose outside JSON.
+16. If a column has "suggested_target": true in the schema, treat it as the strongest candidate for the target unless the question clearly implies a different column.
 
 SENIOR ANALYST DECISION RULES:
-- For questions like "Which countries are ordering the highest quantities?" the target should be the measurable metric (Quantity) and the grouping dimension (Country) should go into drivers.
-- For questions like "Which products contribute the most revenue?" the target should be a revenue-like metric if present; otherwise choose a clearly labeled proxy metric only if justified.
 - For "trend over time" questions: choose a numeric target + a temporal column + aggregation usually sum/avg/count.
 - For "top/bottom" questions: choose ranking/comparison with bar chart.
 - For "distribution" questions: numeric target with histogram or box plot.
@@ -345,6 +352,7 @@ SENIOR ANALYST DECISION RULES:
 - If the target appears to be an identifier, reject it unless the question explicitly asks for counts by ID.
 - If the target has heavy nulls, mention that in warnings.
 - If no good metric exists, prefer count-based analysis over a bad metric.
+- DOMAIN MAPPING: Column names in real-world datasets often differ from standard business terms. Use sample_values and semantic_hint to understand each column's business meaning before selecting. For example, if asked about "revenue" and the schema has a float column that the semantic_hint says is a revenue proxy, choose that column even if its name is unusual.
 
 Return JSON in this exact structure:
 {{
@@ -355,7 +363,7 @@ Return JSON in this exact structure:
   "aggregation": "sum | avg | median | count | count_distinct | none",
   "chart": "line | bar | scatter | histogram | box | area | heatmap | table",
   "reasoning": {{
-    "target_why": "short reason",
+    "target_why": "short reason including how you mapped the question term to the column name",
     "drivers_why": ["short reason"],
     "warnings": ["warning"]
   }}
@@ -579,170 +587,26 @@ Return JSON in this exact structure:
         return None
 
     # ---------------------------
-    # NEW: metric/group separation
-    # ---------------------------
-
-    def _resolve_metric_and_grouping(self, question_lower, column_profiles):
-        warnings = []
-
-        metric_candidate = self._explicit_metric_target(column_profiles, question_lower)
-        grouping_candidate = self._explicit_grouping_dimension(column_profiles, question_lower)
-
-        if metric_candidate and grouping_candidate and metric_candidate == grouping_candidate:
-            grouping_candidate = None
-            warnings.append(
-                "The same column appeared to match both metric and grouping roles, so grouping was cleared."
-            )
-
-        # If user asks for a metric that does not exist, prefer safe proxy metric if reasonable
-        requested_metric = self._extract_requested_metric_phrase(question_lower)
-        if requested_metric and not metric_candidate:
-            proxy = self._best_proxy_metric_for_requested_metric(requested_metric, column_profiles)
-            if proxy:
-                metric_candidate = proxy
-                warnings.append(
-                    f"No exact {requested_metric} field was found, so {proxy} was chosen as the closest valid proxy metric."
-                )
-            else:
-                warnings.append(
-                    f"No exact {requested_metric} field was found in the schema."
-                )
-
-        return metric_candidate, grouping_candidate, warnings
-
-    def _explicit_grouping_dimension(self, column_profiles, question_lower):
-        grouping_aliases = {
-            "country": ["country", "countries", "market", "markets", "geography"],
-            "region": ["region", "regions", "territory", "territories"],
-            "state": ["state", "states", "province", "provinces"],
-            "city": ["city", "cities", "town", "towns"],
-            "category": ["category", "categories", "segment", "segments", "group", "groups", "class", "classes"],
-            "product": ["product", "products", "item", "items", "sku", "stockcode", "stock code", "description"],
-            "customer": ["customer", "customers", "client", "clients"],
-            "store": ["store", "stores", "location", "locations", "branch", "branches"],
-            "department": ["department", "departments"],
-            "channel": ["channel", "channels", "source", "sources"],
-            "brand": ["brand", "brands"],
-            "invoice": ["invoice", "invoices", "order", "orders", "transaction", "transactions"]
-        }
-
-        best = None
-        best_score = -999
-
-        for canonical_group, aliases in grouping_aliases.items():
-            if not any(alias in question_lower for alias in aliases):
-                continue
-
-            for col in column_profiles:
-                name = col["name"]
-                norm = self._normalize_name(name)
-                semantic_type = col.get("semantic_type", "unknown")
-                unique_ratio = self._safe_float(col.get("unique_ratio"), 0.0)
-
-                score = 0.0
-
-                if semantic_type == "categorical":
-                    score += 6.0
-                elif semantic_type == "datetime":
-                    score += 1.0
-                elif semantic_type == "metric":
-                    score -= 4.0
-                elif semantic_type == "text":
-                    score -= 3.0
-                elif semantic_type == "id":
-                    score -= 10.0
-
-                if col.get("is_probable_id", False):
-                    score -= 10.0
-
-                if canonical_group in norm:
-                    score += 5.0
-
-                if any(alias in norm for alias in aliases):
-                    score += 3.0
-
-                if unique_ratio > 0.98 and semantic_type in {"categorical", "text"}:
-                    score -= 4.0
-
-                if score > best_score:
-                    best = name
-                    best_score = score
-
-        return best if best_score > 0 else None
-
-    def _extract_requested_metric_phrase(self, question_lower):
-        metric_aliases = {
-            "profit": ["profit", "profits", "margin"],
-            "sales": ["sales", "sale"],
-            "revenue": ["revenue", "revenues"],
-            "cost": ["cost", "costs", "expense", "expenses"],
-            "quantity": ["quantity", "quantities", "qty", "units", "unit", "volume"],
-            "discount": ["discount", "discounts"],
-            "price": ["price", "prices", "unit price", "unitprice"],
-            "amount": ["amount", "amounts", "value", "values"],
-            "count": ["count", "counts", "number of", "how many"]
-        }
-
-        for canonical_metric, aliases in metric_aliases.items():
-            if any(alias in question_lower for alias in aliases):
-                return canonical_metric
-        return None
-
-    def _best_proxy_metric_for_requested_metric(self, requested_metric, column_profiles):
-        proxy_preferences = {
-            "revenue": ["sales", "amount", "price", "unit price", "unitprice", "profit", "quantity"],
-            "sales": ["revenue", "amount", "price", "quantity"],
-            "profit": ["margin", "revenue", "sales", "amount"],
-            "quantity": ["units", "volume", "count"],
-            "count": ["quantity", "units", "volume"]
-        }
-
-        preferred_terms = proxy_preferences.get(requested_metric, [])
-
-        best = None
-        best_score = -999
-
-        for col in column_profiles:
-            name = col["name"]
-            norm = self._normalize_name(name)
-            semantic_type = col.get("semantic_type", "unknown")
-
-            if semantic_type != "metric":
-                continue
-            if col.get("is_probable_id", False):
-                continue
-
-            score = 0.0
-            for term in preferred_terms:
-                if term in norm:
-                    score += 4.0
-
-            if col.get("is_probable_metric", False):
-                score += 2.0
-
-            score += self._safe_float(col.get("non_null_pct"), 1.0)
-
-            if score > best_score:
-                best = name
-                best_score = score
-
-        return best if best_score > 0 else None
-
-    # ---------------------------
     # Explicit target logic
     # ---------------------------
 
     def _explicit_metric_target(self, column_profiles, question_lower):
+        """
+        FIX: Extended metric aliases to include domain-specific terms that appear
+        in non-standard datasets. Also checks llm_semantic_hint for columns that
+        were mapped by ColumnSelectorAgent.
+        """
         metric_aliases = {
             "profit": ["profit", "profits", "margin"],
             "sales": ["sales", "sale"],
-            "revenue": ["revenue", "revenues"],
+            "revenue": ["revenue", "revenues", "sales revenue", "net revenue", "gross revenue"],
             "cost": ["cost", "costs", "expense", "expenses"],
             "quantity": ["quantity", "qty", "units", "unit", "volume"],
             "discount": ["discount", "discounts"],
-            "price": ["price", "prices", "unit price", "unitprice"],
+            "price": ["price", "prices"],
             "amount": ["amount", "amounts", "value", "values"],
-            "count": ["count", "counts", "number of", "how many"]
+            "count": ["count", "counts", "number of", "how many"],
+
         }
 
         best = None
@@ -755,21 +619,14 @@ Return JSON in this exact structure:
             for col in column_profiles:
                 name = col["name"]
                 norm = self._normalize_name(name)
-                semantic_type = col.get("semantic_type", "unknown")
+                semantic_hint = str(col.get("llm_semantic_hint", "")).lower()
                 score = 0.0
 
                 if col.get("is_probable_id", False):
                     score -= 20
 
-                # Metric-like targets should strongly prefer numeric/aggregatable fields
-                if semantic_type == "metric":
-                    score += 8
-                elif semantic_type == "categorical":
-                    score -= 5
-                elif semantic_type == "datetime":
-                    score -= 6
-                elif semantic_type == "text":
-                    score -= 8
+                if col.get("semantic_type") == "metric":
+                    score += 6
 
                 if col.get("is_probable_metric", False):
                     score += 4
@@ -778,6 +635,14 @@ Return JSON in this exact structure:
                     score += 5
 
                 if any(alias in norm for alias in aliases):
+                    score += 3
+
+                # FIX: also check the LLM semantic hint for domain-specific mappings
+                # e.g. semantic_hint "average daily rate / revenue proxy" matches "revenue"
+                if semantic_hint and any(alias in semantic_hint for alias in aliases):
+                    score += 4
+
+                if col.get("llm_target_hint", False):
                     score += 3
 
                 if col.get("non_null_pct", 1.0) < 0.60:
@@ -809,6 +674,7 @@ Return JSON in this exact structure:
         )
 
     def _score_target_candidates(self, column_profiles, question_lower):
+        # FIX: expanded metric keywords to cover domain-specific terms
         metric_keywords = {
             "revenue", "sales", "profit", "cost", "amount", "price",
             "quantity", "margin", "income", "value", "discount", "count",
@@ -825,34 +691,42 @@ Return JSON in this exact structure:
             unique_ratio = self._safe_float(col.get("unique_ratio"), 0.0)
             is_probable_id = bool(col.get("is_probable_id", False))
             is_probable_metric = bool(col.get("is_probable_metric", False))
+            llm_target_hint = bool(col.get("llm_target_hint", False))
+            llm_semantic_hint = str(col.get("llm_semantic_hint", "")).lower()
 
             score = 0.0
 
             if is_probable_id:
                 score -= 100.0
 
-            # Stronger separation: targets should prefer measurable fields
             if semantic_type == "metric":
                 score += 9.0
             elif semantic_type == "categorical":
-                score -= 2.0
+                score += 1.5
             elif semantic_type == "unknown":
                 score += 0.5
             elif semantic_type == "datetime":
-                score -= 5.0
+                score -= 4.0
             elif semantic_type == "text":
                 score -= 6.0
             elif semantic_type == "boolean":
-                score -= 3.0
+                score -= 2.0
 
             if is_probable_metric:
                 score += 4.0
+
+            # Boost columns flagged as the target hint by ColumnSelectorAgent
+            if llm_target_hint:
+                score += 8.0
 
             for kw in metric_keywords:
                 if kw in norm:
                     score += 2.5
                 if kw in question_lower and kw in norm:
                     score += 3.5
+                # Also check LLM semantic hint text for keyword matches
+                if kw in llm_semantic_hint:
+                    score += 1.5
 
             question_tokens = set(self._normalize_name(question_lower).split())
             column_tokens = set(norm.split())
@@ -868,7 +742,7 @@ Return JSON in this exact structure:
             if unique_ratio > 0.98 and semantic_type != "metric":
                 score -= 8.0
             elif unique_ratio > 0.90 and semantic_type == "categorical":
-                score -= 5.0
+                score -= 4.0
 
             ranked.append((name, score))
 
@@ -923,7 +797,10 @@ Return JSON in this exact structure:
             elif analysis_type in {"comparison", "ranking", "composition"}:
                 if semantic_type == "categorical":
                     score += 3.0
-                if any(k in norm for k in ["region", "segment", "category", "channel", "market", "brand", "status", "product", "country"]):
+                if any(k in norm for k in [
+                    "region", "segment", "category", "channel", "market", "brand",
+                    "status", "country"
+                ]):
                     score += 2.5
 
             elif analysis_type == "relationship":
@@ -958,6 +835,11 @@ Return JSON in this exact structure:
         return [c["name"] for c in column_profiles if c["name"] != target][:max_drivers]
 
     def _best_time_column(self, column_profiles):
+        """
+        FIX: Prefers full datetime columns over year/month integer columns.
+        Full date columns score higher because they allow proper time-series
+        charts. Year/month integers are still included but ranked lower.
+        """
         scored = []
 
         for col in column_profiles:
@@ -966,17 +848,31 @@ Return JSON in this exact structure:
             semantic_type = col.get("semantic_type", "unknown")
             is_probable_datetime = bool(col.get("is_probable_datetime", False))
             non_null_pct = self._safe_float(col.get("non_null_pct"), 1.0)
+            dtype = str(col.get("dtype", "")).lower()
 
             score = 0.0
 
-            if semantic_type == "datetime":
-                score += 8.0
+            # Actual datetime64 dtype columns score highest — full date precision
+            if "datetime" in dtype:
+                score += 15.0
+            elif semantic_type == "datetime":
+                score += 4.0
+
             if is_probable_datetime:
-                score += 6.0
-            if any(k in norm for k in ["order date", "sale date", "transaction date", "date", "time", "timestamp"]):
+                score += 5.0
+
+            # Full date columns (contain "date"/"timestamp" but NOT a date-part word)
+            # Generic detection — works for any dataset
+            date_part_words = {"year", "month", "week", "day", "quarter"}
+            norm_tokens = set(norm.split())
+            if "date" in norm and not norm_tokens.intersection(date_part_words):
+                score += 4.0
+            if "timestamp" in norm:
                 score += 3.0
-            if any(k in norm for k in ["year", "month", "quarter", "week", "day"]):
-                score += 2.0
+
+            # Integer date-part columns score very low — produce bad period labels
+            if norm_tokens.intersection(date_part_words):
+                score += 0.5
 
             score += non_null_pct
 
@@ -1000,12 +896,17 @@ Return JSON in this exact structure:
         id_keywords = [
             "id", "uuid", "key", "row number", "rownum",
             "transaction id", "order id", "customer id", "product id",
-            "postal", "zip", "zipcode", "invoice no", "invoice number"
+            "postal", "zip", "zipcode"
         ]
+        # FIX: do not flag date-like column names as IDs
+        date_like = ["year", "month", "quarter", "week", "day", "date", "time"]
+        if any(k in norm for k in date_like):
+            return False
         return any(k in norm for k in id_keywords)
 
     def _looks_like_metric(self, name):
         norm = self._normalize_name(name)
+        # FIX: expanded with domain-specific metric names
         metric_keywords = [
             "sales", "revenue", "profit", "amount", "price", "cost",
             "income", "margin", "quantity", "qty", "units", "discount",
@@ -1017,7 +918,7 @@ Return JSON in this exact structure:
         norm = self._normalize_name(name)
         dt_keywords = [
             "date", "time", "timestamp", "year",
-            "month", "quarter", "week", "day"
+            "month", "quarter", "week", "day", "arrival"
         ]
         return any(k in norm for k in dt_keywords)
 
@@ -1036,11 +937,12 @@ Return JSON in this exact structure:
 
     def _looks_like_category(self, name):
         norm = self._normalize_name(name)
+        # FIX: expanded with hospitality/domain-specific categorical column names
         categorical_keywords = [
             "region", "country", "state", "city", "category", "segment",
             "product", "sub category", "channel", "customer", "ship mode",
-            "department", "type", "group", "class", "market", "brand", "status",
-            "store", "branch", "location"
+            "department", "type", "group", "class", "market", "brand",
+            "status", "distribution"
         ]
         return any(k in norm for k in categorical_keywords)
 
@@ -1068,7 +970,9 @@ Return JSON in this exact structure:
 
     def _dtype_is_numeric(self, dtype):
         dtype = str(dtype).lower()
-        numeric_markers = ["int", "float", "double", "decimal", "number"]
+        numeric_markers = [
+            "int", "float", "double", "decimal", "number"
+        ]
         return any(marker in dtype for marker in numeric_markers)
 
     def _dtype_is_datetime(self, dtype):

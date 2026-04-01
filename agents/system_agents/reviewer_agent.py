@@ -1,57 +1,83 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from llm.openai_client import OpenAIClient
 
+
 class ReviewerAgent:
-    def __init__(self, context: Dict[str, Any], model: str = "gpt-4.1"):
+    """
+    Senior architecture reviewer. Reads all pipeline outputs and produces
+    a structured critique covering correctness, completeness, risks,
+    and concrete recommendations for improvement.
+    """
+
+    def __init__(
+        self,
+        context: Dict[str, Any],
+        model: Optional[str] = None,
+        rag_context: Optional[str] = None
+    ):
         self.context = context
-        self.llm = OpenAIClient(model=model)
+        self.rag_context = rag_context or ""
+        self.llm = OpenAIClient(model=model) if model else OpenAIClient()
 
     def run(self) -> Dict[str, Any]:
         prompt = self._build_prompt()
-        review = self.llm.generate(prompt)
-        return {"markdown": review}
+        doc = self.llm.generate(prompt)
+        return {"markdown": doc}
 
     def _build_prompt(self) -> str:
-        return f"""
-You are a Principal Data Architect reviewing a proposed data platform design.
+        rag_block = f"{self.rag_context}\n\n" if self.rag_context else ""
 
-Your job:
-- Critically review the full design
-- Identify risks, gaps, and bad assumptions
-- Identify scalability issues
-- Identify cost risks
-- Suggest concrete improvements
-- Call out missing components
+        return f"""{rag_block}You are a Principal Data Architect conducting a senior technical review
+of a full data platform design.
+
+You have been given every output produced by the pipeline agents below.
+Your job is to review the ENTIRE design holistically and produce a structured
+critique that a real engineering team could act on.
+
+Review criteria:
+- Correctness: Are the design decisions technically sound?
+- Completeness: Are there gaps, missing components, or unanswered questions?
+- Consistency: Do the layers (ingestion → storage → model → BI) align?
+- Scalability: Will this design hold as data volume grows 10x?
+- Operability: Is it maintainable by a real team in production?
+- Cost: Are there obvious cost risks or inefficiencies?
+- Security: Are compliance and access control requirements met?
 
 Output MUST be in Markdown with sections:
-1. Overall Assessment
-2. Strengths
-3. Weaknesses & Risks
-4. Scalability Review
-5. Cost Review
-6. Security & Governance Gaps
-7. Missing Pieces
-8. Actionable Recommendations
+1. Executive Summary (3-5 sentence overall verdict)
+2. Strengths (what the design does well)
+3. Critical Issues (must-fix before production)
+4. Recommendations (nice-to-have improvements)
+5. Consistency Checks (mismatches between layers)
+6. Risk Register (top 5 risks with likelihood and impact)
+7. Final Score (out of 10 with justification)
 
-Full Design Context:
-Dataset Profile:
-{self.context.get("dataset_profile")}
+Pipeline outputs to review:
+
+Requirements Analysis:
+{self.context.get("requirements_analysis", "")[:800]}
 
 Data Contract:
-{self.context.get("data_contract")}
+{self.context.get("data_contract", "")[:600]}
 
-Ingestion:
-{self.context.get("ingestion_strategy")}
+Ingestion Strategy:
+{self.context.get("ingestion_strategy", "")[:600]}
 
-Storage:
-{self.context.get("storage_layout")}
+Storage Layout:
+{self.context.get("storage_layout", "")[:600]}
 
 Orchestration:
-{self.context.get("orchestration")}
+{self.context.get("orchestration", "")[:600]}
 
-Analytics:
-{self.context.get("analytics_bi")}
+Security & Governance:
+{self.context.get("security_governance", "")[:600]}
 
-Security:
-{self.context.get("security_governance")}
+Data Model:
+{self.context.get("data_model", "")[:600]}
+
+Data Quality Plan:
+{self.context.get("data_quality_plan", "")[:500]}
+
+Analytics / BI:
+{self.context.get("analytics_bi", "")[:500]}
 """
