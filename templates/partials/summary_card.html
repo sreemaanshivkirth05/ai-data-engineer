@@ -1,0 +1,46 @@
+{% macro summary_card(title, value, note="") %}
+<div
+    style="
+        background:#f8fafc;
+        border:1px solid var(--border);
+        border-radius:16px;
+        padding:18px;
+    "
+>
+    <div
+        style="
+            font-size:12px;
+            color:var(--muted);
+            text-transform:uppercase;
+            letter-spacing:.05em;
+            margin-bottom:10px;
+            font-weight:800;
+        "
+    >
+        {{ title }}
+    </div>
+
+    <div
+        style="
+            font-size:24px;
+            font-weight:900;
+            line-height:1.2;
+            margin-bottom:8px;
+        "
+    >
+        {{ value }}
+    </div>
+
+    {% if note %}
+    <div
+        style="
+            font-size:13px;
+            color:var(--muted);
+            line-height:1.6;
+        "
+    >
+        {{ note }}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}

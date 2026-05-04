@@ -1,0 +1,61 @@
+{% macro status_alert(title, message, tone="info", actions_html="") %}
+    {% if tone == "success" %}
+        {% set bg = "linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%)" %}
+        {% set border = "#bbf7d0" %}
+        {% set title_color = "#166534" %}
+        {% set text_color = "#475569" %}
+        {% set icon = "✅" %}
+    {% elif tone == "warning" %}
+        {% set bg = "linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)" %}
+        {% set border = "#fde68a" %}
+        {% set title_color = "#b45309" %}
+        {% set text_color = "#475569" %}
+        {% set icon = "⚠️" %}
+    {% elif tone == "error" %}
+        {% set bg = "linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)" %}
+        {% set border = "#fecaca" %}
+        {% set title_color = "#b91c1c" %}
+        {% set text_color = "#475569" %}
+        {% set icon = "⛔" %}
+    {% else %}
+        {% set bg = "linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)" %}
+        {% set border = "#bfdbfe" %}
+        {% set title_color = "#1d4ed8" %}
+        {% set text_color = "#475569" %}
+        {% set icon = "ℹ️" %}
+    {% endif %}
+
+    <div
+        style="
+            background: {{ bg }};
+            border:1px solid {{ border }};
+            border-radius:18px;
+            padding:18px 20px;
+            margin-bottom:20px;
+            box-shadow:var(--shadow);
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:14px;
+            flex-wrap:wrap;
+        "
+    >
+        <div style="display:flex; gap:12px; align-items:flex-start; min-width:260px;">
+            <div style="font-size:20px; line-height:1;">{{ icon }}</div>
+            <div>
+                <div style="font-size:16px; font-weight:900; color:{{ title_color }}; margin-bottom:4px;">
+                    {{ title }}
+                </div>
+                <div style="font-size:14px; color:{{ text_color }}; line-height:1.7;">
+                    {{ message }}
+                </div>
+            </div>
+        </div>
+
+        {% if actions_html %}
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            {{ actions_html | safe }}
+        </div>
+        {% endif %}
+    </div>
+{% endmacro %}

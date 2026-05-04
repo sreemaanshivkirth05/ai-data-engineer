@@ -145,9 +145,9 @@ Return JSON in EXACTLY this structure:
         }
         allowed_severities = {"high", "medium", "low"}
 
-        issues  = plan.get("issues", [])   if isinstance(plan.get("issues", []),   list) else []
-        steps   = plan.get("cleaning_steps", []) if isinstance(plan.get("cleaning_steps", []), list) else []
-        checks  = plan.get("validation_checks", []) if isinstance(plan.get("validation_checks", []), list) else []
+        issues = plan.get("issues", []) if isinstance(plan.get("issues", []), list) else []
+        steps = plan.get("cleaning_steps", []) if isinstance(plan.get("cleaning_steps", []), list) else []
+        checks = plan.get("validation_checks", []) if isinstance(plan.get("validation_checks", []), list) else []
 
         validated_issues = []
         for item in issues:
@@ -157,7 +157,7 @@ Return JSON in EXACTLY this structure:
             if column is not None and column not in valid_columns and column != "null":
                 continue
             issue_type = str(item.get("issue_type", "")).strip()
-            severity   = str(item.get("severity", "medium")).strip().lower()
+            severity = str(item.get("severity", "medium")).strip().lower()
             recommendation = str(item.get("recommendation", "")).strip()
             if issue_type not in allowed_issue_types:
                 continue
@@ -179,10 +179,10 @@ Return JSON in EXACTLY this structure:
         for item in steps:
             if not isinstance(item, dict):
                 continue
-            action     = str(item.get("action", "")).strip()
-            column     = item.get("column")
+            action = str(item.get("action", "")).strip()
+            column = item.get("column")
             parameters = item.get("parameters", {}) if isinstance(item.get("parameters", {}), dict) else {}
-            reason     = str(item.get("reason", "")).strip()
+            reason = str(item.get("reason", "")).strip()
 
             if action not in allowed_actions:
                 continue
@@ -195,7 +195,7 @@ Return JSON in EXACTLY this structure:
             if column and action != "remove_duplicates":
                 col_profile = profile_map.get(column, {})
                 semantic_type = col_profile.get("semantic_type", "")
-                unique_ratio  = float(col_profile.get("unique_ratio", 0.0))
+                unique_ratio = float(col_profile.get("unique_ratio", 0.0))
                 if _is_protected_id_column(column, semantic_type, unique_ratio):
                     print(f"[CleaningPlanner] Skipping {action} on protected ID column: {column}")
                     continue
@@ -220,17 +220,17 @@ Return JSON in EXACTLY this structure:
             validated_checks = self._default_validation_checks()
 
         return {
-            "issues":          validated_issues[:20],
-            "cleaning_steps":  validated_steps[:25],
+            "issues": validated_issues[:20],
+            "cleaning_steps": validated_steps[:25],
             "validation_checks": validated_checks
         }
 
     def _normalize_parameters(self, action, parameters, column_profile=None):
         semantic_type = str((column_profile or {}).get("semantic_type", "")).lower().strip()
-        col_name      = str((column_profile or {}).get("name", "")).lower().strip()
+        col_name = str((column_profile or {}).get("name", "")).lower().strip()
 
         if action == "fill_missing":
-            # Numeric/metric → median.  Everything else → mode.
+            # Numeric/metric → median. Everything else → mode.
             if semantic_type in {"metric", "numeric"}:
                 return {"strategy": "median"}
             return {"strategy": "mode"}
@@ -265,11 +265,11 @@ Return JSON in EXACTLY this structure:
         return parameters
 
     def _fallback_plan(self, dataset_profile):
-        columns       = dataset_profile.get("columns", [])
+        columns = dataset_profile.get("columns", [])
         duplicate_rows = int(dataset_profile.get("duplicate_rows", 0))
 
         issues = []
-        steps  = []
+        steps = []
 
         if duplicate_rows > 0:
             issues.append({
@@ -286,13 +286,13 @@ Return JSON in EXACTLY this structure:
             })
 
         for col in columns:
-            name          = str(col.get("name", "")).strip()
+            name = str(col.get("name", "")).strip()
             if not name:
                 continue
-            dtype         = str(col.get("dtype", "")).lower().strip()
+            dtype = str(col.get("dtype", "")).lower().strip()
             semantic_type = str(col.get("semantic_type", "unknown")).lower().strip()
-            null_pct      = float(col.get("null_pct", 0.0) or 0.0)
-            unique_ratio  = float(col.get("unique_ratio", 0.0))
+            null_pct = float(col.get("null_pct", 0.0) or 0.0)
+            unique_ratio = float(col.get("unique_ratio", 0.0))
             sample_values = [str(v).upper() for v in col.get("sample_values", []) if v is not None]
 
             # HARD SKIP: never touch identifier columns
@@ -383,7 +383,7 @@ Return JSON in EXACTLY this structure:
                 })
 
             # Outlier detection for numeric columns
-            stats   = col.get("stats", {}) or {}
+            stats = col.get("stats", {}) or {}
             min_val = stats.get("min")
             max_val = stats.get("max")
             if (
@@ -407,8 +407,8 @@ Return JSON in EXACTLY this structure:
                 })
 
         return {
-            "issues":          issues[:25],
-            "cleaning_steps":  self._dedupe_steps(steps)[:25],
+            "issues": issues[:25],
+            "cleaning_steps": self._dedupe_steps(steps)[:25],
             "validation_checks": self._default_validation_checks()
         }
 
@@ -425,7 +425,7 @@ Return JSON in EXACTLY this structure:
 
     def _dedupe_steps(self, steps):
         seen = set()
-        out  = []
+        out = []
         for step in steps:
             key = (step["action"], step["column"])
             if key not in seen:

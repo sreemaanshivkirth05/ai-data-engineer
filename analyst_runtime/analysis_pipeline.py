@@ -2,17 +2,22 @@ import os
 import re
 import pandas as pd
 
-from agents.analyst_agents.question_agent import QuestionAgent
-from agents.analyst_agents.planner_agent import PlannerAgent
-from agents.analyst_agents.column_selector_agent import ColumnSelectorAgent
-from agents.analyst_agents.dataset_understanding_agent import DatasetUnderstandingAgent
-from agents.analyst_agents.analysis_agent import AnalysisAgent
-from agents.analyst_agents.visualization_agent import VisualizationAgent
-from agents.analyst_agents.narrative_agent import NarrativeAgent
-from agents.analyst_agents.storytelling_agent import StorytellingAgent
-from agents.analyst_agents.kpi_agent import KPIAgent
+from agents.analyst_agents.legacy.question_agent import QuestionAgent
+from agents.analyst_agents.legacy.planner_agent import PlannerAgent
+from agents.analyst_agents.legacy.analysis_agent import AnalysisAgent
+from agents.analyst_agents.legacy.kpi_agent import KPIAgent
+from agents.analyst_agents.legacy.visualization_agent import VisualizationAgent
+from agents.analyst_agents.legacy.narrative_agent import NarrativeAgent
+from agents.analyst_agents.legacy.storytelling_agent import StorytellingAgent
+from agents.analyst_agents.legacy.review_agent import ReviewAgent
 
-from analyst_runtime.phase1_product_layer import build_phase1_product_layer
+# These are used later in the pipeline, so keep them imported too.
+from agents.analyst_agents.legacy.dataset_understanding_agent import DatasetUnderstandingAgent
+from agents.analyst_agents.legacy.column_selector_agent import ColumnSelectorAgent
+
+# Keep your existing loader import path if it already works in your project.
+# If your project uses a different loader module, update only this import line.
+from engineer_runtime.dataset_loader import load_dataset
 
 
 def run_analysis_pipeline(dataset_path, question, question_history=None, dataset_context=None):
@@ -23,17 +28,19 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
 
     os.makedirs("outputs/analyst/charts", exist_ok=True)
 
-    if dataset_path.endswith(".csv"):
-        df = pd.read_csv(dataset_path)
-    elif dataset_path.endswith(".xlsx"):
-        df = pd.read_excel(dataset_path)
-    else:
-        raise ValueError("Unsupported dataset format")
+    bundle = load_dataset(dataset_path)
+    df = bundle.dataframe
 
     if not isinstance(df, pd.DataFrame):
         raise ValueError("Dataset failed to load")
 
-    print(f"✅ Dataset loaded — {len(df):,} rows × {len(df.columns)} columns")
+    print(
+        f"✅ Dataset loaded — {len(df):,} rows × {len(df.columns)} columns "
+        f"| format={bundle.dataset_format}"
+    )
+
+    if bundle.warnings:
+        print(f"⚠️ Loader warnings: {bundle.warnings}")
 
     df = preprocess_dataframe(df)
     columns = df.columns.tolist()
@@ -42,12 +49,6 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
     print(f"✅ Preprocessing complete — columns: {columns}")
     print("🧾 Built column profiles for planner")
 
-    # --------------------------------------------------
-    # DatasetUnderstandingAgent — run once per dataset upload.
-    # If dataset_context is passed in (session cache), skip the LLM call.
-    # This gives all downstream agents semantic knowledge about the dataset
-    # (domain, primary metric, column meanings) before any question is asked.
-    # --------------------------------------------------
     if dataset_context is None:
         print("🔍 Running DatasetUnderstandingAgent")
         try:
@@ -73,18 +74,10 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
 
     print(f"✅ Fallback intent: {fallback_intent} | Show KPIs: {show_kpis}")
 
-    # --------------------------------------------------
-    # LLM-guided column selection
-    # Runs before PlannerAgent so the planner only sees columns
-    # relevant to the question. This handles datasets where column
-    # names do not match standard business keywords
-    # (e.g. "adr" for revenue, "los" for length of stay).
-    # --------------------------------------------------
     print("🎯 Running ColumnSelectorAgent")
     column_selector = ColumnSelectorAgent()
     relevant_profiles = column_selector.run(question, column_profiles, dataset_context=dataset_context)
 
-    # Extract LLM target hint if provided
     llm_target_hint = None
     for profile in relevant_profiles:
         if profile.get("llm_target_hint"):
@@ -106,32 +99,19 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
     intent = normalize_intent(planner_intent or fallback_intent)
     question_category = normalize_question_category(intent, question_category)
 
-    # --------------------------------------------------
-    # FIX: Trust the LLM target if it returned a valid column.
-    # Only fall back to rule-based scoring if LLM returned None
-    # or an unrecognised column name.
-    #
-    # The old code always ran resolve_best_target_from_profiles which
-    # overwrote the LLM's correct answer (e.g. "adr" for a hotel dataset)
-    # with a keyword-matched column (e.g. "stays_in_weekend_nights").
-    # --------------------------------------------------
     if target is not None and target in columns:
-        # LLM chose a valid column — respect it
         pass
     elif llm_target_hint and llm_target_hint in columns:
-        # ColumnSelectorAgent provided a hint — use it
         target = llm_target_hint
         planner_reasoning.setdefault("warnings", []).append(
             f"Target set from ColumnSelectorAgent hint: {target}"
         )
     else:
-        # LLM failed or returned unknown column — use scored heuristic
         target = resolve_best_target_from_profiles(column_profiles, question)
 
     if target is None and columns:
         target = columns[0]
 
-    # Driver resolution uses full column_profiles so all columns are available
     drivers = resolve_valid_drivers(
         drivers=drivers,
         column_profiles=column_profiles,
@@ -140,7 +120,6 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         max_drivers=5
     )
 
-    # Time column resolution
     if time_column and time_column not in columns:
         time_column = None
 
@@ -167,7 +146,6 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         f"Aggregation: {aggregation} | Preferred chart: {preferred_chart}"
     )
 
-    # Ambiguity guard
     if should_defer_ambiguous_question(
         question=question,
         resolved_plan=resolved_plan,
@@ -175,7 +153,7 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         question_info=question_info
     ):
         print("⚠️ Ambiguous question detected — returning safe exploratory response")
-        return build_ambiguous_response(
+        result = build_ambiguous_response(
             df=df,
             question=question,
             question_category=question_category,
@@ -185,6 +163,12 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
             planner_reasoning=planner_reasoning,
             question_history=question_history
         )
+        result["dataset_loader"] = {
+            "format": bundle.dataset_format,
+            "warnings": bundle.warnings,
+            "metadata": bundle.metadata,
+        }
+        return result
 
     print("📌 Running KPIAgent")
     kpis = {}
@@ -397,8 +381,14 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         "data_quality_summary": phase1["data_quality_summary"],
         "narrative": narrative,
         "story": story,
-        "dataset_context": dataset_context
+        "dataset_context": dataset_context,
+        "dataset_loader": {
+            "format": bundle.dataset_format,
+            "warnings": bundle.warnings,
+            "metadata": bundle.metadata,
+        },
     }
+
 
 def should_defer_ambiguous_question(question, resolved_plan, planner_reasoning, question_info):
     q = (question or "").strip().lower()
@@ -591,7 +581,6 @@ def build_ambiguous_dataset_summary(df, target, intent, drivers):
             try:
                 min_date = series.min()
                 max_date = series.max()
-                # Guard: skip if dates are epoch (1970) — means they were parsed from integers
                 if not (min_date.year == 1970 and max_date.year == 1970):
                     date_range_start = str(min_date.date())
                     date_range_end = str(max_date.date())
@@ -769,7 +758,6 @@ def build_executive_summary(question, question_goal, target, kpis, analysis, int
             f"This analysis is centered on {target_label} as the primary business metric."
         )
 
-    # For totals questions lead with the aggregate, not question_goal
     if _is_totals_question(question) and kpis.get("total_target") is not None:
         total = format_number(kpis["total_target"])
         row_count = format_number(kpis.get("row_count"))
@@ -833,7 +821,6 @@ def _is_rate_question(question):
 
 
 def _is_totals_question(question):
-    """Detect questions asking for a single aggregate total."""
     q = (question or "").lower()
     return any(w in q for w in [
         "total revenue", "total bookings", "total sales", "total profit",
@@ -843,7 +830,6 @@ def _is_totals_question(question):
 
 
 def _is_count_question(question):
-    """Detect questions asking for a count of records."""
     q = (question or "").lower()
     return any(w in q for w in [
         "how many", "number of", "total number", "count of",
@@ -870,11 +856,8 @@ def build_direct_answer(question, intent, target, kpis, analysis):
     categorical_drivers = analysis.get("categorical_drivers", {}) or {}
     correlations = analysis.get("correlations", {}) or {}
 
-    q_lower = (question or "").lower()
-    target_label = format_label(target).lower()
+    target_label = format_label(target).lower() if target else "the metric"
 
-    # Case 1: totals question (e.g. "What is the total revenue?")
-    # Lead with the aggregate total, not a segment headline.
     if _is_totals_question(question) and intent not in {"trend_analysis"}:
         total = kpis.get("total_target")
         avg = kpis.get("average_target")
@@ -889,8 +872,6 @@ def build_direct_answer(question, intent, target, kpis, analysis):
                 f"Note: this is a proxy estimate — {target_label} is used as the closest available metric."
             )
 
-    # Case 2: count question (e.g. "How many bookings were made each month?")
-    # Lead with the total record count, not a segment.
     if _is_count_question(question) and intent not in {"trend_analysis"}:
         row_count = kpis.get("row_count")
         if row_count:
@@ -900,9 +881,6 @@ def build_direct_answer(question, intent, target, kpis, analysis):
                 f"The trend chart above shows how the count varies across time periods."
             )
 
-    # Case 3: binary/rate target + rate-style question.
-    # Lead with the aggregate percentage, not a segment headline.
-    # e.g. "What is the overall cancellation rate?" → "27.0% (24,020 of 87,380)"
     if _is_rate_question(question) and _is_binary_target(target, kpis) and intent != "trend_analysis":
         avg = kpis.get("average_target")
         total = kpis.get("total_target")
@@ -955,8 +933,6 @@ def build_direct_answer(question, intent, target, kpis, analysis):
                 f"{direction} {format_label(target).lower()} with a correlation of {top_corr[1]}."
             )
 
-    # FIX: use best_headline_segment to get a consistent dimension-segment pair
-    # from the most discriminating dimension, rather than mixing segments across dimensions
     best = best_headline_segment(top_bottom_segments, categorical_drivers)
     if best:
         return (
@@ -965,7 +941,6 @@ def build_direct_answer(question, intent, target, kpis, analysis):
             f"with a measured contribution of {format_number(best.get('total_target'))}."
         )
 
-    # Fallback to flat list when top_bottom_segments not available
     flat_best = best_non_placeholder_segment(top_segments)
     if flat_best:
         return (
@@ -1144,33 +1119,263 @@ def build_risks_and_limitations(df, intent, target, drivers, analysis, plan=None
     return dedupe_list(risks)[:5]
 
 
+def build_phase1_product_layer(
+    df,
+    question,
+    intent,
+    target,
+    drivers,
+    kpis,
+    analysis,
+    charts,
+    question_category,
+    question_goal,
+    question_history=None,
+    plan=None
+):
+    question_history = question_history or []
+
+    dataset_summary = build_dataset_summary_layer(df, target, intent, drivers)
+    top_insights = build_top_insights_layer(question, target, kpis, analysis, intent)
+    follow_up_questions = build_follow_up_questions(
+        question=question,
+        target=target,
+        drivers=drivers,
+        question_category=question_category,
+        intent=intent,
+        question_history=question_history
+    )
+    data_quality_summary = build_data_quality_summary_layer(df, target, plan)
+
+    return {
+        "dataset_summary": dataset_summary,
+        "top_insights": top_insights,
+        "follow_up_questions": follow_up_questions,
+        "data_quality_summary": data_quality_summary
+    }
+
+
+def build_dataset_summary_layer(df, target, intent, drivers):
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
+    datetime_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
+
+    date_range_start = None
+    date_range_end = None
+    if datetime_cols:
+        series = df[datetime_cols[0]].dropna()
+        if len(series) > 0:
+            try:
+                min_date = series.min()
+                max_date = series.max()
+                if not (min_date.year == 1970 and max_date.year == 1970):
+                    date_range_start = str(min_date.date())
+                    date_range_end = str(max_date.date())
+            except Exception:
+                pass
+
+    return {
+        "row_count": int(len(df)),
+        "column_count": int(len(df.columns)),
+        "target_metric": target,
+        "analysis_type": intent,
+        "numeric_column_count": int(len(numeric_cols)),
+        "categorical_column_count": int(len(categorical_cols)),
+        "datetime_column_count": int(len(datetime_cols)),
+        "date_range_start": date_range_start,
+        "date_range_end": date_range_end,
+        "driver_columns": drivers or []
+    }
+
+
+def build_top_insights_layer(question, target, kpis, analysis, intent):
+    insights = []
+
+    top_segments = analysis.get("top_segments", []) or []
+    top_bottom_segments = analysis.get("top_bottom_segments", {}) or {}
+    time_summary = analysis.get("time_summary", {}) or {}
+
+    if intent == "trend_analysis" and time_summary:
+        if time_summary.get("best_period") and time_summary.get("best_period_value") is not None:
+            insights.append({
+                "title": "Strongest period",
+                "value": time_summary["best_period"],
+                "detail": f"{format_label(target)} peaked at {format_number(time_summary['best_period_value'])}.",
+                "type": "positive"
+            })
+
+        if time_summary.get("worst_period") and time_summary.get("worst_period_value") is not None:
+            insights.append({
+                "title": "Weakest period",
+                "value": time_summary["worst_period"],
+                "detail": f"{format_label(target)} was lowest at {format_number(time_summary['worst_period_value'])}.",
+                "type": "risk"
+            })
+
+        if time_summary.get("change_pct") is not None:
+            change_pct = float(time_summary["change_pct"])
+            insights.append({
+                "title": "Net change",
+                "value": f"{change_pct:+.1f}%",
+                "detail": f"Overall change from {time_summary.get('first_period', 'start')} to {time_summary.get('last_period', 'end')}.",
+                "type": "signal"
+            })
+
+    else:
+        best = best_headline_segment(top_bottom_segments, analysis.get("categorical_drivers", {}) or {})
+        if not best:
+            best = best_non_placeholder_segment(top_segments)
+
+        if best:
+            insights.append({
+                "title": f"Top {format_label(best['dimension'])}",
+                "value": str(best["segment"]),
+                "detail": f"Leads with {format_number(best.get('total_target'))} "
+                          f"({str(best.get('share_pct')) + '%' if best.get('share_pct') is not None else 'share unavailable'}).",
+                "type": "signal"
+            })
+
+        if kpis.get("total_target") is not None:
+            insights.append({
+                "title": f"Total {format_label(target)}",
+                "value": format_number(kpis["total_target"]),
+                "detail": "Overall scale of the primary metric across the loaded dataset.",
+                "type": "positive"
+            })
+
+        if kpis.get("average_target") is not None:
+            insights.append({
+                "title": f"Average {format_label(target)}",
+                "value": format_number(kpis["average_target"]),
+                "detail": "Typical value per usable record for the selected target metric.",
+                "type": "info"
+            })
+
+    if not insights:
+        insights.append({
+            "title": "Analysis complete",
+            "value": "Ready",
+            "detail": "The dataset has been processed and the main visuals and narrative are available.",
+            "type": "signal"
+        })
+
+    return insights[:4]
+
+
+def build_follow_up_questions(question, target, drivers, question_category, intent, question_history=None):
+    question_history = question_history or []
+    suggestions = []
+
+    driver_label = format_label(drivers[0]) if drivers else "segment"
+    target_label = format_label(target) if target else "the target metric"
+
+    if intent == "trend_analysis":
+        suggestions.extend([
+            f"Which {driver_label.lower()} contributed most during the strongest period?",
+            f"Break down the {target_label.lower()} trend by {driver_label.lower()}.",
+            f"What changed between the strongest and weakest periods?"
+        ])
+    elif question_category in {"comparison", "ranking", "segment"}:
+        suggestions.extend([
+            f"Which {driver_label.lower()} is contributing the most to {target_label.lower()}?",
+            f"Which {driver_label.lower()} is underperforming on {target_label.lower()}?",
+            f"Show the monthly trend for the top {driver_label.lower()} by {target_label.lower()}."
+        ])
+    elif question_category == "relationship":
+        suggestions.extend([
+            f"What other fields are correlated with {target_label.lower()}?",
+            f"Which groups show the strongest differences in {target_label.lower()}?",
+            f"How does {target_label.lower()} change over time?"
+        ])
+    else:
+        suggestions.extend([
+            f"Give me a business summary of {target_label.lower()}.",
+            f"Which segments are driving the highest {target_label.lower()}?",
+            f"Show the trend of {target_label.lower()} over time."
+        ])
+
+    generic = [
+        "What is the strongest visible pattern in this dataset?",
+        "Which chart should I focus on first and why?",
+        "What follow-up analysis would be most useful for decision-making?"
+    ]
+    suggestions.extend(generic)
+
+    cleaned = []
+    seen = set()
+    history_lower = {q.strip().lower() for q in question_history if isinstance(q, str)}
+    for s in suggestions:
+        key = s.strip().lower()
+        if not key or key == question.strip().lower() or key in history_lower or key in seen:
+            continue
+        cleaned.append(s)
+        seen.add(key)
+
+    return cleaned[:5]
+
+
+def build_data_quality_summary_layer(df, target, plan=None):
+    overall_missing_pct = round(float(df.isna().mean().mean() * 100), 1) if len(df.columns) > 0 else 0.0
+    duplicate_rows = int(df.duplicated().sum())
+
+    target_null_pct = None
+    if target and target in df.columns:
+        target_null_pct = round(float(df[target].isna().mean() * 100), 1)
+
+    confidence_level = "High"
+    confidence_note = "The result is based on the usable records available for the selected target metric."
+    if target_null_pct is not None and target_null_pct > 10:
+        confidence_level = "Medium"
+        confidence_note = "The target metric has some missing values, so results should be interpreted with moderate caution."
+    if target_null_pct is not None and target_null_pct > 25:
+        confidence_level = "Low"
+        confidence_note = "A large share of target values is missing, so conclusions may be directionally useful but less reliable."
+
+    date_range = None
+    datetime_cols = df.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns.tolist()
+    if datetime_cols:
+        series = df[datetime_cols[0]].dropna()
+        if len(series) > 0:
+            try:
+                min_date = series.min()
+                max_date = series.max()
+                if not (min_date.year == 1970 and max_date.year == 1970):
+                    date_range = {
+                        "start": str(min_date.date()),
+                        "end": str(max_date.date())
+                    }
+            except Exception:
+                pass
+
+    high_cardinality_columns = []
+    for col in df.select_dtypes(include=["object"]).columns.tolist():
+        unique_values = int(df[col].nunique(dropna=True))
+        if unique_values > max(25, int(len(df) * 0.5)):
+            high_cardinality_columns.append({
+                "column": col,
+                "unique_values": unique_values
+            })
+
+    if plan and plan.get("reasoning", {}).get("warnings"):
+        confidence_note += " Planner warnings were also detected and should be reviewed."
+
+    return {
+        "overall_missing_pct": overall_missing_pct,
+        "duplicate_rows": duplicate_rows,
+        "target_null_pct": target_null_pct,
+        "confidence_level": confidence_level,
+        "confidence_note": confidence_note,
+        "date_range": date_range,
+        "high_cardinality_columns": high_cardinality_columns[:3]
+    }
+
+
 def _synthesise_date_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    GENERIC: Find any split year/month/day integer columns and synthesise
-    a single full datetime column from them.
-
-    Works for any dataset — not just hotel bookings. Examples:
-      hotel:      arrival_date_year + arrival_date_month + arrival_date_day_of_month
-      e-commerce: order_year + order_month + order_day
-      healthcare: admit_year + admit_month + admit_day
-      logistics:  ship_year + ship_month + ship_day
-
-    Detection logic:
-    1. Find all integer columns whose name contains 'year' and values are plausible
-       calendar years (1900–2100).
-    2. For each year column, look for a matching month column and day column by
-       checking for columns with the same name prefix or similar suffix pattern.
-    3. If found, synthesise a datetime column named <prefix>_date (or 'synthetic_date'
-       if no clean prefix). Skip if a full datetime column with the same prefix exists.
-    """
     df = df.copy()
-    cols_lower = {c: c.lower().strip() for c in df.columns}
 
-    # Normalise column name: strip prefix pattern, return just the semantic part
     def _norm(name):
         return re.sub(r"[_\-\s]+", "_", name.lower().strip())
 
-    # Find all candidate year columns
     year_cols = []
     for col in df.columns:
         norm = _norm(col)
@@ -1189,22 +1394,17 @@ def _synthesise_date_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     for year_col in year_cols:
         year_norm = _norm(year_col)
-
-        # Derive the prefix by removing the 'year' suffix/part
         prefix = re.sub(r"_?year_?", "_", year_norm).strip("_")
 
-        # Look for matching month column: same prefix, contains 'month'
         month_col = None
         for col in df.columns:
             n = _norm(col)
             if "month" in n and pd.api.types.is_numeric_dtype(df[col]):
-                # Prefix match: either same prefix or just contains 'month'
                 col_prefix = re.sub(r"_?month_?.*", "", n).strip("_")
                 if col_prefix == prefix or (prefix == "" and "month" in n):
                     month_col = col
                     break
 
-        # Look for matching day column: same prefix, contains 'day'
         day_col = None
         for col in df.columns:
             n = _norm(col)
@@ -1217,12 +1417,9 @@ def _synthesise_date_columns(df: pd.DataFrame) -> pd.DataFrame:
         if not month_col or not day_col:
             continue
 
-        # Name for the synthesised column
         synth_name = (prefix + "_date").strip("_") if prefix else "synthetic_date"
-        # Normalise: replace multiple underscores
         synth_name = re.sub(r"_+", "_", synth_name)
 
-        # Skip if a full datetime column with this name already exists
         already_exists = any(
             c.lower().strip().replace(" ", "_") == synth_name.lower()
             and pd.api.types.is_datetime64_any_dtype(df[c])
@@ -1231,7 +1428,6 @@ def _synthesise_date_columns(df: pd.DataFrame) -> pd.DataFrame:
         if already_exists:
             continue
 
-        # Skip if a column with this name exists but is not datetime — don't overwrite
         if synth_name in df.columns and not pd.api.types.is_datetime64_any_dtype(df[synth_name]):
             continue
 
@@ -1242,7 +1438,6 @@ def _synthesise_date_columns(df: pd.DataFrame) -> pd.DataFrame:
                 day=pd.to_numeric(df[day_col], errors="coerce")
             ), errors="coerce")
 
-            # Validate: at least 50% non-null and dates span more than 30 days
             valid = synthesised.dropna()
             if len(valid) < len(df) * 0.5:
                 continue
@@ -1288,11 +1483,6 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Date coercion: only apply to columns containing full date strings.
-    # Integer date-part columns (arrival_date_year, arrival_date_month,
-    # arrival_date_day_of_month, arrival_date_week_number) must NOT be coerced —
-    # pandas interprets the integer as milliseconds since epoch, producing
-    # dates like 0001-01-01 or 1970-01-01.
     date_part_keywords = [
         "year", "month", "week_number", "week number",
         "day_of_month", "day of month", "hour", "minute", "second"
@@ -1302,21 +1492,13 @@ def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         col_lower = col.lower().strip()
         if "date" in col_lower or "time" in col_lower:
             if any(kw in col_lower for kw in date_part_keywords):
-                continue  # skip integer date-part columns
+                continue
             if pd.api.types.is_datetime64_any_dtype(df[col]):
-                continue  # already datetime
+                continue
             if pd.api.types.is_numeric_dtype(df[col]):
-                continue  # numeric column with date-like name — leave as-is
+                continue
             df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # GENERIC: Synthesise a full datetime column from split year/month/day integer columns.
-    # This handles any dataset that stores date parts as separate numeric columns
-    # (e.g. hotel: arrival_date_year/month/day, e-commerce: order_year/order_month/order_day,
-    #  healthcare: admit_year/admit_month/admit_day).
-    #
-    # Strategy: find the first set of columns whose normalised names contain
-    # 'year', 'month', and 'day' respectively, share a common prefix, and
-    # are all integer-typed. Synthesise a single datetime column from them.
     df = _synthesise_date_columns(df)
 
     return df
@@ -1367,10 +1549,6 @@ def infer_semantic_type_from_series(col_name, series, unique_ratio):
     if pd.api.types.is_datetime64_any_dtype(series):
         return "datetime"
 
-    # FIX: integer columns that look like calendar year values (e.g. arrival_date_year
-    # with values 2015, 2016, 2017) were being treated as numeric metrics and then
-    # displayed as epoch dates (1970-01-01) in the date coverage section.
-    # Detect by checking if all sample values fall within a plausible year range.
     if pd.api.types.is_integer_dtype(series):
         sample_vals = series.dropna().unique()[:20].tolist()
         try:
@@ -1380,8 +1558,6 @@ def infer_semantic_type_from_series(col_name, series, unique_ratio):
         except (TypeError, ValueError):
             pass
 
-    # Columns with date/time in the name are treated as datetime dimensions
-    # even if they are stored as numeric (e.g. arrival_date_year as int64)
     if any(k in col_norm for k in ["date", "time", "timestamp", "year", "month", "quarter", "week", "day"]):
         return "datetime"
 
@@ -1422,12 +1598,6 @@ def is_probable_id_column(col_name, series, unique_ratio):
     if any(k in col_norm for k in id_keywords):
         return True
 
-    # FIX: year/month integer columns were being flagged as IDs because
-    # arrival_date_year has a unique_ratio of ~3/119k which is not actually
-    # high, but arrival_date_month has only 12 unique values so this was fine.
-    # The real issue was columns like "agent" (integer, ~300 unique values)
-    # being treated as IDs. Exclude columns with date-like names from the
-    # high-unique-ratio ID detection.
     date_like_names = ["year", "month", "quarter", "week", "day", "date", "time"]
     if any(k in col_norm for k in date_like_names):
         return False
@@ -1441,8 +1611,6 @@ def is_probable_id_column(col_name, series, unique_ratio):
 
 def is_probable_metric_column(col_name, series):
     col_norm = normalize_text(col_name)
-    # Expanded to include domain-specific metric column names that appear in
-    # non-standard datasets (e.g. hotel, healthcare, logistics)
     metric_keywords = [
         "sales", "revenue", "profit", "amount", "price", "cost",
         "income", "margin", "quantity", "qty", "units", "discount",
@@ -1459,10 +1627,6 @@ def is_probable_metric_column(col_name, series):
 
 
 def resolve_best_target_from_profiles(column_profiles, question):
-    """
-    Fallback target selection using heuristic scoring.
-    Only called when the LLM planner did not return a valid column name.
-    """
     question_lower = (question or "").strip().lower()
     ranked = []
 
@@ -1604,16 +1768,6 @@ def resolve_valid_drivers(drivers, column_profiles, target, question, max_driver
 
 
 def resolve_best_time_column(column_profiles):
-    """
-    Select the best time column for trend analysis.
-    Priority:
-    1. Actual datetime64 dtype columns — these have full date precision.
-       This includes any synthesised date column regardless of its name.
-    2. Date-named non-part columns (contain "date"/"timestamp" but NOT "year"/"month"/"day")
-    3. Integer year/month/day components — last resort, produce incomplete period labels
-
-    Detection is fully generic — no dataset-specific column names assumed.
-    """
     datetime_candidates = []
 
     for col in column_profiles:
@@ -1626,7 +1780,6 @@ def resolve_best_time_column(column_profiles):
 
         score = 0.0
 
-        # Actual datetime64 dtype columns score highest regardless of name
         if "datetime" in dtype:
             score += 12.0
         elif is_probable_datetime:
@@ -1634,7 +1787,6 @@ def resolve_best_time_column(column_profiles):
         elif semantic_type == "datetime":
             score += 3.0
 
-        # Full date column names (contain "date"/"timestamp" but NOT a date-part word)
         date_part_words = {"year", "month", "week", "day", "quarter", "hour", "minute", "second"}
         norm_tokens = set(norm.split())
         if "date" in norm and not norm_tokens.intersection(date_part_words):
@@ -1644,9 +1796,8 @@ def resolve_best_time_column(column_profiles):
         if "time" in norm and "datetime" not in dtype:
             score += 1.0
 
-        # Integer date-part columns score very low — incomplete period labels
         if norm_tokens.intersection(date_part_words):
-            score += 0.5  # last resort only
+            score += 0.5
 
         score += non_null_pct
 
@@ -1670,16 +1821,6 @@ def meaningful_correlations(correlations):
 
 
 def best_headline_segment(top_bottom_segments, categorical_drivers):
-    """
-    Returns top segment from the most discriminating AND useful dimension.
-
-    Two-pass approach:
-    Pass 1: prefer dimensions where top segment share is 1-80%.
-    A dimension where one segment holds >80% (e.g. No Deposit at 95%)
-    is not useful as a headline — it shows no real contrast.
-
-    Pass 2: fallback to highest variance dimension if nothing passes.
-    """
     if not top_bottom_segments or not categorical_drivers:
         return None
 
@@ -1703,7 +1844,6 @@ def best_headline_segment(top_bottom_segments, categorical_drivers):
             return None
         return top_seg
 
-    # Pass 1: skip dominant dimensions (top segment share > 80% or < 1%)
     for dim_name, _ in ranked_dims:
         top_seg = _get_top_seg(dim_name)
         if top_seg is None:
@@ -1713,7 +1853,6 @@ def best_headline_segment(top_bottom_segments, categorical_drivers):
             continue
         return top_seg
 
-    # Pass 2: fallback — use highest variance dimension regardless
     for dim_name, _ in ranked_dims:
         top_seg = _get_top_seg(dim_name)
         if top_seg is not None:
@@ -1723,7 +1862,6 @@ def best_headline_segment(top_bottom_segments, categorical_drivers):
 
 
 def best_non_placeholder_segment(top_segments):
-    """Legacy fallback — used when top_bottom_segments is not populated."""
     if not top_segments:
         return None
 

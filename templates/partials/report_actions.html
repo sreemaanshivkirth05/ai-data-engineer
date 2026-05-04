@@ -1,0 +1,40 @@
+{% macro report_actions(primary_href, primary_label, secondary_href, secondary_label) %}
+    <a
+        href="{{ primary_href }}"
+        style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            border-radius:14px;
+            padding:14px 18px;
+            font-size:14px;
+            font-weight:800;
+            text-decoration:none;
+            background:#2563eb;
+            color:#fff;
+        "
+    >
+        {{ primary_label }}
+    </a>
+
+    <a
+        href="{{ secondary_href }}"
+        style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            border-radius:14px;
+            padding:14px 18px;
+            font-size:14px;
+            font-weight:800;
+            text-decoration:none;
+            background:#fff;
+            color:#0f172a;
+            border:1px solid var(--border);
+        "
+    >
+        {{ secondary_label }}
+    </a>
+{% endmacro %}

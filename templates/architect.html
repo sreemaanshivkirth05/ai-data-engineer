@@ -1,569 +1,968 @@
 {% extends "layout.html" %}
-{% block title %}Data Architect · AI Data Platform{% endblock %}
+{% from "partials/status_alert.html" import status_alert %}
+
+{% block title %}Data Architecture · AI Data Platform{% endblock %}
 {% block nav_architect %}active{% endblock %}
+{% block topbar_title %}Data Architecture Workspace{% endblock %}
+{% block topbar_subtitle %}Turn business requirements and dataset context into a structured architecture proposal.{% endblock %}
+{% block topbar_chip %}Architecture mode{% endblock %}
 
 {% block head_scripts %}
-{% if result %}
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-{% endif %}
 <style>
-  /* ── ARCHITECT STYLES ──────────────────────────── */
-  .tab-nav{
-    display:flex;gap:4px;flex-wrap:wrap;
-    border-bottom:1px solid var(--border);margin-bottom:24px;
-  }
-  .tab-btn{
-    display:flex;align-items:center;gap:7px;
-    padding:10px 18px;background:none;border:none;
-    border-bottom:2px solid transparent;margin-bottom:-1px;
-    font-size:14px;font-weight:600;color:var(--muted);
-    cursor:pointer;transition:color .15s;font-family:inherit;
-  }
-  .tab-btn:hover{color:var(--text);}
-  .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);}
-  .tab-panel{display:none;}
-  .tab-panel.active{display:block;}
+    .hero-grid{
+        display:grid;
+        grid-template-columns:1.35fr .9fr;
+        gap:20px;
+        margin-bottom:22px;
+    }
 
-  .section-hdr{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
-  .sec-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
-  .si-blue{background:var(--blue-soft);}
-  .si-green{background:var(--green-soft);}
-  .si-amber{background:var(--amber-soft);}
-  .si-red{background:var(--red-soft);}
-  .si-purple{background:var(--purple-soft);}
-  .sec-title{font-size:18px;font-weight:800;margin:0 0 3px;}
-  .sec-sub{font-size:13px;color:var(--muted);margin:0;}
+    .hero-bullets{
+        margin-top:18px;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:12px;
+    }
 
-  .pipeline-layers{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
-  .layer-card{border-radius:14px;padding:20px;border:1px solid var(--border);}
-  .lc-ingest{background:linear-gradient(135deg,#dbeafe,#fff);border-color:#93c5fd;}
-  .lc-bronze{background:linear-gradient(135deg,#fef9c3,#fff);border-color:#fde68a;}
-  .lc-silver{background:linear-gradient(135deg,#f1f5f9,#fff);border-color:#cbd5e1;}
-  .lc-gold{background:linear-gradient(135deg,#fef3c7,#fff);border-color:#fbbf24;}
-  .lc-serve{background:linear-gradient(135deg,#ede9fe,#fff);border-color:#c4b5fd;}
-  .lc-orch{background:linear-gradient(135deg,#dcfce7,#fff);border-color:#86efac;}
-  .layer-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
-  .layer-desc{font-size:13px;color:var(--muted);line-height:1.6;}
-  .layer-svcs{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;}
-  .svc-tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.06);}
+    .hero-bullet{
+        background:#ffffff;
+        border:1px solid var(--border);
+        border-radius:14px;
+        padding:14px 14px;
+    }
 
-  .cost-total-banner{
-    background:linear-gradient(135deg,#0f172a,#1e3a8a);
-    border-radius:14px;padding:20px 24px;
-    display:flex;align-items:center;justify-content:space-between;
-    margin-bottom:20px;flex-wrap:wrap;gap:12px;
-  }
-  .cost-total-lbl{font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:4px;}
-  .cost-total-val{font-size:36px;font-weight:800;color:#fff;line-height:1;}
-  .cost-total-note{font-size:12px;color:#64748b;margin-top:4px;}
-  .cost-ing-box{background:rgba(255,255,255,.07);border-radius:10px;padding:12px 18px;text-align:center;}
-  .cost-ing-lbl{font-size:11px;color:#64748b;margin-bottom:4px;}
-  .cost-ing-val{font-size:14px;font-weight:700;color:#93c5fd;}
+    .hero-bullet-title{
+        font-size:13px;
+        font-weight:800;
+        margin-bottom:6px;
+    }
 
-  .cost-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
-  .cost-tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;}
-  .cost-tile-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px;}
-  .cost-tile-val{font-size:24px;font-weight:800;color:var(--primary);margin-bottom:4px;}
-  .cost-tile-note{font-size:12px;color:var(--muted);}
+    .hero-bullet-text{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
 
-  .tips-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .tip-card{display:flex;align-items:flex-start;gap:10px;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px;}
-  .tip-icon{font-size:18px;flex-shrink:0;}
-  .tip-title{font-size:13px;font-weight:700;margin-bottom:2px;}
-  .tip-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+    .hero-side{
+        display:grid;
+        gap:16px;
+    }
 
-  .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
-  .role-card{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px;}
-  .role-name{font-size:13px;font-weight:800;margin-bottom:6px;}
-  .role-desc{font-size:12px;color:var(--muted);line-height:1.6;}
+    .hero-mini{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:18px;
+        padding:18px;
+        box-shadow:var(--shadow);
+    }
 
-  .risk-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
-  .risk-card{display:flex;align-items:flex-start;gap:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;}
-  .risk-num{width:24px;height:24px;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:800;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-  .risk-title{font-size:13px;font-weight:700;margin-bottom:3px;}
-  .risk-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+    .hero-mini-title{
+        font-size:12px;
+        color:var(--muted);
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        font-weight:800;
+        margin-bottom:10px;
+    }
 
-  .sec-section{margin-bottom:16px;}
-  .sec-section-hdr{
-    font-size:14px;font-weight:700;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:12px 16px;background:#f8fafc;border:1px solid var(--border);
-    border-radius:10px;cursor:pointer;user-select:none;transition:background .15s;
-  }
-  .sec-section-hdr:hover{background:#f1f5f9;}
-  .sec-section-hdr .arr{font-size:12px;transition:transform .2s;}
-  .sec-section-hdr.open .arr{transform:rotate(180deg);}
-  .sec-section-body{border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:18px;display:none;}
-  .sec-section-body.open{display:block;}
+    .hero-mini-value{
+        font-size:28px;
+        font-weight:900;
+        line-height:1.15;
+        margin-bottom:8px;
+    }
 
-  .mermaid-wrap{background:#fff;border:1px solid var(--border);border-radius:14px;padding:24px;overflow-x:auto;min-height:180px;}
-  .mermaid-wrap svg{max-width:100%;height:auto;}
+    .hero-mini-note{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
 
-  .md-content h1,.md-content h2{font-size:16px;font-weight:800;margin:16px 0 8px;}
-  .md-content h3{font-size:14px;font-weight:700;margin:12px 0 6px;color:var(--muted);}
-  .md-content p{font-size:14px;line-height:1.75;color:var(--text);margin:0 0 10px;}
-  .md-content ul,.md-content ol{padding-left:20px;margin:0 0 10px;}
-  .md-content li{font-size:14px;line-height:1.75;margin-bottom:4px;}
-  .md-content code{background:#f1f5f9;border-radius:4px;padding:1px 6px;font-family:monospace;font-size:12px;}
-  .md-content strong{font-weight:700;}
-  .md-content em{font-style:italic;color:var(--muted);}
-  .md-content blockquote{border-left:3px solid var(--primary);margin:8px 0;padding:8px 14px;background:var(--blue-soft);border-radius:0 8px 8px 0;font-size:13px;color:#1d4ed8;}
-  .md-content hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
+    .input-grid{
+        display:grid;
+        grid-template-columns:1.2fr .8fr;
+        gap:20px;
+        margin-bottom:20px;
+    }
 
-  .layer-summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+    .upload-box{
+        border:1.5px dashed #c7d2fe;
+        border-radius:18px;
+        padding:18px;
+        background:linear-gradient(180deg, #fafaff 0%, #ffffff 100%);
+        margin-top:14px;
+    }
 
-  @media(max-width:900px){
-    .pipeline-layers,.cost-strip,.layer-summary-strip{grid-template-columns:1fr 1fr;}
-    .tips-grid,.risk-grid,.role-grid{grid-template-columns:1fr;}
-  }
-  @media(max-width:600px){
-    .pipeline-layers,.cost-strip,.layer-summary-strip{grid-template-columns:1fr;}
-    .tab-btn{padding:8px 12px;font-size:13px;}
-  }
+    .output-panel{
+        white-space:pre-wrap;
+        line-height:1.8;
+        font-size:14px;
+        color:var(--text);
+    }
+
+    .diagram-panel{
+        white-space:pre-wrap;
+        background:#0f172a;
+        color:#e2e8f0;
+        border-radius:16px;
+        padding:18px;
+        font-family:Consolas, Monaco, monospace;
+        font-size:13px;
+        line-height:1.7;
+        overflow:auto;
+        border:1px solid #1e293b;
+        min-height:320px;
+    }
+
+    .status-banner{
+        background:linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+        border-radius:22px;
+        padding:24px 26px;
+        color:#fff;
+        margin-bottom:20px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:18px;
+        flex-wrap:wrap;
+        box-shadow:var(--shadow);
+    }
+
+    .status-banner h2{
+        margin:0 0 6px 0;
+        font-size:22px;
+        font-weight:900;
+    }
+
+    .status-banner p{
+        margin:0;
+        color:#cbd5e1;
+        font-size:14px;
+        line-height:1.7;
+        max-width:760px;
+    }
+
+    .tech-pills{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-top:14px;
+    }
+
+    .section-stack{
+        display:grid;
+        gap:20px;
+    }
+
+    .summary-grid{
+        display:grid;
+        grid-template-columns:repeat(4, 1fr);
+        gap:14px;
+        margin-bottom:20px;
+    }
+
+    .summary-card{
+        background:#f8fafc;
+        border:1px solid var(--border);
+        border-radius:16px;
+        padding:18px;
+    }
+
+    .summary-title{
+        font-size:12px;
+        color:var(--muted);
+        text-transform:uppercase;
+        letter-spacing:.05em;
+        margin-bottom:10px;
+        font-weight:800;
+    }
+
+    .summary-value{
+        font-size:24px;
+        font-weight:900;
+        line-height:1.2;
+        margin-bottom:8px;
+    }
+
+    .summary-footnote{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
+
+    .shared-dataset-banner{
+        background:linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+        border:1px solid #bfdbfe;
+        border-radius:18px;
+        padding:18px 20px;
+        margin-bottom:20px;
+        box-shadow:var(--shadow);
+    }
+
+    .shared-dataset-title{
+        font-size:16px;
+        font-weight:900;
+        color:#1d4ed8;
+        margin-bottom:6px;
+    }
+
+    .shared-dataset-text{
+        font-size:14px;
+        color:var(--muted);
+        line-height:1.7;
+    }
+
+    .action-banner{
+        background:linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+        border:1px solid #bbf7d0;
+        border-radius:18px;
+        padding:18px 20px;
+        margin-bottom:20px;
+        box-shadow:var(--shadow);
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:14px;
+        flex-wrap:wrap;
+    }
+
+    .action-banner-title{
+        font-size:16px;
+        font-weight:900;
+        color:#166534;
+        margin-bottom:6px;
+    }
+
+    .action-banner-text{
+        font-size:14px;
+        color:#4b5563;
+        line-height:1.7;
+    }
+
+    .action-banner-actions{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+    }
+
+    .action-btn{
+        border:none;
+        border-radius:12px;
+        padding:12px 16px;
+        font-size:14px;
+        font-weight:800;
+        cursor:pointer;
+    }
+
+    .action-btn.primary{
+        background:#16a34a;
+        color:#fff;
+    }
+
+    .action-btn.secondary{
+        background:#fff;
+        color:#334155;
+        border:1px solid var(--border);
+    }
+
+    .architecture-overview{
+        display:grid;
+        grid-template-columns:1.15fr .85fr;
+        gap:20px;
+        margin-bottom:20px;
+    }
+
+    .overview-callout{
+        background:linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        border:1px solid var(--border);
+        border-radius:18px;
+        padding:22px;
+    }
+
+    .overview-answer{
+        font-size:26px;
+        line-height:1.45;
+        font-weight:900;
+        margin-bottom:12px;
+        letter-spacing:-0.02em;
+    }
+
+    .overview-text{
+        font-size:15px;
+        color:var(--muted);
+        line-height:1.8;
+    }
+
+    .architecture-pill-row{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-top:16px;
+    }
+
+    .architecture-pill{
+        background:#fff;
+        border:1px solid var(--border);
+        padding:8px 12px;
+        border-radius:999px;
+        font-size:13px;
+        font-weight:800;
+        color:#334155;
+    }
+
+    .review-card{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:18px;
+        padding:22px;
+    }
+
+    .review-card h3{
+        margin:0 0 10px 0;
+        font-size:18px;
+        font-weight:900;
+    }
+
+    .review-card p{
+        margin:0;
+        font-size:14px;
+        color:var(--muted);
+        line-height:1.7;
+    }
+
+    .recommendation-grid{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:20px;
+    }
+
+    .recommendation-card{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:18px;
+        padding:20px;
+    }
+
+    .recommendation-title{
+        font-size:18px;
+        font-weight:900;
+        margin-bottom:10px;
+    }
+
+    .recommendation-list{
+        margin:0;
+        padding-left:18px;
+    }
+
+    .recommendation-list li{
+        margin-bottom:8px;
+        line-height:1.7;
+        font-size:14px;
+    }
+
+    .details-shell{
+        border:1px solid var(--border);
+        border-radius:18px;
+        background:#fff;
+        overflow:hidden;
+        box-shadow:var(--shadow);
+        margin-bottom:20px;
+    }
+
+    .details-shell summary{
+        list-style:none;
+        cursor:pointer;
+        padding:20px 22px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        background:linear-gradient(180deg, #fcfcfd 0%, #f8fafc 100%);
+        font-weight:800;
+        font-size:16px;
+    }
+
+    .details-shell summary::-webkit-details-marker{
+        display:none;
+    }
+
+    .details-left{
+        display:flex;
+        align-items:center;
+        gap:12px;
+    }
+
+    .details-icon{
+        width:34px;
+        height:34px;
+        border-radius:10px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        background:var(--slate-soft);
+        font-size:18px;
+        flex-shrink:0;
+    }
+
+    .details-meta{
+        font-size:12px;
+        color:var(--muted);
+        font-weight:700;
+    }
+
+    .details-caret{
+        font-size:18px;
+        color:var(--muted);
+        transition:transform .2s ease;
+    }
+
+    .details-shell[open] .details-caret{
+        transform:rotate(180deg);
+    }
+
+    .details-body{
+        padding:22px;
+        border-top:1px solid var(--border);
+        background:#fff;
+    }
+
+    .details-grid{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:20px;
+    }
+
+    .next-step-banner{
+        background:linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+        border:1px solid #bfdbfe;
+        border-radius:20px;
+        padding:22px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:18px;
+        flex-wrap:wrap;
+        margin-top:4px;
+    }
+
+    .next-step-copy h3{
+        margin:0 0 8px;
+        font-size:20px;
+        font-weight:900;
+        color:#1d4ed8;
+    }
+
+    .next-step-copy p{
+        margin:0;
+        font-size:14px;
+        color:var(--muted);
+        line-height:1.7;
+        max-width:760px;
+    }
+
+    .next-step-actions{
+        display:flex;
+        gap:12px;
+        flex-wrap:wrap;
+    }
+
+    .next-step-btn{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+        border-radius:14px;
+        padding:14px 18px;
+        font-size:14px;
+        font-weight:800;
+        text-decoration:none;
+    }
+
+    .next-step-btn.primary{
+        background:#2563eb;
+        color:#fff;
+    }
+
+    .next-step-btn.secondary{
+        background:#fff;
+        color:#0f172a;
+        border:1px solid var(--border);
+    }
+
+    @media (max-width: 1100px){
+        .hero-grid,
+        .input-grid,
+        .architecture-overview,
+        .recommendation-grid,
+        .details-grid{
+            grid-template-columns:1fr;
+        }
+
+        .hero-bullets,
+        .summary-grid{
+            grid-template-columns:1fr 1fr;
+        }
+    }
+
+    @media (max-width: 860px){
+        .hero-bullets,
+        .summary-grid{
+            grid-template-columns:1fr;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- INPUT CARD -->
-<div class="card">
-  <div class="section-hdr">
-    <div class="sec-icon si-purple">🏗️</div>
+<div class="hero-grid">
+    <div class="hero-card">
+        <div class="page-eyebrow">AI Architecture Workspace</div>
+        <h1 class="page-title">Design a data architecture that matches the business need, not just the dataset.</h1>
+        <p class="page-subtitle">
+            Provide business requirements, optional schema context, and a sample dataset if available.
+            The architecture pipeline will generate ingestion strategy, storage design, orchestration, security, cost estimation, and a diagram-ready flow.
+        </p>
+
+        <div class="hero-bullets">
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Requirement-driven</div>
+                <div class="hero-bullet-text">The architecture starts from business use cases, scale, latency, and governance needs.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">RAG-enhanced planning</div>
+                <div class="hero-bullet-text">The pipeline uses retrieved architecture patterns and domain context to ground recommendations.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Structured outputs</div>
+                <div class="hero-bullet-text">You get discrete sections for contract, ingestion, storage, orchestration, security, cost, and diagram.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Buildable direction</div>
+                <div class="hero-bullet-text">The result is designed to be used as a starting point for an implementation plan or architecture review.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hero-side">
+        <div class="hero-mini">
+            <div class="hero-mini-title">Best for</div>
+            <div class="hero-mini-value">Pipelines, lakehouse, governance, orchestration</div>
+            <div class="hero-mini-note">Use this when you want a structured system design rather than only data analysis.</div>
+        </div>
+        <div class="hero-mini">
+            <div class="hero-mini-title">Output style</div>
+            <div class="hero-mini-value">Architecture proposal</div>
+            <div class="hero-mini-note">A business-aware technical design with diagram output and system sections.</div>
+        </div>
+    </div>
+</div>
+
+{% if shared_dataset and shared_dataset.name %}
+<div class="shared-dataset-banner">
+    <div class="shared-dataset-title">Shared dataset available for architecture context</div>
+    <div class="shared-dataset-text">
+        <strong>{{ shared_dataset.name }}</strong>
+        {% if shared_dataset.size_kb %} · {{ shared_dataset.size_kb }} KB{% endif %}
+        {% if shared_dataset.format %} · {{ shared_dataset.format }}{% endif %}
+        · source: {{ shared_dataset.source }}
+        <br />
+        You can submit the form without uploading another file, and the shared dataset will be used automatically for profiling context.
+    </div>
+</div>
+{% else %}
+    {{ status_alert(
+        "No shared dataset attached",
+        "You can still generate an architecture proposal without a dataset, but schema inference and profiling context will be weaker unless you upload one.",
+        "info"
+    ) }}
+{% endif %}
+
+<div class="action-banner">
     <div>
-      <div class="sec-title">AI Data Architect</div>
-      <p class="sec-sub">Describe your requirements and data sources — get a complete pipeline, security plan, cost estimate, and live architecture diagram.</p>
+        <div class="action-banner-title">Cross-workspace actions</div>
+        <div class="action-banner-text">
+            Use the current shared dataset to strengthen architecture context, or move back to Analysis with the same dataset continuity.
+        </div>
     </div>
-  </div>
-
-  <form action="/design" method="post">
-    <label for="requirements"><strong>Business Requirements</strong> <span style="font-weight:400;color:var(--muted);">— what the platform needs to do</span></label>
-    <textarea id="requirements" name="requirements" rows="4"
-      placeholder="Example: Build a data platform for analysing sales data from multiple regions. We need real-time dashboards, historical trend analysis, and the ability to segment by product category and geography."
-    >{{ requirements or "" }}</textarea>
-
-    <div style="height:14px;"></div>
-
-    <label for="schemas"><strong>Source Schemas</strong> <span style="font-weight:400;color:var(--muted);">— your tables and fields</span></label>
-    <textarea id="schemas" name="schemas" rows="4"
-      placeholder="Example: Sales(id, region, product, revenue, date), Customers(id, name, segment, country)"
-    >{{ schemas or "" }}</textarea>
-
-    <div style="height:16px;"></div>
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <button class="btn" type="submit">Generate Architecture</button>
-      <span class="muted" style="font-size:13px;">Runs 4 AI agents: Pipeline · Security · Cost · Diagram</span>
+    <div class="action-banner-actions">
+        <button class="action-btn primary" onclick="window.location.href='/analyst'">Open Analysis with shared dataset</button>
+        <button class="action-btn secondary" onclick="refreshSharedDataset()">Refresh shared dataset</button>
     </div>
-  </form>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="section-badge badge-purple">Architecture input</div>
+        <div class="card-title">Describe what the system needs to do</div>
+        <p class="card-subtitle">
+            Start from the business requirement. Add schema notes if you have them. Uploading a dataset is optional, but helps the pipeline infer better architectural choices.
+        </p>
+    </div>
+
+    <form action="/design" method="post" enctype="multipart/form-data">
+        {% if shared_dataset and shared_dataset.path %}
+        <input type="hidden" name="existing_dataset_path" value="{{ shared_dataset.path }}">
+        {% endif %}
+
+        <div class="input-grid">
+            <div>
+                <label for="requirements">Business requirements</label>
+                <textarea id="requirements" name="requirements" placeholder="Example: We need a retail analytics platform that ingests orders, inventory, and clickstream events. Batch loads should run daily, but dashboards should refresh near real-time for operations. Data must support KPI reporting, segmentation, and ML-ready feature generation. Access control and auditability are required."></textarea>
+
+                <div style="height:16px;"></div>
+
+                <label for="schemas">Schema or data notes</label>
+                <textarea id="schemas" name="schemas" placeholder="Example: orders(order_id, customer_id, product_id, order_date, amount), customers(customer_id, region, segment), clickstream(session_id, customer_id, event_time, page, action)"></textarea>
+            </div>
+
+            <div>
+                <label for="dataset">Optional dataset</label>
+                <div class="upload-box">
+                    <input type="file" id="dataset" name="dataset" />
+                    <div class="tech-pills">
+                        <span class="pill pill-blue">Optional</span>
+                        <span class="pill pill-purple">Schema signal</span>
+                        <span class="pill pill-green">Better context</span>
+                    </div>
+                </div>
+
+                <div class="mini-card" style="margin-top:16px;">
+                    <div class="label">What this creates</div>
+                    <div class="value">System architecture pack</div>
+                    <div class="muted" style="font-size:13px; line-height:1.7;">
+                        Includes contract, ingestion, storage, orchestration, security, cost estimate, and diagram output.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn">Generate Architecture →</button>
+    </form>
 </div>
 
 {% if result %}
+    {% if result.status == "error" %}
+        {{ status_alert(
+            "Architecture generation failed",
+            result.pipeline_architecture if result.pipeline_architecture else "The architecture pipeline failed before returning a usable result.",
+            "error",
+            '<a href="/architect" class="btn">Try Again</a>'
+        ) }}
+    {% else %}
 
-<!-- RESULTS HEADER BANNER -->
-<div class="card" style="border-left:5px solid var(--primary);padding:20px 24px;margin-bottom:12px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-    <div>
-      <div class="pill pill-blue" style="margin-bottom:6px;">Architecture ready</div>
-      <h2 style="margin:0 0 4px;">Your data architecture is complete</h2>
-      <p class="muted" style="margin:0;font-size:14px;">Four agents ran in sequence. Use the tabs below to explore each output.</p>
-    </div>
-    <div style="display:flex;gap:10px;">
-      <div style="text-align:center;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px 18px;">
-        <div style="font-size:22px;font-weight:800;color:var(--primary);">4</div>
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Agents</div>
-      </div>
-      <div style="text-align:center;background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:10px 18px;">
-        <div style="font-size:22px;font-weight:800;color:#15803d;">✓</div>
-        <div style="font-size:11px;color:#15803d;text-transform:uppercase;letter-spacing:.06em;">Done</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- TABBED OUTPUT CARD -->
-<div class="card">
-
-  <div class="tab-nav">
-    <button class="tab-btn active" data-tab="pipeline" onclick="switchTab('pipeline')">
-      <span>⚙️</span> Pipeline Architecture
-    </button>
-    <button class="tab-btn" data-tab="security" onclick="switchTab('security')">
-      <span>🔐</span> Security &amp; Governance
-    </button>
-    <button class="tab-btn" data-tab="cost" onclick="switchTab('cost')">
-      <span>💰</span> Cost Estimation
-    </button>
-    <button class="tab-btn" data-tab="diagram" onclick="switchTab('diagram')">
-      <span>📐</span> Architecture Diagram
-    </button>
-  </div>
-
-  <!-- ════════ TAB: PIPELINE ════════ -->
-  <div class="tab-panel active" id="tab-pipeline">
-
-    <div class="section-hdr">
-      <div class="sec-icon si-blue">⚙️</div>
-      <div>
-        <div class="sec-title">Pipeline Architecture</div>
-        <p class="sec-sub">End-to-end data flow from raw sources through Bronze → Silver → Gold to analytics consumers.</p>
-      </div>
-    </div>
-
-    <!-- Layer summary strip -->
-    <div class="layer-summary-strip">
-      <div class="mini-card" style="text-align:center;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Data Sources</div>
-        <div style="font-size:20px;font-weight:800;color:var(--text);">DBs · APIs · Files</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Operational, SaaS, events</div>
-      </div>
-      <div class="mini-card" style="text-align:center;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Ingestion</div>
-        <div style="font-size:20px;font-weight:800;color:#1d4ed8;">Batch + CDC</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Airflow · Kafka · Kinesis</div>
-      </div>
-      <div class="mini-card" style="text-align:center;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Lakehouse</div>
-        <div style="font-size:20px;font-weight:800;color:#d97706;">Bronze → Gold</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">AWS S3 + Parquet/Iceberg</div>
-      </div>
-      <div class="mini-card" style="text-align:center;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;">Serving</div>
-        <div style="font-size:20px;font-weight:800;color:#7c3aed;">Redshift · Athena</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Dashboards · SQL · DS</div>
-      </div>
-    </div>
-
-    <!-- Lakehouse layer cards -->
-    <div class="pipeline-layers">
-      <div class="layer-card lc-ingest">
-        <div class="layer-title" style="color:#1d4ed8;">Ingestion Layer</div>
-        <div class="layer-desc">Batch via Airflow and streaming via Kafka or Kinesis based on source latency requirements.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">Airflow</span><span class="svc-tag">Kafka</span><span class="svc-tag">AWS Glue</span><span class="svc-tag">Kinesis</span>
+        <div class="status-banner">
+            <div>
+                <h2>🏗️ Architecture proposal ready</h2>
+                <p>
+                    The architecture pipeline generated a structured system design across ingestion, storage, orchestration, governance, cost, and diagram output.
+                </p>
+            </div>
+            <div class="tech-pills">
+                <span class="pill pill-green">Design complete</span>
+                <span class="pill pill-blue">RAG-enhanced</span>
+                <span class="pill pill-purple">Buildable sections</span>
+            </div>
         </div>
-      </div>
-      <div class="layer-card lc-bronze">
-        <div class="layer-title" style="color:#92400e;">🥉 Bronze — Raw</div>
-        <div class="layer-desc">Landing zone. Immutable, encrypted, tightly restricted. No analyst access. PII intact only for reconciliation.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">S3 Raw</span><span class="svc-tag">SSE-KMS</span><span class="svc-tag">Parquet</span>
+
+        {% if not result.data_contract and not result.pipeline_architecture and not result.storage %}
+            {{ status_alert(
+                "Architecture result is sparse",
+                "The pipeline returned a successful status, but the main architecture sections are mostly empty. Review the input requirements and try again with more detail.",
+                "warning"
+            ) }}
+        {% endif %}
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-title">Contract</div>
+                <div class="summary-value">Defined</div>
+                <div class="summary-footnote">Expected data assumptions and system inputs were documented.</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Ingestion</div>
+                <div class="summary-value">Proposed</div>
+                <div class="summary-footnote">A strategy for moving source data into the platform was generated.</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Storage</div>
+                <div class="summary-value">Layered</div>
+                <div class="summary-footnote">The design includes storage organization for raw, refined, and curated data.</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Diagram</div>
+                <div class="summary-value">Ready</div>
+                <div class="summary-footnote">A diagram-ready architecture flow was produced for refinement.</div>
+            </div>
         </div>
-      </div>
-      <div class="layer-card lc-silver">
-        <div class="layer-title" style="color:#475569;">🥈 Silver — Cleansed</div>
-        <div class="layer-desc">Standardised, validated, PII masked. Schema enforced via data contract. Engineering + governed access.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">Glue ETL</span><span class="svc-tag">Lake Formation</span><span class="svc-tag">Iceberg</span>
+
+        <div class="architecture-overview">
+            <div class="overview-callout">
+                <div class="section-badge badge-blue">Architecture overview</div>
+                <div class="overview-answer">
+                    This proposal is designed to support scalable ingestion, reliable storage layout, governed access, and repeatable orchestration around the business requirements you provided.
+                </div>
+                <div class="overview-text">
+                    The generated system is structured like a practical target-state design rather than a generic architecture note.
+                    It breaks the architecture into focused sections so you can review the contract, ingestion choices, storage layout,
+                    orchestration logic, governance model, cost considerations, and the diagram flow separately.
+                </div>
+                <div class="architecture-pill-row">
+                    <div class="architecture-pill">Requirement-driven</div>
+                    <div class="architecture-pill">Diagram-ready</div>
+                    <div class="architecture-pill">Governance-aware</div>
+                    <div class="architecture-pill">Buildable starting point</div>
+                </div>
+            </div>
+
+            <div class="review-card">
+                <h3>How to read this result</h3>
+                <p>
+                    Start with the contract and ingestion strategy, because those shape every downstream decision.
+                    Then review storage and orchestration, followed by security and cost.
+                    Use the diagram panel as the visual summary of the architecture, and the recommendations below as next-step guidance.
+                </p>
+            </div>
         </div>
-      </div>
-      <div class="layer-card lc-gold">
-        <div class="layer-title" style="color:#92400e;">🥇 Gold — Business Ready</div>
-        <div class="layer-desc">Curated, certified aggregates. Role-based access for analysts. Only masked or tokenized identifiers exposed.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">Redshift</span><span class="svc-tag">Athena</span><span class="svc-tag">dbt</span>
+
+        <div class="section-stack">
+
+            <div class="card">
+                <div class="section-header">
+                    <div class="section-icon si-blue">📐</div>
+                    <div class="section-header-text">
+                        <h2>Data contract</h2>
+                        <p>Expected structure, constraints, and assumptions for the architecture design.</p>
+                    </div>
+                </div>
+                {% if result.data_contract %}
+                    <div class="output-panel">{{ result.data_contract }}</div>
+                {% else %}
+                    {{ status_alert("No data contract returned", "The architecture pipeline did not return a data contract section for this run.", "warning") }}
+                {% endif %}
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-green">🔄</div>
+                        <div class="section-header-text">
+                            <h2>Ingestion strategy</h2>
+                            <p>How data enters the platform, including batch, CDC, or streaming design choices.</p>
+                        </div>
+                    </div>
+                    {% if result.pipeline_architecture %}
+                        <div class="output-panel">{{ result.pipeline_architecture }}</div>
+                    {% else %}
+                        {{ status_alert("No ingestion strategy returned", "The result did not include an ingestion strategy section.", "warning") }}
+                    {% endif %}
+                </div>
+
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-purple">🪣</div>
+                        <div class="section-header-text">
+                            <h2>Storage layout</h2>
+                            <p>Layering, lakehouse or warehouse structure, and how curated data should be organized.</p>
+                        </div>
+                    </div>
+                    {% if result.storage %}
+                        <div class="output-panel">{{ result.storage }}</div>
+                    {% else %}
+                        {{ status_alert("No storage layout returned", "The result did not include a storage section.", "warning") }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-amber">⏱️</div>
+                        <div class="section-header-text">
+                            <h2>Orchestration</h2>
+                            <p>Scheduling, dependencies, monitoring, retries, and workflow coordination.</p>
+                        </div>
+                    </div>
+                    {% if result.orchestration %}
+                        <div class="output-panel">{{ result.orchestration }}</div>
+                    {% else %}
+                        {{ status_alert("No orchestration plan returned", "The result did not include an orchestration section.", "warning") }}
+                    {% endif %}
+                </div>
+
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-red">🔒</div>
+                        <div class="section-header-text">
+                            <h2>Security and governance</h2>
+                            <p>Access control, encryption, compliance, and data quality or audit considerations.</p>
+                        </div>
+                    </div>
+                    {% if result.security %}
+                        <div class="output-panel">{{ result.security }}</div>
+                    {% else %}
+                        {{ status_alert("No security/governance section returned", "The result did not include a security and governance section.", "warning") }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-blue">💸</div>
+                        <div class="section-header-text">
+                            <h2>Cost estimation</h2>
+                            <p>High-level infrastructure and service cost considerations for the proposed design.</p>
+                        </div>
+                    </div>
+                    {% if result.cost %}
+                        <div class="output-panel">{{ result.cost }}</div>
+                    {% else %}
+                        {{ status_alert("No cost section returned", "The result did not include cost estimation output.", "warning") }}
+                    {% endif %}
+                </div>
+
+                <div class="card">
+                    <div class="section-header">
+                        <div class="section-icon si-purple">🧭</div>
+                        <div class="section-header-text">
+                            <h2>Architecture diagram</h2>
+                            <p>Mermaid-style diagram output that can be refined or rendered later.</p>
+                        </div>
+                    </div>
+                    {% if result.diagram %}
+                        <div class="diagram-panel">{{ result.diagram }}</div>
+                    {% else %}
+                        {{ status_alert("No diagram returned", "The result did not include Mermaid diagram output for this run.", "info") }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="recommendation-grid">
+                <div class="recommendation-card">
+                    <div class="section-badge badge-green">Suggested next steps</div>
+                    <div class="recommendation-title">What to do after reviewing this architecture</div>
+                    <ul class="recommendation-list">
+                        <li>Validate the data contract with real source owners or sample files.</li>
+                        <li>Confirm ingestion frequency and latency assumptions against the business requirement.</li>
+                        <li>Review storage and orchestration choices against budget and scale expectations.</li>
+                        <li>Refine the diagram into an implementation-ready environment plan.</li>
+                    </ul>
+                </div>
+
+                <div class="recommendation-card">
+                    <div class="section-badge badge-purple">Review checklist</div>
+                    <div class="recommendation-title">Questions to ask before implementation</div>
+                    <ul class="recommendation-list">
+                        <li>Does the architecture support both the reporting and operational needs described?</li>
+                        <li>Are governance and access controls sufficient for the data sensitivity involved?</li>
+                        <li>Does orchestration include enough observability and retry behavior?</li>
+                        <li>Does the proposed cost model fit the expected usage and scale?</li>
+                    </ul>
+                </div>
+            </div>
+
+            <details class="details-shell">
+                <summary>
+                    <div class="details-left">
+                        <div class="details-icon">🛠️</div>
+                        <div>
+                            <div>Technical architecture details</div>
+                            <div class="details-meta">Expanded view for implementation-focused review</div>
+                        </div>
+                    </div>
+                    <div class="details-caret">⌄</div>
+                </summary>
+
+                <div class="details-body">
+                    <div class="details-grid">
+                        <div class="card" style="margin:0;">
+                            <div class="card-header">
+                                <div class="section-badge badge-blue">Contract + ingestion</div>
+                                <div class="card-title">Implementation view</div>
+                                <p class="card-subtitle">A paired review of the contract and the input pipeline design.</p>
+                            </div>
+                            <div class="output-panel">{{ result.data_contract or "No data contract returned." }}
+
+{{ result.pipeline_architecture or "No ingestion strategy returned." }}</div>
+                        </div>
+
+                        <div class="card" style="margin:0;">
+                            <div class="card-header">
+                                <div class="section-badge badge-purple">Storage + orchestration</div>
+                                <div class="card-title">Execution view</div>
+                                <p class="card-subtitle">A combined view of storage organization and workflow operation.</p>
+                            </div>
+                            <div class="output-panel">{{ result.storage or "No storage layout returned." }}
+
+{{ result.orchestration or "No orchestration returned." }}</div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin:20px 0 0;">
+                        <div class="card-header">
+                            <div class="section-badge badge-red">Governance + cost</div>
+                            <div class="card-title">Operational constraints</div>
+                            <p class="card-subtitle">Security, governance, and infrastructure cost considerations in one review section.</p>
+                        </div>
+                        <div class="output-panel">{{ result.security or "No security/governance returned." }}
+
+{{ result.cost or "No cost estimation returned." }}</div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="action-banner">
+                <div>
+                    <div class="action-banner-title">Take this architecture into analysis or continue refining</div>
+                    <div class="action-banner-text">
+                        Use the same shared dataset in Analysis, or adjust requirements and regenerate a more specific architecture proposal.
+                    </div>
+                </div>
+                <div class="action-banner-actions">
+                    <button class="action-btn primary" onclick="window.location.href='/analyst'">Open Analysis</button>
+                    <button class="action-btn secondary" onclick="window.scrollTo({top:0, behavior:'smooth'})">Refine requirements</button>
+                </div>
+            </div>
+
+            <div class="next-step-banner">
+                <div class="next-step-copy">
+                    <h3>Use this architecture proposal as the bridge between business intent and implementation planning.</h3>
+                    <p>
+                        The strongest next move is usually to validate the assumptions against the dataset and business stakeholders,
+                        then use the Analysis or Cleaner workspace if you need to refine the data layer before implementation.
+                    </p>
+                </div>
+                <div class="next-step-actions">
+                    <a href="/analyst" class="next-step-btn primary">Go to Analysis</a>
+                    <a href="/clean" class="next-step-btn secondary">Go to Cleaner</a>
+                </div>
+            </div>
+
         </div>
-      </div>
-      <div class="layer-card lc-serve">
-        <div class="layer-title" style="color:#6d28d9;">Serving Layer</div>
-        <div class="layer-desc">Semantic and metrics layer exposing certified Gold to BI dashboards, analysts, and data science workloads.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">Warehouse</span><span class="svc-tag">Metrics Layer</span><span class="svc-tag">REST APIs</span>
-        </div>
-      </div>
-      <div class="layer-card lc-orch">
-        <div class="layer-title" style="color:#166534;">Orchestration</div>
-        <div class="layer-desc">Airflow DAG orchestration with retries, backfills, SLAs, data quality checks, and pipeline observability.</div>
-        <div class="layer-svcs">
-          <span class="svc-tag">Airflow DAGs</span><span class="svc-tag">CloudWatch</span><span class="svc-tag">Alerting</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Full LLM markdown -->
-    <div style="border-top:1px solid var(--border);padding-top:18px;">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">Full pipeline specification from AI architect</div>
-      <div class="md-content" id="pipeline-md"></div>
-    </div>
-  </div>
-
-  <!-- ════════ TAB: SECURITY ════════ -->
-  <div class="tab-panel" id="tab-security">
-
-    <div class="section-hdr">
-      <div class="sec-icon si-red">🔐</div>
-      <div>
-        <div class="sec-title">Security &amp; Governance</div>
-        <p class="sec-sub">Data classification, PII handling, IAM model, encryption, audit logging, and compliance frameworks.</p>
-      </div>
-    </div>
-
-    <!-- Layer security summary -->
-    <div class="layer-summary-strip" style="margin-bottom:20px;">
-      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#fef9c3,#fff);">
-        <div style="font-size:18px;font-weight:800;color:#92400e;">Bronze</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Raw · Restricted · Encrypted</div>
-      </div>
-      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#f1f5f9,#fff);">
-        <div style="font-size:18px;font-weight:800;color:#475569;">Silver</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Cleansed · PII Masked · Governed</div>
-      </div>
-      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#fef3c7,#fff);">
-        <div style="font-size:18px;font-weight:800;color:#d97706;">Gold</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Curated · RBAC · Certified</div>
-      </div>
-      <div class="mini-card" style="text-align:center;background:linear-gradient(135deg,#dcfce7,#fff);">
-        <div style="font-size:18px;font-weight:800;color:#15803d;">KMS</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Encrypted at rest + in transit</div>
-      </div>
-    </div>
-
-    <!-- IAM Roles -->
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">IAM Roles &amp; Access Model</div>
-    <div class="role-grid">
-      <div class="role-card"><div class="role-name">🔒 Data Ingestion Role</div><div class="role-desc">Write-only to Bronze. No read access to sensitive Gold data.</div></div>
-      <div class="role-card"><div class="role-name">⚙️ Data Engineer Role</div><div class="role-desc">Read Bronze/Silver. Write Silver. Limited Gold access.</div></div>
-      <div class="role-card"><div class="role-name">📊 Data Analyst Role</div><div class="role-desc">Read approved Gold views only. No access to raw PII or Bronze.</div></div>
-      <div class="role-card"><div class="role-name">🔬 Data Scientist Role</div><div class="role-desc">De-identified Silver + approved feature sets. No production PII.</div></div>
-      <div class="role-card"><div class="role-name">📋 Data Steward Role</div><div class="role-desc">Metadata, classification, policy management. No data modification.</div></div>
-      <div class="role-card"><div class="role-name">👤 Business User Role</div><div class="role-desc">Read curated Gold aggregates and certified dashboards only.</div></div>
-    </div>
-
-    <!-- Key risks -->
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Key Security Risks</div>
-    <div class="risk-grid">
-      <div class="risk-card"><div class="risk-num">1</div><div><div class="risk-title">Re-identification risk</div><div class="risk-desc">customer_id + location + web behaviour can re-identify individuals when combined.</div></div></div>
-      <div class="risk-card"><div class="risk-num">2</div><div><div class="risk-title">Commercial data overexposure</div><div class="risk-desc">profit, cost_price, and spend may reveal strategic information if Gold access is too broad.</div></div></div>
-      <div class="risk-card"><div class="risk-num">3</div><div><div class="risk-title">Direct Bronze access</div><div class="risk-desc">Analysts or non-engineering users accessing Bronze could expose raw PII before masking.</div></div></div>
-      <div class="risk-card"><div class="risk-num">4</div><div><div class="risk-title">Permission sprawl</div><div class="risk-desc">Roles may accumulate excessive access over time without regular quarterly access reviews.</div></div></div>
-    </div>
-
-    <!-- Full spec collapsible -->
-    <div class="sec-section">
-      <div class="sec-section-hdr" onclick="toggleSection(this)">
-        Full security &amp; governance specification
-        <span class="arr">▼</span>
-      </div>
-      <div class="sec-section-body">
-        <div class="md-content" id="security-md"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════ TAB: COST ════════ -->
-  <div class="tab-panel" id="tab-cost">
-
-    <div class="section-hdr">
-      <div class="sec-icon si-amber">💰</div>
-      <div>
-        <div class="sec-title">Cost Estimation</div>
-        <p class="sec-sub">Rough-order-of-magnitude monthly breakdown by service. Not a billing quote — actual costs vary by region, growth, and query patterns.</p>
-      </div>
-    </div>
-
-    <!-- Total banner -->
-    <div class="cost-total-banner">
-      <div>
-        <div class="cost-total-lbl">Estimated total monthly cost</div>
-        <div class="cost-total-val" id="costTotal">—</div>
-        <div class="cost-total-note">Rough estimate · Actual varies by region, data growth, and query volume</div>
-      </div>
-      <div class="cost-ing-box">
-        <div class="cost-ing-lbl">Ingestion type</div>
-        <div class="cost-ing-val" id="costIngType">—</div>
-      </div>
-    </div>
-
-    <!-- Cost tiles -->
-    <div class="cost-strip">
-      <div class="cost-tile">
-        <div class="cost-tile-lbl">🪣 Storage</div>
-        <div class="cost-tile-val" id="costStorage">—</div>
-        <div class="cost-tile-note">S3 Bronze / Silver / Gold</div>
-      </div>
-      <div class="cost-tile">
-        <div class="cost-tile-lbl">🔄 ETL / Ingestion</div>
-        <div class="cost-tile-val" id="costETL">—</div>
-        <div class="cost-tile-note">Glue, Kinesis, or Kafka compute</div>
-      </div>
-      <div class="cost-tile">
-        <div class="cost-tile-lbl">🏬 Warehouse / Query</div>
-        <div class="cost-tile-val" id="costWarehouse">—</div>
-        <div class="cost-tile-note">Redshift or Athena query engine</div>
-      </div>
-      <div class="cost-tile">
-        <div class="cost-tile-lbl">⏱️ Orchestration</div>
-        <div class="cost-tile-val" id="costOrch">—</div>
-        <div class="cost-tile-note">Airflow / Step Functions</div>
-      </div>
-    </div>
-
-    <!-- Tips -->
-    <div style="font-size:13px;font-weight:700;margin-bottom:12px;">💡 Cost optimisation ideas</div>
-    <div class="tips-grid" style="margin-bottom:20px;">
-      <div class="tip-card"><span class="tip-icon">📦</span><div><div class="tip-title">Partitioning + columnar formats</div><div class="tip-desc">Use Parquet or ORC with partition pruning to dramatically reduce Athena and Glue scan costs.</div></div></div>
-      <div class="tip-card"><span class="tip-icon">🔁</span><div><div class="tip-title">Incremental loads over full refreshes</div><div class="tip-desc">Replace nightly full-table reloads with CDC or watermark-based incremental ingestion.</div></div></div>
-      <div class="tip-card"><span class="tip-icon">🧊</span><div><div class="tip-title">Archive cold data to Glacier</div><div class="tip-desc">Move data beyond your retention window to S3 Glacier to cut storage costs by up to 80%.</div></div></div>
-      <div class="tip-card"><span class="tip-icon">⚡</span><div><div class="tip-title">Pre-materialise dashboard aggregates</div><div class="tip-desc">Cache common Gold aggregates to avoid repeated expensive warehouse scans for BI queries.</div></div></div>
-    </div>
-
-    <!-- Full spec -->
-    <div style="border-top:1px solid var(--border);padding-top:18px;">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;">Full cost specification from AI architect</div>
-      <div class="md-content" id="cost-md"></div>
-    </div>
-  </div>
-
-  <!-- ════════ TAB: DIAGRAM ════════ -->
-  <div class="tab-panel" id="tab-diagram">
-
-    <div class="section-hdr">
-      <div class="sec-icon si-purple">📐</div>
-      <div>
-        <div class="sec-title">Architecture Diagram</div>
-        <p class="sec-sub">Live Mermaid flowchart — sources, ingestion, lakehouse layers, serving, consumers, and orchestration.</p>
-      </div>
-    </div>
-
-    <div class="mermaid-wrap">
-      <div class="mermaid" id="mermaidChart">{{ result.diagram | replace("```mermaid", "") | replace("```", "") | trim }}</div>
-    </div>
-
-    <div class="sec-section" style="margin-top:16px;">
-      <div class="sec-section-hdr" onclick="toggleSection(this)">
-        Raw Mermaid source <span class="arr">▼</span>
-      </div>
-      <div class="sec-section-body">
-        <pre style="margin:0;font-size:12px;line-height:1.6;">{{ result.diagram | replace("```mermaid", "") | replace("```", "") | trim }}</pre>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /card -->
+    {% endif %}
+{% else %}
+    {{ status_alert(
+        "Architecture workspace is ready",
+        "Enter business requirements and optional schema or dataset context to generate a structured architecture proposal. No architecture run has been executed in this page load yet.",
+        "info"
+    ) }}
+{% endif %}
 
 <script>
-// ── Tab switching ──────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('[data-tab="' + name + '"]').classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
-}
-
-// ── Collapsible sections ───────────────────────────────────
-function toggleSection(el) {
-  el.classList.toggle('open');
-  el.nextElementSibling.classList.toggle('open');
-}
-
-// ── Simple markdown → HTML ─────────────────────────────────
-function md2html(raw) {
-  if (!raw) return '<p class="muted">No content generated.</p>';
-  let s = raw.trim().replace(/^```[a-z]*\n?/gm,'').replace(/```$/gm,'');
-  const lines = s.split('\n');
-  let html = '', inUL = false, inOL = false;
-
-  function closeLists() {
-    if (inUL) { html += '</ul>'; inUL = false; }
-    if (inOL) { html += '</ol>'; inOL = false; }
-  }
-  function inline(t) {
-    t = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
-    t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-    t = t.replace(/__(.+?)__/g,'<strong>$1</strong>');
-    t = t.replace(/\*(.+?)\*/g,'<em>$1</em>');
-    t = t.replace(/_(.+?)_/g,'<em>$1</em>');
-    t = t.replace(/`([^`]+)`/g,'<code>$1</code>');
-    return t;
-  }
-
-  for (const line of lines) {
-    if (/^# /.test(line))    { closeLists(); html += '<h1>'+inline(line.slice(2))+'</h1>'; continue; }
-    if (/^## /.test(line))   { closeLists(); html += '<h2>'+inline(line.slice(3))+'</h2>'; continue; }
-    if (/^### /.test(line))  { closeLists(); html += '<h3>'+inline(line.slice(4))+'</h3>'; continue; }
-    if (/^#{4,} /.test(line)){ closeLists(); html += '<h3>'+inline(line.replace(/^#+\s/,''))+'</h3>'; continue; }
-    if (/^---+$/.test(line.trim())) { closeLists(); html += '<hr>'; continue; }
-    const ulm = line.match(/^\s*[-*+] (.*)/);
-    if (ulm) { if (!inUL){closeLists();html+='<ul>';inUL=true;} html+='<li>'+inline(ulm[1])+'</li>'; continue; }
-    const olm = line.match(/^\d+\. (.*)/);
-    if (olm) { if (!inOL){closeLists();html+='<ol>';inOL=true;} html+='<li>'+inline(olm[1])+'</li>'; continue; }
-    if (/^> /.test(line)) { closeLists(); html+='<blockquote>'+inline(line.slice(2))+'</blockquote>'; continue; }
-    if (!line.trim()) { closeLists(); continue; }
-    closeLists(); html += '<p>'+inline(line)+'</p>';
-  }
-  closeLists();
-  return html;
-}
-
-// ── Parse cost numbers from LLM text ──────────────────────
-function parseCosts(text) {
-  if (!text) return {};
-  const r = {};
-  const tot = text.match(/\*{0,2}\$[\d,]+\.?\d*\s*\/?\s*month\*{0,2}/i);
-  if (tot) r.total = tot[0].replace(/\*/g,'').trim();
-  const stor = text.match(/storage[^\n$]*\$[\d,]+\.?\d*/i);
-  if (stor) { const m=stor[0].match(/\$[\d,]+\.?\d*/); if(m) r.storage=m[0]; }
-  const etl = text.match(/etl[^\n$]*\$[\d,]+\.?\d*/i);
-  if (etl) { const m=etl[0].match(/\$[\d,]+\.?\d*/); if(m) r.etl=m[0]; }
-  const wh = text.match(/warehouse[^\n$]*\$[\d,]+\.?\d*/i);
-  if (wh) { const m=wh[0].match(/\$[\d,]+\.?\d*/); if(m) r.warehouse=m[0]; }
-  const orch = text.match(/orchestration[^\n$]*\$[\d,]+\.?\d*/i);
-  if (orch) { const m=orch[0].match(/\$[\d,]+\.?\d*/); if(m) r.orchestration=m[0]; }
-  const ing = text.match(/ingestion type:\s*\*{0,2}([^\n*]+)/i);
-  if (ing) r.ingType = ing[1].trim();
-  return r;
-}
-
-// ── Initialise ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const pipeRaw = {{ result.pipeline_architecture | tojson }};
-  const secRaw  = {{ result.security | tojson }};
-  const costRaw = {{ result.cost | tojson }};
-
-  document.getElementById('pipeline-md').innerHTML = md2html(pipeRaw);
-  document.getElementById('security-md').innerHTML  = md2html(secRaw);
-  document.getElementById('cost-md').innerHTML      = md2html(costRaw);
-
-  const c = parseCosts(costRaw);
-  if (c.total)        document.getElementById('costTotal').textContent     = c.total;
-  if (c.storage)      document.getElementById('costStorage').textContent   = c.storage;
-  if (c.etl)          document.getElementById('costETL').textContent       = c.etl;
-  if (c.warehouse)    document.getElementById('costWarehouse').textContent = c.warehouse;
-  if (c.orchestration)document.getElementById('costOrch').textContent     = c.orchestration;
-  if (c.ingType)      document.getElementById('costIngType').textContent   = c.ingType;
-
-  // Mermaid
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'base',
-    themeVariables: {
-      primaryColor: '#dbeafe',
-      primaryTextColor: '#0f172a',
-      primaryBorderColor: '#93c5fd',
-      lineColor: '#64748b',
-      secondaryColor: '#f1f5f9',
-      tertiaryColor: '#f8fafc',
-      fontSize: '13px'
+async function refreshSharedDataset() {
+    try {
+        const response = await fetch('/shared-dataset');
+        const data = await response.json();
+        if (data.shared_dataset && data.shared_dataset.name) {
+            alert(`Shared dataset available: ${data.shared_dataset.name}`);
+            window.location.reload();
+        } else {
+            alert('No shared dataset is currently set.');
+        }
+    } catch (e) {
+        alert('Unable to refresh shared dataset.');
     }
-  });
-
-  const el = document.getElementById('mermaidChart');
-  if (el) {
-    const src = el.textContent.trim();
-    if (src) {
-      mermaid.render('mermaid-out', src)
-        .then(({ svg }) => {
-          el.innerHTML = svg;
-          const s = el.querySelector('svg');
-          if (s) { s.style.maxWidth='100%'; s.style.height='auto'; }
-        })
-        .catch(err => {
-          el.innerHTML = '<pre style="font-size:12px;color:var(--muted);">'+el.textContent+'</pre>';
-        });
-    }
-  }
-});
+}
 </script>
-
-{% endif %}
 
 {% endblock %}

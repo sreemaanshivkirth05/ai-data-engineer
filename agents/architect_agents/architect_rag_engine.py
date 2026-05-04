@@ -1,51 +1,25 @@
 """
 architect_rag_engine.py
 
-RAG (Retrieval-Augmented Generation) engine for the Data Architect pipeline.
-
-Flow:
-  1. ArchitectResearchAgent  — searches the web for real-world architectures
-                               matching the detected domain + business requirements.
-  2. ArchitectKnowledgeBase  — curated in-memory library of reference architecture
-                               patterns. No external vector DB needed — uses TF-IDF
-                               cosine similarity for fast lightweight retrieval.
-  3. RAGContextBuilder       — assembles the retrieved web findings + matched patterns
-                               into a structured context block that each architect agent
-                               prepends to its own prompt.
-
-Usage (in architect_pipeline.py):
-    from agents.architect_agents.architect_rag_engine import RAGContextBuilder
-
-    rag = RAGContextBuilder(
-        business_requirements=requirements,
-        dataset_profile=profile,
-        domain=detected_domain
-    )
-    rag_context = rag.build()   # Call once, reuse across all agents
-
-    # Each agent receives rag_context and injects it into its prompt:
-    #   self.rag_context = rag_context
-    #   ... in _build_prompt(): f"{self.rag_context}\n\n{main_prompt}"
+RAG engine for the Data Architect pipeline with:
+- domain detection
+- hybrid retrieval
+- lightweight web research
+- focused sub-context generation
 """
 
 import re
 import math
-import json
 import time
 from typing import Dict, Any, List, Optional
 from collections import Counter
 
-# Web search — uses the requests library (standard in most Python envs)
 try:
     import requests
     _REQUESTS_AVAILABLE = True
 except ImportError:
     _REQUESTS_AVAILABLE = False
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. CURATED REFERENCE ARCHITECTURE KNOWLEDGE BASE
-# ─────────────────────────────────────────────────────────────────────────────
 
 REFERENCE_ARCHITECTURES = [
     {
@@ -297,17 +271,7 @@ Kafka (clickstream), SageMaker (ML features), Looker/Tableau.
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. LIGHTWEIGHT TF-IDF RETRIEVER
-# ─────────────────────────────────────────────────────────────────────────────
-
 class TFIDFRetriever:
-    """
-    Lightweight TF-IDF cosine similarity retriever.
-    No external vector DB, no embeddings API — pure Python.
-    Indexes the reference architecture knowledge base at init time.
-    """
-
     def __init__(self, documents: List[Dict]):
         self.docs = documents
         self._build_index()
@@ -318,8 +282,6 @@ class TFIDFRetriever:
         return [t for t in text.split() if len(t) > 2]
 
     def _build_index(self):
-        """Build TF-IDF vectors for all documents."""
-        # Combine all text fields per doc
         self.doc_texts = []
         for doc in self.docs:
             combined = " ".join([
@@ -330,18 +292,15 @@ class TFIDFRetriever:
             ])
             self.doc_texts.append(combined)
 
-        # Build vocabulary and IDF
         tokenised = [self._tokenise(t) for t in self.doc_texts]
         vocab = set(t for tokens in tokenised for t in tokens)
         n = len(self.doc_texts)
 
-        # IDF
         self.idf = {}
         for term in vocab:
             df = sum(1 for tokens in tokenised if term in tokens)
             self.idf[term] = math.log((n + 1) / (df + 1)) + 1
 
-        # TF-IDF vectors
         self.vectors = []
         for tokens in tokenised:
             tf = Counter(tokens)
@@ -354,14 +313,13 @@ class TFIDFRetriever:
         if not common:
             return 0.0
         dot = sum(vec_a[t] * vec_b[t] for t in common)
-        norm_a = math.sqrt(sum(v**2 for v in vec_a.values()))
-        norm_b = math.sqrt(sum(v**2 for v in vec_b.values()))
+        norm_a = math.sqrt(sum(v ** 2 for v in vec_a.values()))
+        norm_b = math.sqrt(sum(v ** 2 for v in vec_b.values()))
         if norm_a == 0 or norm_b == 0:
             return 0.0
         return dot / (norm_a * norm_b)
 
     def retrieve(self, query: str, top_k: int = 2) -> List[Dict]:
-        """Return top_k most similar reference architectures."""
         query_tokens = self._tokenise(query)
         if not query_tokens:
             return self.docs[:top_k]
@@ -379,31 +337,58 @@ class TFIDFRetriever:
 
         results = []
         for i, score in scores[:top_k]:
-            if score > 0.01:  # ignore near-zero matches
+            if score > 0.01:
                 results.append({**self.docs[i], "_score": round(score, 3)})
 
         return results
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. WEB RESEARCH AGENT
-# ─────────────────────────────────────────────────────────────────────────────
+class HybridArchitectureRetriever:
+    """
+    Combines keyword/domain scoring with TF-IDF similarity and reranks.
+    """
+
+    def __init__(self, documents: List[Dict]):
+        self.documents = documents
+        self.tfidf = TFIDFRetriever(documents)
+
+    def retrieve(self, query: str, domain: str = "", top_k: int = 3) -> List[Dict]:
+        tfidf_results = self.tfidf.retrieve(query, top_k=max(top_k + 2, 5))
+        tfidf_scores = {item["id"]: item.get("_score", 0.0) for item in tfidf_results}
+
+        ranked = []
+        q_lower = query.lower()
+        domain_lower = (domain or "").lower()
+
+        for doc in self.documents:
+            score = 0.0
+            score += float(tfidf_scores.get(doc["id"], 0.0)) * 3.0
+
+            if domain_lower and domain_lower in [d.lower() for d in doc.get("domains", [])]:
+                score += 2.5
+
+            keyword_hits = 0
+            for kw in doc.get("keywords", []):
+                if kw.lower() in q_lower:
+                    keyword_hits += 1
+            score += min(keyword_hits, 5) * 0.5
+
+            if ("real-time" in q_lower or "stream" in q_lower) and (
+                "lambda" in doc.get("id", "") or "kappa" in doc.get("id", "")
+            ):
+                score += 1.0
+
+            ranked.append({**doc, "_score": round(score, 3)})
+
+        ranked.sort(key=lambda x: x["_score"], reverse=True)
+        return ranked[:top_k]
+
 
 class ArchitectWebResearcher:
-    """
-    Searches the web for real-world architecture patterns matching the
-    detected domain and business requirements.
-
-    Uses DuckDuckGo Instant Answer API (free, no API key required) and
-    a curated list of known architecture resource URLs as fallback.
-    Falls back gracefully if network is unavailable.
-    """
-
     DDG_URL = "https://api.duckduckgo.com/"
     TIMEOUT = 8
 
     def search(self, query: str, max_results: int = 3) -> List[Dict]:
-        """Search DuckDuckGo and return structured findings."""
         if not _REQUESTS_AVAILABLE:
             return []
 
@@ -427,7 +412,6 @@ class ArchitectWebResearcher:
             data = resp.json()
             results = []
 
-            # Abstract (main result)
             abstract = data.get("Abstract", "").strip()
             abstract_source = data.get("AbstractSource", "")
             abstract_url = data.get("AbstractURL", "")
@@ -439,7 +423,6 @@ class ArchitectWebResearcher:
                     "summary": abstract[:600]
                 })
 
-            # Related topics
             for topic in data.get("RelatedTopics", [])[:max_results]:
                 if isinstance(topic, dict) and topic.get("Text"):
                     results.append({
@@ -460,9 +443,6 @@ class ArchitectWebResearcher:
         requirements: str,
         top_queries: int = 2
     ) -> str:
-        """
-        Run targeted searches and return a formatted findings block.
-        """
         queries = self._build_queries(domain, requirements)
         all_findings = []
 
@@ -471,7 +451,7 @@ class ArchitectWebResearcher:
             for f in findings:
                 if f.get("summary"):
                     all_findings.append(f)
-            time.sleep(0.3)  # polite rate limiting
+            time.sleep(0.3)
 
         if not all_findings:
             return ""
@@ -487,15 +467,12 @@ class ArchitectWebResearcher:
         return "\n".join(lines)
 
     def _build_queries(self, domain: str, requirements: str) -> List[str]:
-        """Build focused search queries from domain and requirements."""
         req_lower = requirements.lower()
         queries = []
 
-        # Domain-specific architecture query
         if domain and domain != "unknown":
             queries.append(f"{domain} data platform architecture best practices 2024")
 
-        # Technology-specific queries based on keywords in requirements
         tech_signals = {
             "real-time": "real-time streaming data architecture kafka flink",
             "stream": "streaming data pipeline architecture best practices",
@@ -514,22 +491,11 @@ class ArchitectWebResearcher:
                 queries.append(query)
                 break
 
-        # Generic fallback
         queries.append("modern data platform architecture patterns 2024")
-
         return queries
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. DOMAIN DETECTOR
-# ─────────────────────────────────────────────────────────────────────────────
-
 class DomainDetector:
-    """
-    Detects the business domain from requirements text and dataset profile.
-    Returns a normalised domain string used for retrieval and web search.
-    """
-
     DOMAIN_SIGNALS = {
         "healthcare": ["patient", "clinical", "hospital", "ehr", "fhir", "medical",
                        "diagnosis", "treatment", "pharma", "health", "hipaa", "phi"],
@@ -543,7 +509,7 @@ class DomainDetector:
         "iot": ["sensor", "device", "telemetry", "signal", "firmware", "mqtt",
                 "time series", "machine", "equipment", "asset"],
         "telecommunications": ["subscriber", "call", "network", "churn", "plan",
-                                "usage", "billing", "bandwidth", "mobile"],
+                               "usage", "billing", "bandwidth", "mobile"],
         "hr": ["employee", "payroll", "hire", "headcount", "department", "salary",
                "performance", "attendance", "leave", "workforce"],
         "marketing": ["campaign", "impression", "click", "conversion", "lead",
@@ -553,10 +519,8 @@ class DomainDetector:
     }
 
     def detect(self, requirements: str, profile: Dict) -> str:
-        """Return the most likely domain string."""
         text = requirements.lower()
 
-        # Also include column names from profile
         columns = profile.get("columns", []) or []
         col_names = " ".join(
             str(c.get("name", "") if isinstance(c, dict) else c).lower()
@@ -576,19 +540,11 @@ class DomainDetector:
         return max(scores, key=scores.get)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. RAG CONTEXT BUILDER — main entry point
-# ─────────────────────────────────────────────────────────────────────────────
-
 class RAGContextBuilder:
     """
-    Assembles RAG context for all architect agents.
-
-    Call .build() once at the start of the architect pipeline.
-    Pass the returned string to each agent's constructor.
-
-    Each agent injects it at the top of its prompt so the LLM
-    reasons from real-world patterns before generating its output.
+    Builds both:
+    - a full shared rag_context
+    - focused subcontexts for different architecture agents
     """
 
     def __init__(
@@ -602,29 +558,19 @@ class RAGContextBuilder:
         self.profile = dataset_profile or {}
         self.enable_web_search = enable_web_search
 
-        # Detect domain if not provided
         self.domain = domain or DomainDetector().detect(
             self.requirements, self.profile
         )
 
-        # Build retriever
-        self.retriever = TFIDFRetriever(REFERENCE_ARCHITECTURES)
-
-        # Web researcher
+        self.retriever = HybridArchitectureRetriever(REFERENCE_ARCHITECTURES)
         self.researcher = ArchitectWebResearcher()
 
     def build(self) -> str:
-        """
-        Build and return the complete RAG context block.
-        This string is prepended to every architect agent's prompt.
-        """
         query = f"{self.domain} {self.requirements}"
 
-        # --- Retrieve reference patterns ---
-        matched = self.retriever.retrieve(query, top_k=2)
+        matched = self.retriever.retrieve(query, domain=self.domain, top_k=3)
         pattern_block = self._format_patterns(matched)
 
-        # --- Web research ---
         web_block = ""
         if self.enable_web_search:
             try:
@@ -635,7 +581,6 @@ class RAGContextBuilder:
             except Exception:
                 web_block = ""
 
-        # --- Assemble ---
         sections = [
             "=" * 70,
             "RAG CONTEXT — RETRIEVED ARCHITECTURE KNOWLEDGE",
@@ -662,6 +607,22 @@ class RAGContextBuilder:
 
         return "\n".join(sections)
 
+    def build_subcontexts(self) -> Dict[str, str]:
+        topics = {
+            "ingestion": f"{self.domain} ingestion batch cdc streaming {self.requirements}",
+            "storage": f"{self.domain} storage lakehouse warehouse bronze silver gold {self.requirements}",
+            "orchestration": f"{self.domain} orchestration scheduling monitoring airflow dag {self.requirements}",
+            "security": f"{self.domain} security governance pii compliance iam encryption {self.requirements}",
+            "cost": f"{self.domain} cost estimation warehouse compute storage {self.requirements}",
+        }
+
+        subcontexts: Dict[str, str] = {}
+        for name, query in topics.items():
+            matched = self.retriever.retrieve(query, domain=self.domain, top_k=2)
+            subcontexts[name] = self._format_patterns(matched)
+
+        return subcontexts
+
     def _format_patterns(self, patterns: List[Dict]) -> str:
         if not patterns:
             return ""
@@ -670,8 +631,10 @@ class RAGContextBuilder:
         for p in patterns:
             score = p.get("_score", 0)
             lines.append(f"### {p['title']} (relevance: {score:.2f})")
-            lines.append(f"**Complexity:** {p.get('complexity', 'unknown')} | "
-                         f"**Est. cost:** {p.get('cost_range', 'unknown')}")
+            lines.append(
+                f"**Complexity:** {p.get('complexity', 'unknown')} | "
+                f"**Est. cost:** {p.get('cost_range', 'unknown')}"
+            )
             lines.append(p.get("pattern", "").strip())
             lines.append("")
 

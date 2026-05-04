@@ -8,3 +8,5 @@ requests
 huggingface_hub
 python-dotenv
 openpyxl
+pyarrow
+itsdangerous

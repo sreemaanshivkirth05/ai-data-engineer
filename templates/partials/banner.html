@@ -1,0 +1,60 @@
+{% macro banner(title, text, theme="dark", actions_html="") %}
+    {% if theme == "dark" %}
+        {% set bg = "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)" %}
+        {% set title_color = "#ffffff" %}
+        {% set text_color = "#cbd5e1" %}
+        {% set border = "none" %}
+    {% elif theme == "blue" %}
+        {% set bg = "linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)" %}
+        {% set title_color = "#1d4ed8" %}
+        {% set text_color = "#475569" %}
+        {% set border = "1px solid #bfdbfe" %}
+    {% elif theme == "green" %}
+        {% set bg = "linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%)" %}
+        {% set title_color = "#166534" %}
+        {% set text_color = "#475569" %}
+        {% set border = "1px solid #bbf7d0" %}
+    {% elif theme == "red" %}
+        {% set bg = "linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)" %}
+        {% set title_color = "#b91c1c" %}
+        {% set text_color = "#475569" %}
+        {% set border = "1px solid #fecaca" %}
+    {% else %}
+        {% set bg = "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)" %}
+        {% set title_color = "#0f172a" %}
+        {% set text_color = "#475569" %}
+        {% set border = "1px solid #e2e8f0" %}
+    {% endif %}
+
+    <div
+        style="
+            background: {{ bg }};
+            border-radius: 22px;
+            padding: 24px 26px;
+            color: {{ title_color }};
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            flex-wrap: wrap;
+            {% if border != 'none' %}border: {{ border }};{% endif %}
+        "
+    >
+        <div>
+            <h2 style="margin:0 0 6px 0; font-size:24px; font-weight:900; color: {{ title_color }};">
+                {{ title }}
+            </h2>
+            <p style="margin:0; color: {{ text_color }}; font-size:14px; line-height:1.7; max-width:760px;">
+                {{ text }}
+            </p>
+        </div>
+
+        {% if actions_html %}
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            {{ actions_html | safe }}
+        </div>
+        {% endif %}
+    </div>
+{% endmacro %}

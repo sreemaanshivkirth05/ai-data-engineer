@@ -1,534 +1,515 @@
 {% extends "layout.html" %}
 {% block title %}Home · AI Data Platform{% endblock %}
 {% block nav_home %}active{% endblock %}
+{% block topbar_title %}AI Data Platform{% endblock %}
+{% block topbar_subtitle %}A connected workspace for cleaning, analysis, reporting, and architecture design.{% endblock %}
+{% block topbar_chip %}Platform overview{% endblock %}
 
 {% block head_scripts %}
 <style>
-  /* ── HOME-SPECIFIC STYLES ──────────────────── */
-  .hero-block{
-    background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);
-    border-radius:var(--radius);
-    padding:48px 40px;
-    margin-bottom:24px;
-    position:relative;
-    overflow:hidden;
-  }
-  .hero-block::before{
-    content:'';
-    position:absolute;
-    top:-80px; right:-80px;
-    width:320px; height:320px;
-    background:radial-gradient(circle,rgba(37,99,235,.25) 0%,transparent 70%);
-    pointer-events:none;
-  }
-  .hero-eyebrow{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    background:rgba(37,99,235,.25);
-    border:1px solid rgba(37,99,235,.4);
-    color:#93c5fd;
-    font-size:12px;
-    font-weight:700;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    padding:7px 14px;
-    border-radius:999px;
-    margin-bottom:20px;
-  }
-  .hero-dot{
-    width:6px; height:6px;
-    background:#22d3ee;
-    border-radius:50%;
-    animation:blink 2s ease-in-out infinite;
-  }
-  @keyframes blink{ 0%,100%{opacity:1} 50%{opacity:.3} }
-  .hero-title{
-    font-size:clamp(28px,4vw,48px);
-    font-weight:800;
-    line-height:1.1;
-    color:#fff;
-    margin-bottom:16px;
-    letter-spacing:-.02em;
-  }
-  .hero-title span{ color:#60a5fa; }
-  .hero-subtitle{
-    font-size:16px;
-    color:#94a3b8;
-    line-height:1.75;
-    max-width:620px;
-    margin-bottom:32px;
-  }
-  .hero-cta-row{
-    display:flex;
-    gap:12px;
-    flex-wrap:wrap;
-  }
-  .cta-primary{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    background:var(--primary);
-    color:#fff;
-    padding:13px 22px;
-    border-radius:12px;
-    font-size:14px;
-    font-weight:700;
-    text-decoration:none;
-    transition:background .15s, transform .1s;
-    box-shadow:0 6px 20px rgba(37,99,235,.35);
-  }
-  .cta-primary:hover{ background:var(--primary-2); transform:translateY(-1px); text-decoration:none; }
-  .cta-secondary{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    background:rgba(255,255,255,.1);
-    border:1px solid rgba(255,255,255,.15);
-    color:#e2e8f0;
-    padding:13px 22px;
-    border-radius:12px;
-    font-size:14px;
-    font-weight:700;
-    text-decoration:none;
-    transition:background .15s;
-  }
-  .cta-secondary:hover{ background:rgba(255,255,255,.15); text-decoration:none; }
-
-  .hero-stats{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:16px;
-    margin-top:36px;
-    padding-top:28px;
-    border-top:1px solid rgba(255,255,255,.08);
-  }
-  .hero-stat-val{
-    font-size:28px;
-    font-weight:800;
-    color:#fff;
-    line-height:1;
-    margin-bottom:4px;
-  }
-  .hero-stat-label{
-    font-size:12px;
-    color:#64748b;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-weight:600;
-  }
-
-  /* ── MODULE CARDS ─────────────────────────── */
-  .module-grid{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:20px;
-    margin-bottom:24px;
-  }
-  .module-card{
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:28px 24px;
-    box-shadow:var(--shadow);
-    text-decoration:none;
-    color:var(--text);
-    display:flex;
-    flex-direction:column;
-    transition:transform .2s, box-shadow .2s, border-color .2s;
-    position:relative;
-    overflow:hidden;
-  }
-  .module-card::after{
-    content:'';
-    position:absolute;
-    bottom:0; left:0; right:0;
-    height:3px;
-    background:var(--accent-color, var(--primary));
-    transform:scaleX(0);
-    transform-origin:left;
-    transition:transform .25s;
-  }
-  .module-card:hover{
-    transform:translateY(-3px);
-    box-shadow:0 20px 48px rgba(15,23,42,.12);
-    border-color:var(--accent-color, var(--primary));
-    text-decoration:none;
-    color:var(--text);
-  }
-  .module-card:hover::after{ transform:scaleX(1); }
-
-  .module-card-blue{ --accent-color:#2563eb; }
-  .module-card-green{ --accent-color:#16a34a; }
-  .module-card-purple{ --accent-color:#7c3aed; }
-
-  .module-icon-wrap{
-    width:52px; height:52px;
-    border-radius:14px;
-    display:flex; align-items:center; justify-content:center;
-    font-size:24px;
-    margin-bottom:18px;
-    flex-shrink:0;
-  }
-  .module-icon-blue{ background:#dbeafe; }
-  .module-icon-green{ background:#dcfce7; }
-  .module-icon-purple{ background:#ede9fe; }
-
-  .module-name{
-    font-size:17px;
-    font-weight:800;
-    margin-bottom:8px;
-    line-height:1.3;
-  }
-  .module-desc{
-    font-size:14px;
-    color:var(--muted);
-    line-height:1.7;
-    flex:1;
-    margin-bottom:20px;
-  }
-  .module-features{
-    list-style:none;
-    padding:0;
-    margin:0 0 20px;
-  }
-  .module-features li{
-    font-size:13px;
-    color:var(--muted);
-    margin-bottom:5px;
-    display:flex;
-    align-items:center;
-    gap:7px;
-  }
-  .module-features li::before{
-    content:'';
-    width:5px; height:5px;
-    border-radius:50%;
-    background:var(--accent-color, var(--primary));
-    flex-shrink:0;
-  }
-  .module-cta{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    font-size:13px;
-    font-weight:700;
-    color:var(--accent-color, var(--primary));
-  }
-
-  /* ── PIPELINE DIAGRAM CARD ────────────────── */
-  .pipeline-card{
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-    padding:28px;
-    margin-bottom:24px;
-  }
-  .pipeline-diagram{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:20px;
-    margin-top:20px;
-  }
-  .pipeline-branch{
-    background:#f8fafc;
-    border:1px solid var(--border);
-    border-radius:14px;
-    padding:18px;
-  }
-  .pipeline-branch-title{
-    font-size:13px;
-    font-weight:800;
-    margin-bottom:12px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .pipeline-branch-icon{
-    font-size:15px;
-  }
-  .pipeline-agent{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    padding:6px 10px;
-    background:#fff;
-    border:1px solid var(--border);
-    border-radius:8px;
-    margin-bottom:6px;
-    font-size:12px;
-    font-weight:600;
-    color:var(--text);
-  }
-  .agent-dot{
-    width:6px; height:6px;
-    border-radius:50%;
-    flex-shrink:0;
-  }
-  .dot-blue{ background:#2563eb; }
-  .dot-green{ background:#16a34a; }
-  .dot-purple{ background:#7c3aed; }
-
-  /* ── HOW IT WORKS ─────────────────────────── */
-  .steps-grid{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:16px;
-    margin-bottom:24px;
-  }
-  .step-card{
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:22px;
-    box-shadow:var(--shadow);
-    text-align:center;
-  }
-  .step-num{
-    width:36px; height:36px;
-    border-radius:50%;
-    background:var(--blue-soft);
-    color:var(--primary);
-    font-size:15px;
-    font-weight:800;
-    display:flex; align-items:center; justify-content:center;
-    margin:0 auto 14px;
-  }
-  .step-title{
-    font-size:14px;
-    font-weight:800;
-    margin-bottom:6px;
-  }
-  .step-desc{
-    font-size:13px;
-    color:var(--muted);
-    line-height:1.6;
-  }
-
-  /* ── CAPABILITIES ROW ─────────────────────── */
-  .caps-grid{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:14px;
-    margin-bottom:24px;
-  }
-  .cap-item{
-    display:flex;
-    align-items:flex-start;
-    gap:12px;
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:14px;
-    padding:16px;
-    box-shadow:0 2px 8px rgba(15,23,42,.04);
-  }
-  .cap-icon{
-    font-size:20px;
-    flex-shrink:0;
-    margin-top:2px;
-  }
-  .cap-title{
-    font-size:13px;
-    font-weight:700;
-    margin-bottom:3px;
-  }
-  .cap-desc{
-    font-size:12px;
-    color:var(--muted);
-    line-height:1.5;
-  }
-
-  @media(max-width:900px){
-    .module-grid,.pipeline-diagram,.steps-grid,.caps-grid{
-      grid-template-columns:1fr;
+    .hero-grid{
+        display:grid;
+        grid-template-columns:1.35fr .9fr;
+        gap:20px;
+        margin-bottom:24px;
     }
-    .hero-stats{ grid-template-columns:1fr 1fr; }
-    .hero-block{ padding:32px 24px; }
-  }
+
+    .hero-bullets{
+        margin-top:18px;
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:12px;
+    }
+
+    .hero-bullet{
+        background:#ffffff;
+        border:1px solid var(--border);
+        border-radius:14px;
+        padding:14px 14px;
+    }
+
+    .hero-bullet-title{
+        font-size:13px;
+        font-weight:800;
+        margin-bottom:6px;
+    }
+
+    .hero-bullet-text{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
+
+    .hero-side{
+        display:grid;
+        gap:16px;
+    }
+
+    .hero-mini{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:18px;
+        padding:18px;
+        box-shadow:var(--shadow);
+    }
+
+    .hero-mini-title{
+        font-size:12px;
+        color:var(--muted);
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        font-weight:800;
+        margin-bottom:10px;
+    }
+
+    .hero-mini-value{
+        font-size:28px;
+        font-weight:900;
+        line-height:1.15;
+        margin-bottom:8px;
+    }
+
+    .hero-mini-note{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
+
+    .hero-cta-row{
+        display:flex;
+        gap:12px;
+        flex-wrap:wrap;
+        margin-top:18px;
+    }
+
+    .hero-cta{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+        border-radius:14px;
+        padding:14px 18px;
+        font-size:14px;
+        font-weight:800;
+        text-decoration:none;
+    }
+
+    .hero-cta.primary{
+        background:#2563eb;
+        color:#fff;
+        box-shadow:0 8px 18px rgba(37,99,235,.22);
+    }
+
+    .hero-cta.secondary{
+        background:#fff;
+        color:#0f172a;
+        border:1px solid var(--border);
+    }
+
+    .workflow-grid{
+        display:grid;
+        grid-template-columns:repeat(3, 1fr);
+        gap:18px;
+        margin-bottom:22px;
+    }
+
+    .workflow-card{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:20px;
+        box-shadow:var(--shadow);
+        padding:22px;
+        display:flex;
+        flex-direction:column;
+        min-height:310px;
+    }
+
+    .workflow-icon{
+        width:46px;
+        height:46px;
+        border-radius:14px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:22px;
+        margin-bottom:14px;
+    }
+
+    .wf-green{ background:var(--green-soft); }
+    .wf-blue{ background:var(--blue-soft); }
+    .wf-purple{ background:var(--purple-soft); }
+
+    .workflow-kicker{
+        display:inline-block;
+        font-size:11px;
+        font-weight:800;
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        color:var(--muted);
+        margin-bottom:10px;
+    }
+
+    .workflow-title{
+        font-size:24px;
+        font-weight:900;
+        line-height:1.2;
+        margin-bottom:10px;
+    }
+
+    .workflow-text{
+        font-size:14px;
+        color:var(--muted);
+        line-height:1.75;
+        margin-bottom:16px;
+    }
+
+    .workflow-list{
+        margin:0 0 18px 0;
+        padding-left:18px;
+    }
+
+    .workflow-list li{
+        font-size:14px;
+        line-height:1.7;
+        margin-bottom:8px;
+    }
+
+    .workflow-actions{
+        margin-top:auto;
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+    }
+
+    .workflow-btn{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+        border:none;
+        border-radius:12px;
+        padding:12px 16px;
+        font-size:14px;
+        font-weight:800;
+        text-decoration:none;
+        cursor:pointer;
+    }
+
+    .workflow-btn.primary{
+        background:linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+        color:#fff;
+        box-shadow:0 10px 24px rgba(37,99,235,.18);
+    }
+
+    .journey-card{
+        margin-bottom:22px;
+    }
+
+    .journey-strip{
+        display:grid;
+        grid-template-columns:1fr auto 1fr auto 1fr;
+        gap:12px;
+        align-items:center;
+        margin-top:14px;
+    }
+
+    .journey-step{
+        background:#f8fafc;
+        border:1px solid var(--border);
+        border-radius:16px;
+        padding:18px;
+    }
+
+    .journey-step-title{
+        font-size:12px;
+        color:var(--muted);
+        text-transform:uppercase;
+        letter-spacing:.06em;
+        font-weight:800;
+        margin-bottom:8px;
+    }
+
+    .journey-step-value{
+        font-size:20px;
+        font-weight:900;
+        margin-bottom:8px;
+    }
+
+    .journey-step-text{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.6;
+    }
+
+    .journey-arrow{
+        font-size:24px;
+        color:var(--muted);
+        text-align:center;
+    }
+
+    .feature-grid{
+        display:grid;
+        grid-template-columns:repeat(4, 1fr);
+        gap:16px;
+    }
+
+    .feature-card{
+        background:#f8fafc;
+        border:1px solid var(--border);
+        border-radius:16px;
+        padding:18px;
+    }
+
+    .feature-title{
+        font-size:15px;
+        font-weight:800;
+        margin-bottom:8px;
+    }
+
+    .feature-text{
+        font-size:13px;
+        color:var(--muted);
+        line-height:1.65;
+    }
+
+    .demo-grid{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:20px;
+    }
+
+    .demo-card{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:18px;
+        box-shadow:var(--shadow);
+        padding:22px;
+    }
+
+    .demo-title{
+        font-size:18px;
+        font-weight:900;
+        margin-bottom:10px;
+    }
+
+    .demo-list{
+        margin:0;
+        padding-left:18px;
+    }
+
+    .demo-list li{
+        margin-bottom:8px;
+        font-size:14px;
+        line-height:1.7;
+    }
+
+    @media (max-width: 1100px){
+        .hero-grid,
+        .workflow-grid,
+        .feature-grid,
+        .journey-strip,
+        .demo-grid{
+            grid-template-columns:1fr;
+        }
+
+        .hero-bullets{
+            grid-template-columns:1fr;
+        }
+
+        .journey-arrow{
+            transform:rotate(90deg);
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- HERO -->
-<div class="hero-block">
-  <div class="hero-eyebrow"><span class="hero-dot"></span>Industry Innovation Summit 2026</div>
-  <h1 class="hero-title">Human-Centered<br><span>Agentic AI</span> for<br>Modern Data Workflows</h1>
-  <p class="hero-subtitle">
-    A multi-agent platform that unifies data engineering, analysis, and architecture design
-    into one coordinated workflow — transforming raw data into structured, actionable outputs.
-  </p>
-  <div class="hero-cta-row">
-    <a href="/analyst" class="cta-primary">📊 Start Analysing →</a>
-    <a href="/engineer" class="cta-secondary">🧹 Clean a Dataset</a>
-    <a href="/architect" class="cta-secondary">🏗️ Design Architecture</a>
-  </div>
-  <div class="hero-stats">
-    <div>
-      <div class="hero-stat-val">5+</div>
-      <div class="hero-stat-label">Specialized AI agents</div>
+<div class="hero-grid">
+    <div class="hero-card">
+        <div class="page-eyebrow">Unified AI Data Workspace</div>
+        <h1 class="page-title">From messy raw data to insight stories and architecture proposals — in one connected platform.</h1>
+        <p class="page-subtitle">
+            AI Data Platform is built as a product workflow, not a collection of disconnected demos. Clean raw data, ask business questions, export reports, and design a target-state data architecture with shared dataset continuity across the experience.
+        </p>
+
+        <div class="hero-bullets">
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Cleaner → Analysis handoff</div>
+                <div class="hero-bullet-text">Move a cleaned dataset directly into the analysis workspace without re-uploading it.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Storyboard analysis</div>
+                <div class="hero-bullet-text">Get a direct answer, KPI strip, hero chart, supporting visuals, and business narrative in one response.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Architecture grounded in context</div>
+                <div class="hero-bullet-text">Generate ingestion, storage, orchestration, security, cost, and diagram output from real requirements.</div>
+            </div>
+            <div class="hero-bullet">
+                <div class="hero-bullet-title">Exportable outputs</div>
+                <div class="hero-bullet-text">Use built-in report pages and downloads to make the results demo-ready and presentation-friendly.</div>
+            </div>
+        </div>
+
+        <div class="hero-cta-row">
+            <a href="/clean" class="hero-cta primary">Start with Cleaner</a>
+            <a href="/analyst" class="hero-cta secondary">Open Analysis</a>
+        </div>
     </div>
-    <div>
-      <div class="hero-stat-val">3</div>
-      <div class="hero-stat-label">Platform modules</div>
+
+    <div class="hero-side">
+        <div class="hero-mini">
+            <div class="hero-mini-title">Core workflow</div>
+            <div class="hero-mini-value">Clean → Analyze → Report → Architect</div>
+            <div class="hero-mini-note">Each workspace supports the next stage of the product story.</div>
+        </div>
+        <div class="hero-mini">
+            <div class="hero-mini-title">Best for</div>
+            <div class="hero-mini-value">Portfolio demos, academic showcases, product presentations</div>
+            <div class="hero-mini-note">Designed to feel polished, explainable, and easy to walk through live.</div>
+        </div>
     </div>
-    <div>
-      <div class="hero-stat-val">&lt;30s</div>
-      <div class="hero-stat-label">Analysis response time</div>
-    </div>
-  </div>
 </div>
 
-<!-- MODULE CARDS -->
-<div class="module-grid">
+<div class="workflow-grid">
+    <div class="workflow-card">
+        <div class="workflow-icon wf-green">🧹</div>
+        <div class="workflow-kicker">Workspace 1</div>
+        <div class="workflow-title">Data Cleaner</div>
+        <div class="workflow-text">
+            Profile raw files, detect issues, apply deterministic cleaning, and prepare an analysis-ready dataset with before/after visibility.
+        </div>
+        <ul class="workflow-list">
+            <li>Handle missing values, duplicates, placeholder noise, and type inconsistencies</li>
+            <li>Return execution logs and validation checks</li>
+            <li>Send cleaned output directly into Analysis</li>
+        </ul>
+        <div class="workflow-actions">
+            <a href="/clean" class="workflow-btn primary">Open Cleaner →</a>
+        </div>
+    </div>
 
-  <a href="/engineer" class="module-card module-card-green">
-    <div class="module-icon-wrap module-icon-green">🧹</div>
-    <div class="module-name">AI Data Engineer</div>
-    <p class="module-desc">Upload any dataset and let the engineering pipeline profile, clean, and validate it for downstream use.</p>
-    <ul class="module-features">
-      <li>Dataset profiling and schema detection</li>
-      <li>Missing value and outlier handling</li>
-      <li>Duplicate removal and validation</li>
-      <li>Downloadable cleaned dataset</li>
-    </ul>
-    <div class="module-cta">Open Data Engineer →</div>
-  </a>
+    <div class="workflow-card">
+        <div class="workflow-icon wf-blue">📊</div>
+        <div class="workflow-kicker">Workspace 2</div>
+        <div class="workflow-title">Data Analysis</div>
+        <div class="workflow-text">
+            Ask a natural-language question and receive an insight board with KPIs, charts, narrative, follow-ups, and exportable reporting.
+        </div>
+        <ul class="workflow-list">
+            <li>Direct answer + executive summary</li>
+            <li>KPI strip, hero chart, supporting visuals, and business narrative</li>
+            <li>Analysis report export for demos and reviews</li>
+        </ul>
+        <div class="workflow-actions">
+            <a href="/analyst" class="workflow-btn primary">Open Analysis →</a>
+        </div>
+    </div>
 
-  <a href="/analyst" class="module-card module-card-blue">
-    <div class="module-icon-wrap module-icon-blue">📊</div>
-    <div class="module-name">AI Data Analyst</div>
-    <p class="module-desc">Ask business questions in plain English and receive KPI summaries, ECharts visualisations, and a written narrative.</p>
-    <ul class="module-features">
-      <li>Natural-language question understanding</li>
-      <li>Automated target and driver selection</li>
-      <li>4-chart answer sets with narrative</li>
-      <li>Follow-up question suggestions</li>
-    </ul>
-    <div class="module-cta">Open Data Analyst →</div>
-  </a>
-
-  <a href="/architect" class="module-card module-card-purple">
-    <div class="module-icon-wrap module-icon-purple">🏗️</div>
-    <div class="module-name">AI Data Architect</div>
-    <p class="module-desc">Describe your business requirements and data sources — get a full pipeline architecture, governance plan, and cost estimate.</p>
-    <ul class="module-features">
-      <li>End-to-end pipeline design</li>
-      <li>Security and governance recommendations</li>
-      <li>Infrastructure cost estimation</li>
-      <li>Architecture diagram generation</li>
-    </ul>
-    <div class="module-cta">Open Data Architect →</div>
-  </a>
-
+    <div class="workflow-card">
+        <div class="workflow-icon wf-purple">🏗️</div>
+        <div class="workflow-kicker">Workspace 3</div>
+        <div class="workflow-title">Data Architecture</div>
+        <div class="workflow-text">
+            Transform business requirements and dataset context into a structured architecture proposal with system sections and diagram output.
+        </div>
+        <ul class="workflow-list">
+            <li>Generate contract, ingestion, storage, orchestration, governance, cost, and diagram sections</li>
+            <li>Use shared dataset context for stronger architecture grounding</li>
+            <li>Export architecture reports for review and demo use</li>
+        </ul>
+        <div class="workflow-actions">
+            <a href="/architect" class="workflow-btn primary">Open Architecture →</a>
+        </div>
+    </div>
 </div>
 
-<!-- HOW IT WORKS -->
+<div class="card journey-card">
+    <div class="card-header">
+        <div class="section-badge badge-blue">Connected journey</div>
+        <div class="card-title">How to demo the full product in the best order</div>
+        <p class="card-subtitle">
+            This product feels strongest when shown as one connected workflow instead of isolated pages.
+        </p>
+    </div>
+
+    <div class="journey-strip">
+        <div class="journey-step">
+            <div class="journey-step-title">Step 1</div>
+            <div class="journey-step-value">Clean the dataset</div>
+            <div class="journey-step-text">Start with a messy file and show deterministic cleaning plus before/after comparisons.</div>
+        </div>
+
+        <div class="journey-arrow">→</div>
+
+        <div class="journey-step">
+            <div class="journey-step-title">Step 2</div>
+            <div class="journey-step-value">Analyze business questions</div>
+            <div class="journey-step-text">Ask natural-language questions and show insight boards with KPIs, charts, and narrative.</div>
+        </div>
+
+        <div class="journey-arrow">→</div>
+
+        <div class="journey-step">
+            <div class="journey-step-title">Step 3</div>
+            <div class="journey-step-value">Generate architecture</div>
+            <div class="journey-step-text">Use dataset context and business requirements to propose a target data platform design.</div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
-  <div class="pill pill-blue">How it works</div>
-  <h2>Four steps from raw data to business insight</h2>
-  <p class="muted" style="margin-bottom:0;">Each module runs an automated multi-agent pipeline that handles the full analytical lifecycle.</p>
+    <div class="card-header">
+        <div class="section-badge badge-purple">Why this product feels stronger</div>
+        <div class="card-title">Built like a connected product, not a single-screen prototype</div>
+        <p class="card-subtitle">
+            The real value comes from continuity, explanation quality, and presentation readiness across the entire workflow.
+        </p>
+    </div>
 
-  <div class="steps-grid" style="margin-top:20px; margin-bottom:0;">
-    <div class="step-card">
-      <div class="step-num">1</div>
-      <div class="step-title">Upload or Describe</div>
-      <div class="step-desc">Upload a CSV or Excel file, or describe your business requirements and data sources.</div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="feature-title">Shared dataset continuity</div>
+            <div class="feature-text">Cleaner, Analysis, and Architecture can reuse the same active dataset across the workflow.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">Business-first presentation</div>
+            <div class="feature-text">Results are designed to be understandable before the viewer needs to inspect technical detail.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">Exportable report layer</div>
+            <div class="feature-text">Analysis and architecture outputs can be viewed in dedicated report pages and downloaded as markdown.</div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">Demo-safe fallback UX</div>
+            <div class="feature-text">Errors, empty states, and missing outputs are surfaced clearly instead of making the interface look broken.</div>
+        </div>
     </div>
-    <div class="step-card">
-      <div class="step-num">2</div>
-      <div class="step-title">Agents Collaborate</div>
-      <div class="step-desc">Specialized AI agents run in sequence — profiling, planning, analysing, and generating outputs.</div>
-    </div>
-    <div class="step-card">
-      <div class="step-num">3</div>
-      <div class="step-title">Results Surface</div>
-      <div class="step-desc">KPI cards, ECharts visuals, written narrative, and a business story appear in seconds.</div>
-    </div>
-    <div class="step-card">
-      <div class="step-num">4</div>
-      <div class="step-title">Continue the Thread</div>
-      <div class="step-desc">Ask follow-up questions inline. The dataset stays loaded across the entire session.</div>
-    </div>
-  </div>
 </div>
 
-<!-- AGENT PIPELINE DIAGRAM -->
-<div class="pipeline-card">
-  <div class="pill pill-purple">Agentic architecture</div>
-  <h2>How the multi-agent pipeline works</h2>
-  <p class="muted">Each module is powered by a dedicated set of specialized agents that share context and coordinate reasoning.</p>
-
-  <div class="pipeline-diagram">
-    <div class="pipeline-branch">
-      <div class="pipeline-branch-title">
-        <span class="pipeline-branch-icon">🧹</span>
-        Data Engineer Pipeline
-      </div>
-      <div class="pipeline-agent"><span class="agent-dot dot-green"></span>Dataset Profiler Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-green"></span>Schema Contract Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-green"></span>Ingestion Strategy Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-green"></span>Storage Layout Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-green"></span>Orchestration Agent</div>
+<div class="demo-grid">
+    <div class="demo-card">
+        <div class="section-badge badge-green">Demo strategy</div>
+        <div class="demo-title">Best 3-minute walkthrough</div>
+        <ul class="demo-list">
+            <li>Upload a messy dataset in Cleaner and show the output quality summary.</li>
+            <li>Send the cleaned file into Analysis and ask a business question.</li>
+            <li>Open the report page to show exportability and presentation readiness.</li>
+            <li>Finish in Architecture to show the end-to-end product vision.</li>
+        </ul>
     </div>
 
-    <div class="pipeline-branch">
-      <div class="pipeline-branch-title">
-        <span class="pipeline-branch-icon">📊</span>
-        Data Analyst Pipeline
-      </div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>Question Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>Planner Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>Selection Policy</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>KPI + Analysis Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>Visualization Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-blue"></span>Narrative Agent</div>
+    <div class="demo-card">
+        <div class="section-badge badge-blue">Presentation notes</div>
+        <div class="demo-title">What this product communicates well</div>
+        <ul class="demo-list">
+            <li>It solves more than one pain point in the modern data workflow.</li>
+            <li>It blends data engineering, analytics, and architecture into one experience.</li>
+            <li>It is explainable enough for business users and structured enough for technical reviewers.</li>
+            <li>It feels like a product direction, not just an isolated AI experiment.</li>
+        </ul>
     </div>
-
-    <div class="pipeline-branch">
-      <div class="pipeline-branch-title">
-        <span class="pipeline-branch-icon">🏗️</span>
-        Data Architect Pipeline
-      </div>
-      <div class="pipeline-agent"><span class="agent-dot dot-purple"></span>Pipeline Architect Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-purple"></span>Security &amp; Governance Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-purple"></span>Cost Estimation Agent</div>
-      <div class="pipeline-agent"><span class="agent-dot dot-purple"></span>Architecture Diagram Agent</div>
-    </div>
-  </div>
-</div>
-
-<!-- CAPABILITIES -->
-<div class="card">
-  <div class="pill pill-green">Platform capabilities</div>
-  <h2>What this platform can do</h2>
-  <div class="caps-grid" style="margin-top:16px; margin-bottom:0;">
-    <div class="cap-item">
-      <span class="cap-icon">🔍</span>
-      <div><div class="cap-title">Automated dataset profiling</div><div class="cap-desc">Column types, missing values, cardinality, and semantic classification detected automatically.</div></div>
-    </div>
-    <div class="cap-item">
-      <span class="cap-icon">🎯</span>
-      <div><div class="cap-title">Explainable column selection</div><div class="cap-desc">Every target and driver selection is scored and explained — defensible in front of technical judges.</div></div>
-    </div>
-    <div class="cap-item">
-      <span class="cap-icon">📈</span>
-      <div><div class="cap-title">Dynamic chart generation</div><div class="cap-desc">Primary, supporting, and diagnostic Apache ECharts visuals built automatically from your data.</div></div>
-    </div>
-    <div class="cap-item">
-      <span class="cap-icon">💬</span>
-      <div><div class="cap-title">Natural-language business answers</div><div class="cap-desc">Overview mode, trend mode, and segment mode — the answer adapts to the type of question asked.</div></div>
-    </div>
-    <div class="cap-item">
-      <span class="cap-icon">🏗️</span>
-      <div><div class="cap-title">Pipeline architecture design</div><div class="cap-desc">Ingestion strategy, storage layout, orchestration plan, and governance recommendations generated on demand.</div></div>
-    </div>
-    <div class="cap-item">
-      <span class="cap-icon">💰</span>
-      <div><div class="cap-title">Infrastructure cost estimation</div><div class="cap-desc">The architect module generates cost estimates alongside every architecture recommendation.</div></div>
-    </div>
-  </div>
 </div>
 
 {% endblock %}

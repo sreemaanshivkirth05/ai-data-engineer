@@ -1,0 +1,244 @@
+{% extends "layout.html" %}
+{% from "partials/banner.html" import banner %}
+{% from "partials/summary_card.html" import summary_card %}
+{% from "partials/report_actions.html" import report_actions %}
+{% from "partials/empty_state.html" import empty_state %}
+{% from "partials/status_alert.html" import status_alert %}
+
+{% block title %}Analysis Report · AI Data Platform{% endblock %}
+{% block nav_analyst %}active{% endblock %}
+{% block topbar_title %}Analysis Report{% endblock %}
+{% block topbar_subtitle %}A presentation-ready summary of the latest analysis run.{% endblock %}
+{% block topbar_chip %}Report mode{% endblock %}
+
+{% block head_scripts %}
+<style>
+    .meta-grid{
+        display:grid;
+        grid-template-columns:repeat(4, 1fr);
+        gap:14px;
+        margin-bottom:20px;
+    }
+
+    .two-col{
+        display:grid;
+        grid-template-columns:1.2fr .8fr;
+        gap:20px;
+    }
+
+    .list-clean{
+        margin:0;
+        padding-left:18px;
+    }
+
+    .list-clean li{
+        margin-bottom:8px;
+        line-height:1.7;
+        font-size:14px;
+    }
+
+    @media (max-width: 1100px){
+        .meta-grid,
+        .two-col{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if report %}
+    {{ banner(
+        "Analysis report ready",
+        "This page summarizes the latest completed analysis run in a cleaner report format that is easier to review, demo, and export.",
+        "dark",
+        report_actions('/download-analysis-report', 'Download Markdown', '/analyst', 'Back to Analysis')
+    ) }}
+
+    {% if not report.dataset_name or report.dataset_name == "Unknown dataset" %}
+        {{ status_alert(
+            "Dataset metadata is incomplete",
+            "The latest report exists, but dataset metadata is partially missing. The narrative and report content are still available.",
+            "warning"
+        ) }}
+    {% endif %}
+
+    <div class="meta-grid">
+        {{ summary_card("Dataset", report.dataset_name or "Unknown dataset", report.dataset_source or "Unknown source") }}
+        {{ summary_card("Question", report.question or "No question recorded", "Latest analyzed question") }}
+        {{ summary_card("Intent", report.intent or "Unknown", "Detected analysis pattern") }}
+        {{ summary_card("Generated", report.generated_at or "Unknown", "Latest report timestamp") }}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="section-badge badge-blue">Direct answer</div>
+            <div class="card-title">Executive readout</div>
+            <p class="card-subtitle">The shortest, clearest business answer from the latest run.</p>
+        </div>
+        <div style="font-size:28px; font-weight:900; line-height:1.4; margin-bottom:14px;">
+            {{ report.direct_answer or "No direct answer was generated for the latest run." }}
+        </div>
+        <div style="font-size:15px; color:var(--muted); line-height:1.8;">
+            {{ report.executive_summary or "No executive summary is available." }}
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-green">Business context</div>
+                <div class="card-title">Goal and impact</div>
+                <p class="card-subtitle">Why this question matters and what the result means.</p>
+            </div>
+
+            <div style="font-size:15px; line-height:1.8; margin-bottom:18px;">
+                {{ report.question_goal or "No business goal was recorded for the latest run." }}
+            </div>
+
+            <h3 style="margin:0 0 10px; font-size:18px; font-weight:900;">Business impact</h3>
+            <ul class="list-clean">
+                {% if report.business_impact %}
+                    {% for item in report.business_impact %}
+                        <li>{{ item }}</li>
+                    {% endfor %}
+                {% else %}
+                    <li>No business impact notes available.</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-amber">Recommended actions</div>
+                <div class="card-title">What to do next</div>
+                <p class="card-subtitle">Suggested next actions and follow-up paths from the run.</p>
+            </div>
+
+            <ul class="list-clean" style="margin-bottom:18px;">
+                {% if report.recommended_actions %}
+                    {% for item in report.recommended_actions %}
+                        <li>{{ item }}</li>
+                    {% endfor %}
+                {% else %}
+                    <li>No recommended actions available.</li>
+                {% endif %}
+            </ul>
+
+            <h3 style="margin:0 0 10px; font-size:18px; font-weight:900;">Follow-up questions</h3>
+            <ul class="list-clean">
+                {% if report.follow_up_questions %}
+                    {% for item in report.follow_up_questions %}
+                        <li>{{ item }}</li>
+                    {% endfor %}
+                {% else %}
+                    <li>No follow-up questions available.</li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="section-badge badge-purple">Top insights</div>
+            <div class="card-title">Key findings</div>
+            <p class="card-subtitle">Important insights surfaced by the latest analysis run.</p>
+        </div>
+
+        {% if report.top_insights %}
+            <div class="grid-2">
+                {% for item in report.top_insights %}
+                <div class="mini-card">
+                    <div class="label">{{ item.title or "Insight" }}</div>
+                    <div class="value">{{ item.value or "N/A" }}</div>
+                    <div class="muted" style="font-size:13px; line-height:1.7;">{{ item.detail or "" }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            {{ status_alert(
+                "No insight cards available",
+                "The latest report did not contain structured top insights. The rest of the report can still be reviewed normally.",
+                "info"
+            ) }}
+        {% endif %}
+    </div>
+
+    <div class="two-col">
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-blue">Narrative</div>
+                <div class="card-title">{{ report.narrative_title or "Narrative summary" }}</div>
+                <p class="card-subtitle">Structured explanation from the analysis pipeline.</p>
+            </div>
+            <div style="font-size:15px; color:var(--muted); line-height:1.8; margin-bottom:14px;">
+                {{ report.narrative_summary or "No narrative summary is available." }}
+            </div>
+            {% if report.narrative_paragraphs %}
+                {% for paragraph in report.narrative_paragraphs %}
+                    <div style="font-size:15px; line-height:1.85; margin-bottom:14px;">{{ paragraph }}</div>
+                {% endfor %}
+            {% else %}
+                <div class="muted">No narrative paragraphs are available.</div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-purple">Story</div>
+                <div class="card-title">{{ report.story_title or "Business story" }}</div>
+                <p class="card-subtitle">Storytelling layer from the latest result.</p>
+            </div>
+
+            {% if report.story_headline %}
+            <div style="font-size:18px; font-weight:900; line-height:1.5; margin-bottom:12px;">{{ report.story_headline }}</div>
+            {% endif %}
+
+            <ul class="list-clean" style="margin-bottom:16px;">
+                {% if report.story_points %}
+                    {% for item in report.story_points %}
+                        <li>{{ item }}</li>
+                    {% endfor %}
+                {% else %}
+                    <li>No story key points available.</li>
+                {% endif %}
+            </ul>
+
+            {% if report.story_business_view %}
+                {% for paragraph in report.story_business_view %}
+                    <div style="font-size:15px; line-height:1.85; margin-bottom:14px;">{{ paragraph }}</div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="section-badge badge-red">Risks and limitations</div>
+            <div class="card-title">Use with context</div>
+            <p class="card-subtitle">Important caveats from the latest run.</p>
+        </div>
+
+        <ul class="list-clean">
+            {% if report.risks_or_limitations %}
+                {% for item in report.risks_or_limitations %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            {% else %}
+                <li>No risks or limitations available.</li>
+            {% endif %}
+        </ul>
+    </div>
+
+{% else %}
+    {{ empty_state(
+        "No report yet",
+        "No analysis report is available yet.",
+        "Run an analysis first, then come back here to view or download the latest report.",
+        "/analyst",
+        "Go to Analysis"
+    ) }}
+{% endif %}
+
+{% endblock %}

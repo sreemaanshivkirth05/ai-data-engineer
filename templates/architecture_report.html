@@ -1,0 +1,170 @@
+{% extends "layout.html" %}
+{% from "partials/banner.html" import banner %}
+{% from "partials/summary_card.html" import summary_card %}
+{% from "partials/report_actions.html" import report_actions %}
+{% from "partials/empty_state.html" import empty_state %}
+{% from "partials/status_alert.html" import status_alert %}
+
+{% block title %}Architecture Report · AI Data Platform{% endblock %}
+{% block nav_architect %}active{% endblock %}
+{% block topbar_title %}Architecture Report{% endblock %}
+{% block topbar_subtitle %}A presentation-ready summary of the latest architecture proposal.{% endblock %}
+{% block topbar_chip %}Report mode{% endblock %}
+
+{% block head_scripts %}
+<style>
+    .meta-grid{
+        display:grid;
+        grid-template-columns:repeat(4, 1fr);
+        gap:14px;
+        margin-bottom:20px;
+    }
+
+    .diagram-box{
+        white-space:pre-wrap;
+        background:#0f172a;
+        color:#e2e8f0;
+        border-radius:16px;
+        padding:18px;
+        font-family:Consolas, Monaco, monospace;
+        font-size:13px;
+        line-height:1.7;
+        overflow:auto;
+        border:1px solid #1e293b;
+        min-height:280px;
+    }
+
+    @media (max-width: 1100px){
+        .meta-grid{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if report %}
+    {{ banner(
+        "Architecture report ready",
+        "This page summarizes the latest architecture proposal in a cleaner report format for review, demos, and export.",
+        "dark",
+        report_actions('/download-architecture-report', 'Download Markdown', '/architect', 'Back to Architecture')
+    ) }}
+
+    {% if not report.dataset_name or report.dataset_name == "No shared dataset" %}
+        {{ status_alert(
+            "No shared dataset metadata",
+            "The architecture report exists, but there is no shared dataset metadata attached to it. The architecture content is still available.",
+            "warning"
+        ) }}
+    {% endif %}
+
+    <div class="meta-grid">
+        {{ summary_card("Dataset", report.dataset_name or "No shared dataset", report.dataset_source or "Unknown source") }}
+        {{ summary_card("Generated", report.generated_at or "Unknown", "Latest report timestamp") }}
+        {{ summary_card("Architecture pack", "Ready", "Contract, ingestion, storage, orchestration, security, cost, and diagram included") }}
+        {{ summary_card("Format", "Structured", "Review-ready proposal output") }}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="section-badge badge-blue">Data contract</div>
+            <div class="card-title">Input expectations and assumptions</div>
+            <p class="card-subtitle">The contract layer for the proposed architecture.</p>
+        </div>
+        <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+            {{ report.data_contract or "No data contract is available." }}
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-green">Ingestion</div>
+                <div class="card-title">How data enters the platform</div>
+                <p class="card-subtitle">Batch, near-real-time, CDC, or streaming guidance.</p>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+                {{ report.pipeline_architecture or "No ingestion strategy is available." }}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-purple">Storage</div>
+                <div class="card-title">How the data is organized</div>
+                <p class="card-subtitle">Layering, curation, and persistence design.</p>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+                {{ report.storage or "No storage layout is available." }}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-amber">Orchestration</div>
+                <div class="card-title">How workflows are run</div>
+                <p class="card-subtitle">Scheduling, dependencies, retries, and monitoring.</p>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+                {{ report.orchestration or "No orchestration plan is available." }}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-red">Security and governance</div>
+                <div class="card-title">Operational controls</div>
+                <p class="card-subtitle">Access control, compliance, and governance layer.</p>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+                {{ report.security or "No security/governance section is available." }}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-blue">Cost estimation</div>
+                <div class="card-title">Infrastructure and service cost view</div>
+                <p class="card-subtitle">High-level cost considerations from the proposal.</p>
+            </div>
+            <div style="white-space:pre-wrap; line-height:1.8; font-size:14px;">
+                {{ report.cost or "No cost estimation is available." }}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="section-badge badge-purple">Diagram</div>
+                <div class="card-title">Architecture flow</div>
+                <p class="card-subtitle">Diagram-ready Mermaid output.</p>
+            </div>
+
+            {% if report.diagram %}
+                <div class="diagram-box">{{ report.diagram }}</div>
+            {% else %}
+                {{ status_alert(
+                    "No diagram output available",
+                    "The report did not include Mermaid diagram output. The written architecture sections are still available.",
+                    "info"
+                ) }}
+            {% endif %}
+        </div>
+    </div>
+
+{% else %}
+    {{ empty_state(
+        "No report yet",
+        "No architecture report is available yet.",
+        "Generate an architecture proposal first, then come back here to view or download the latest report.",
+        "/architect",
+        "Go to Architecture"
+    ) }}
+{% endif %}
+
+{% endblock %}

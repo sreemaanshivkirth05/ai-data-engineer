@@ -1,0 +1,18 @@
+{% macro empty_state(badge_text, title, subtitle, button_href, button_label) %}
+<div
+    style="
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:20px;
+        padding:28px;
+        box-shadow:var(--shadow);
+    "
+>
+    <div class="section-badge badge-red">{{ badge_text }}</div>
+    <div class="card-title">{{ title }}</div>
+    <p class="card-subtitle" style="margin-bottom:18px;">
+        {{ subtitle }}
+    </p>
+    <a href="{{ button_href }}" class="btn">{{ button_label }}</a>
+</div>
+{% endmacro %}

@@ -1,6 +1,8 @@
 import pandas as pd
 from typing import Dict, Any, Optional
 
+from data_access.loaders import load_dataframe
+
 
 class DatasetProfilerAgent:
     def __init__(self, dataset_path: Optional[str] = None, df: Optional[pd.DataFrame] = None):
@@ -11,7 +13,6 @@ class DatasetProfilerAgent:
         df = self._load_dataset().copy()
         total_rows = max(len(df), 1)
 
-        # ── Column-level profiles ─────────────────────────────────
         col_profiles = []
         for col in df.columns:
             series = df[col]
@@ -63,20 +64,17 @@ class DatasetProfilerAgent:
 
             col_profiles.append(col_profile)
 
-        # ── Aggregate counts by semantic type ─────────────────────
-        numeric_cols  = [c for c in col_profiles if c["semantic_type"] in ("metric", "numeric")]
-        cat_cols      = [c for c in col_profiles if c["semantic_type"] == "categorical"]
+        numeric_cols = [c for c in col_profiles if c["semantic_type"] in ("metric", "numeric")]
+        cat_cols = [c for c in col_profiles if c["semantic_type"] == "categorical"]
         datetime_cols_list = [c for c in col_profiles if c["semantic_type"] == "datetime"]
-        id_cols       = [c for c in col_profiles if c["semantic_type"] == "id"]
+        id_cols = [c for c in col_profiles if c["semantic_type"] == "id"]
 
-        # ── Date range from actual datetime columns ────────────────
         date_range_start = None
-        date_range_end   = None
+        date_range_end = None
         datetime_dtype_cols = df.select_dtypes(
             include=["datetime64[ns]", "datetime64[ns, UTC]"]
         ).columns.tolist()
         if not datetime_dtype_cols:
-            # try to detect from column names
             for c in df.columns:
                 if any(k in str(c).lower() for k in ["date", "time", "timestamp"]):
                     parsed = pd.to_datetime(df[c], errors="coerce")
@@ -88,11 +86,10 @@ class DatasetProfilerAgent:
                 primary_dt = pd.to_datetime(df[datetime_dtype_cols[0]], errors="coerce").dropna()
                 if len(primary_dt) > 0:
                     date_range_start = str(primary_dt.min().date())
-                    date_range_end   = str(primary_dt.max().date())
+                    date_range_end = str(primary_dt.max().date())
             except Exception:
                 pass
 
-        # ── Business metric candidates ─────────────────────────────
         METRIC_KEYWORDS = [
             "sales", "revenue", "profit", "amount", "cost", "price",
             "income", "margin", "quantity", "qty", "units", "discount",
@@ -104,29 +101,23 @@ class DatasetProfilerAgent:
                 col_lower_name = c["name"].lower().replace("_", " ")
                 if any(kw in col_lower_name for kw in METRIC_KEYWORDS):
                     metric_candidates.append(c["name"])
-        # Fallback: first 3 numeric cols if no keyword match
         if not metric_candidates:
             metric_candidates = [c["name"] for c in numeric_cols[:3]]
 
-        # ── Assemble final profile ─────────────────────────────────
         profile = {
-            "row_count":           int(len(df)),
-            "column_count":        int(len(df.columns)),
-            "duplicate_rows":      int(df.duplicated().sum()),
+            "row_count": int(len(df)),
+            "column_count": int(len(df.columns)),
+            "duplicate_rows": int(df.duplicated().sum()),
             "overall_missing_pct": self._safe_missing_pct(df),
-            # NEW — used by engineer.html Dataset Intelligence section
-            "numeric_column_count":     len(numeric_cols),
+            "numeric_column_count": len(numeric_cols),
             "categorical_column_count": len(cat_cols),
-            "datetime_column_count":    len(datetime_cols_list),
-            "id_column_count":          len(id_cols),
-            "date_range_start":         date_range_start,
-            "date_range_end":           date_range_end,
-            "metric_candidates":        metric_candidates[:6],
-            # column_profiles is the same data as columns but renamed so the
-            # template can reference result.dataset_profile.column_profiles
-            "column_profiles":          col_profiles,
-            # keep "columns" for backward compat with cleaning_planner_agent.py
-            "columns":                  col_profiles,
+            "datetime_column_count": len(datetime_cols_list),
+            "id_column_count": len(id_cols),
+            "date_range_start": date_range_start,
+            "date_range_end": date_range_end,
+            "metric_candidates": metric_candidates[:6],
+            "column_profiles": col_profiles,
+            "columns": col_profiles,
         }
 
         return {
@@ -139,11 +130,7 @@ class DatasetProfilerAgent:
             return self.df
         if not self.dataset_path:
             raise ValueError("Either dataset_path or df must be provided.")
-        if self.dataset_path.endswith(".csv"):
-            return pd.read_csv(self.dataset_path)
-        if self.dataset_path.endswith(".xlsx"):
-            return pd.read_excel(self.dataset_path)
-        raise ValueError("Unsupported dataset format. Use CSV or XLSX.")
+        return load_dataframe(self.dataset_path)
 
     def _infer_semantic_type(
         self,
@@ -152,7 +139,6 @@ class DatasetProfilerAgent:
         is_candidate_key: bool,
         unique_ratio: float = 0.0,
     ) -> str:
-        # IDs: named like an id OR nearly unique non-datetime column
         id_keywords = [
             "id", "uuid", "key", "row number", "rownum",
             "transaction id", "order id", "customer id", "product id",
@@ -162,7 +148,6 @@ class DatasetProfilerAgent:
             return "id"
         if any(k in col_name for k in id_keywords):
             return "id"
-        # Near-unique string column = probably an identifier
         if unique_ratio >= 0.95 and "int" not in dtype and "float" not in dtype and "datetime" not in dtype:
             return "id"
 
