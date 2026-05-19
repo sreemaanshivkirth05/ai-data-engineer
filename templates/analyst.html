@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -723,6 +723,82 @@
       line-height:1.6;
     }
 
+    .answer-hero{
+      border-left:5px solid var(--primary);
+      background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .answer-hero-top{
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+      margin-bottom:16px;
+    }
+
+    .question-quote{
+      background:#eff6ff;
+      border:1px solid #bfdbfe;
+      border-radius:14px;
+      padding:14px 16px;
+      color:#1e3a8a;
+      font-size:15px;
+      line-height:1.7;
+      font-weight:800;
+      margin-bottom:18px;
+    }
+
+    .question-quote-label{
+      display:block;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.07em;
+      color:#1d4ed8;
+      margin-bottom:4px;
+    }
+
+    .answer-hero .executive-answer{
+      font-size:34px;
+      max-width:980px;
+    }
+
+    .answer-hero .executive-summary{
+      max-width:980px;
+      padding-top:14px;
+      border-top:1px solid var(--border);
+    }
+
+    .answer-trust-strip{
+      display:grid;
+      grid-template-columns:repeat(5, 1fr);
+      gap:12px;
+      margin-top:18px;
+    }
+
+    .answer-trust-item{
+      background:rgba(255,255,255,.78);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px 14px;
+    }
+
+    .answer-trust-label{
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      font-weight:800;
+      margin-bottom:6px;
+    }
+
+    .answer-trust-value{
+      font-size:16px;
+      line-height:1.35;
+      font-weight:900;
+      color:var(--text);
+    }
+
     .executive-grid{
       display:grid;
       grid-template-columns:1.6fr 1fr;
@@ -759,6 +835,85 @@
       font-size:13px;
       font-weight:700;
       color:#334155;
+    }
+
+    .plan-matrix{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:14px;
+    }
+
+    .plan-cell{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+      min-height:116px;
+    }
+
+    .plan-cell-wide{
+      grid-column:span 2;
+    }
+
+    .plan-cell-label{
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      margin-bottom:8px;
+      font-weight:800;
+    }
+
+    .plan-cell-value{
+      font-size:20px;
+      line-height:1.35;
+      font-weight:900;
+      overflow-wrap:anywhere;
+    }
+
+    .plan-cell-note{
+      margin-top:8px;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.6;
+    }
+
+    .trust-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:16px;
+    }
+
+    .trust-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:#f8fafc;
+      border:1px solid var(--border);
+      color:#334155;
+      padding:9px 12px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:800;
+    }
+
+    .trust-badge.good{
+      background:var(--green-soft);
+      color:#166534;
+      border-color:#bbf7d0;
+    }
+
+    .trust-badge.warn{
+      background:var(--amber-soft);
+      color:#92400e;
+      border-color:#fde68a;
+    }
+
+    .trust-badge.info{
+      background:var(--blue-soft);
+      color:#1d4ed8;
+      border-color:#bfdbfe;
     }
 
     .summary-grid,
@@ -857,7 +1012,7 @@
     }
 
     .chart-box-large{
-      height:520px;
+      height:600px;
       width:100%;
     }
 
@@ -870,6 +1025,21 @@
     .chart-box{
       height:340px;
       width:100%;
+    }
+
+    .supporting-chart-card{
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+      min-width:0;
+    }
+
+    .supporting-chart-title{
+      font-size:17px;
+      font-weight:900;
+      line-height:1.35;
+      margin-bottom:10px;
     }
 
     .chart-caption{
@@ -896,6 +1066,7 @@
 
     .followup-grid,
     .info-grid,
+    .business-grid,
     .text-layout,
     .plan-grid,
     .tech-grid{
@@ -905,6 +1076,15 @@
     }
 
     .followup-grid{ gap:14px; }
+
+    .business-grid .risks-card{
+      grid-column:1 / -1;
+    }
+
+    .interpretation-card{
+      margin-bottom:0;
+      height:100%;
+    }
 
     .followup-card{
       background:#f8fafc;
@@ -1112,6 +1292,19 @@
 
     .kv-table tr:last-child td{
       border-bottom:none;
+    }
+
+    .json-dump{
+      max-height:360px;
+      overflow:auto;
+      background:#0f172a;
+      color:#e2e8f0;
+      border-radius:14px;
+      padding:16px;
+      font-size:12px;
+      line-height:1.55;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
     }
 
     .bottom-bar{
@@ -1350,11 +1543,403 @@
       to { opacity:1; transform:translateY(0); }
     }
 
+    /* Modern Analyst workspace redesign */
+    :root{
+      --bg:#f4f6fa;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --primary:#2563eb;
+      --primary-2:#1e40af;
+      --blue-soft:#eff6ff;
+      --green-soft:#ecfdf5;
+      --amber-soft:#fffbeb;
+      --purple-soft:#f5f3ff;
+      --red-soft:#fef2f2;
+      --slate-soft:#f8fafc;
+      --shadow:0 18px 45px rgba(15, 23, 42, 0.08);
+      --shadow-soft:0 8px 24px rgba(15, 23, 42, 0.06);
+      --radius:22px;
+      --nav-w:248px;
+      --header-h:72px;
+    }
+
+    html, body{
+      background:
+        radial-gradient(circle at 18% -8%, rgba(37,99,235,.10), transparent 34%),
+        radial-gradient(circle at 92% 0%, rgba(20,184,166,.08), transparent 30%),
+        linear-gradient(180deg, #f8fafc 0%, #f4f6fa 100%);
+      letter-spacing:0;
+    }
+
+    .side-nav{
+      background:rgba(255,255,255,.92);
+      backdrop-filter:blur(18px);
+      border-right:1px solid rgba(226,232,240,.9);
+      box-shadow:8px 0 30px rgba(15,23,42,.04);
+    }
+
+    .nav-logo-title{
+      font-size:18px;
+      letter-spacing:-.01em;
+    }
+
+    .nav-item{
+      margin:2px 10px;
+      width:calc(100% - 20px);
+      border-radius:12px;
+      padding:11px 12px;
+    }
+
+    .nav-item.active{
+      background:#111827;
+      color:#fff;
+      box-shadow:0 10px 24px rgba(17,24,39,.14);
+    }
+
+    .nav-dataset-pill{
+      border-radius:16px;
+      background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .topbar{
+      background:rgba(248,250,252,.82);
+      border-bottom:1px solid rgba(226,232,240,.86);
+    }
+
+    .topbar-title{
+      letter-spacing:-.02em;
+    }
+
+    .top-chip{
+      background:#fff;
+      box-shadow:0 1px 2px rgba(15,23,42,.04);
+    }
+
+    .content-wrap{
+      max-width:1320px;
+      padding:34px 32px 0;
+    }
+
+    .analyst-command-center{
+      display:grid;
+      grid-template-columns:minmax(0, 1.45fr) minmax(360px, .72fr);
+      gap:22px;
+      margin-bottom:22px;
+    }
+
+    .command-main,
+    .upload-card{
+      position:relative;
+      overflow:hidden;
+      border:1px solid rgba(226,232,240,.92);
+      border-radius:28px;
+      background:rgba(255,255,255,.9);
+      box-shadow:var(--shadow);
+    }
+
+    .command-main{
+      padding:34px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,251,255,.92)),
+        linear-gradient(135deg, rgba(37,99,235,.06), rgba(20,184,166,.04));
+    }
+
+    .command-main::after{
+      content:'';
+      position:absolute;
+      right:-90px;
+      top:-90px;
+      width:260px;
+      height:260px;
+      background:radial-gradient(circle, rgba(37,99,235,.12), transparent 65%);
+      pointer-events:none;
+    }
+
+    .page-eyebrow{
+      background:#111827;
+      color:#fff;
+      border:1px solid rgba(17,24,39,.08);
+      box-shadow:0 8px 18px rgba(17,24,39,.12);
+    }
+
+    .page-title{
+      font-size:52px;
+      letter-spacing:-.04em;
+      max-width:760px;
+    }
+
+    .page-subtitle{
+      max-width:760px;
+      color:#4b5563;
+    }
+
+    .command-status-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+      margin-top:24px;
+      max-width:900px;
+    }
+
+    .command-status-card{
+      background:rgba(255,255,255,.74);
+      border:1px solid rgba(226,232,240,.94);
+      border-radius:18px;
+      padding:16px;
+    }
+
+    .command-status-label,
+    .quick-prompt-label{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:850;
+      color:#64748b;
+      margin-bottom:8px;
+    }
+
+    .command-status-value{
+      font-size:20px;
+      font-weight:900;
+      line-height:1.25;
+      overflow-wrap:anywhere;
+    }
+
+    .command-status-note{
+      margin-top:7px;
+      color:#64748b;
+      font-size:13px;
+      line-height:1.55;
+    }
+
+    .quick-prompt-panel{
+      margin-top:24px;
+      border-top:1px solid rgba(226,232,240,.9);
+      padding-top:18px;
+    }
+
+    .quick-prompt-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+
+    .quick-prompt{
+      border:1px solid #dbe3ef;
+      background:#fff;
+      color:#334155;
+      border-radius:999px;
+      padding:10px 13px;
+      font-size:13px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:0 1px 2px rgba(15,23,42,.04);
+      transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .quick-prompt:hover{
+      transform:translateY(-1px);
+      border-color:#93c5fd;
+      box-shadow:0 10px 22px rgba(37,99,235,.10);
+    }
+
+    .command-side{
+      min-width:0;
+    }
+
+    .upload-card{
+      height:100%;
+      padding:24px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+
+    .upload-card-header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:12px;
+    }
+
+    .upload-title{
+      font-size:26px;
+      font-weight:950;
+      letter-spacing:-.025em;
+    }
+
+    .upload-status-dot{
+      width:12px;
+      height:12px;
+      border-radius:999px;
+      background:#22c55e;
+      box-shadow:0 0 0 6px rgba(34,197,94,.12);
+      margin-top:10px;
+      flex-shrink:0;
+    }
+
+    .upload-copy{
+      color:#64748b;
+      line-height:1.7;
+      margin:0 0 18px;
+      font-size:14px;
+    }
+
+    .card{
+      border-radius:24px;
+      border-color:rgba(226,232,240,.95);
+      box-shadow:var(--shadow-soft);
+      padding:26px;
+    }
+
+    .card-title{
+      letter-spacing:-.025em;
+      font-weight:900;
+    }
+
+    .section-badge{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.07em;
+      border:1px solid transparent;
+    }
+
+    .badge-blue{ background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .badge-green{ background:#ecfdf5; color:#047857; border-color:#bbf7d0; }
+    .badge-amber{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+    .badge-purple{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
+    .badge-red{ background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+
+    .dataset-upload-box{
+      background:#f8fafc;
+      border-color:#cbd5e1;
+      border-radius:20px;
+    }
+
+    input[type="file"],
+    .bottom-textarea,
+    .inline-q-bar textarea{
+      border-radius:16px;
+      border-color:#dbe3ef;
+    }
+
+    .loading{
+      border-radius:24px;
+      padding:22px;
+      background:linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+      border-color:#dbeafe;
+    }
+
+    .loading-title{
+      font-size:18px;
+      letter-spacing:-.01em;
+    }
+
+    .loading-step{
+      padding:7px 11px;
+      background:#fff;
+      border:1px solid #e2e8f0;
+    }
+
+    .answer-hero{
+      border-left:0;
+      background:
+        linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+      box-shadow:0 22px 55px rgba(37,99,235,.10);
+    }
+
+    .answer-hero .executive-answer{
+      font-size:40px;
+      letter-spacing:-.035em;
+    }
+
+    .question-quote,
+    .plan-cell,
+    .summary-card,
+    .kpi-card,
+    .insight-card,
+    .quality-card,
+    .diag-card,
+    .supporting-chart-card,
+    .text-panel,
+    .plan-card,
+    .tech-panel,
+    .answer-trust-item{
+      border-radius:18px;
+      background:#f8fafc;
+      border-color:#e2e8f0;
+    }
+
+    .kpi-card{
+      background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow:0 1px 2px rgba(15,23,42,.04);
+    }
+
+    .kpi-value,
+    .insight-value,
+    .plan-cell-value{
+      letter-spacing:-.025em;
+    }
+
+    .chart-box-large{
+      height:640px;
+      border-radius:20px;
+      background:#fff;
+      border:1px solid #eef2f7;
+    }
+
+    .chart-box{
+      height:360px;
+      border-radius:16px;
+      background:#fff;
+      border:1px solid #eef2f7;
+    }
+
+    .bottom-bar{
+      background:rgba(248,250,252,.88);
+      border-top:1px solid rgba(226,232,240,.94);
+      box-shadow:0 -16px 38px rgba(15,23,42,.08);
+    }
+
+    .bottom-bar-inner{
+      max-width:1320px;
+      background:#fff;
+      border:1px solid #e2e8f0;
+      border-radius:22px;
+      padding:10px;
+      box-shadow:0 18px 40px rgba(15,23,42,.10);
+    }
+
+    .bottom-textarea{
+      border:none;
+      box-shadow:none;
+      min-height:50px;
+    }
+
+    .bottom-textarea:focus{
+      box-shadow:none;
+    }
+
+    .bottom-btn{
+      border-radius:16px;
+      background:#111827;
+      box-shadow:0 12px 24px rgba(17,24,39,.18);
+    }
+
+    .bottom-btn:hover{
+      background:#1f2937;
+    }
+
     @media (max-width: 1180px){
       .hero,
+      .analyst-command-center,
       .dataset-panel,
       .executive-grid,
       .info-grid,
+      .business-grid,
       .text-layout,
       .chart-grid,
       .followup-grid,
@@ -1364,6 +1949,9 @@
       }
 
       .meta-grid,
+      .plan-matrix,
+      .answer-trust-strip,
+      .command-status-row,
       .summary-grid,
       .kpi-grid,
       .insight-grid,
@@ -1373,6 +1961,10 @@
       .sk-grid-3,
       .sk-grid-4{
         grid-template-columns:repeat(2, 1fr);
+      }
+
+      .plan-cell-wide{
+        grid-column:span 1;
       }
 
       .trace-row{
@@ -1415,10 +2007,23 @@
       }
 
       .page-title{
-        font-size:32px;
+        font-size:38px;
+      }
+
+      .content-wrap{
+        padding:20px 14px 0;
+      }
+
+      .command-main,
+      .upload-card{
+        border-radius:22px;
+        padding:22px;
       }
 
       .meta-grid,
+      .plan-matrix,
+      .answer-trust-strip,
+      .command-status-row,
       .summary-grid,
       .kpi-grid,
       .insight-grid,
@@ -1432,7 +2037,7 @@
       }
 
       .chart-box-large{
-        height:440px;
+        height:500px;
       }
 
       .chart-box{
@@ -1459,79 +2064,98 @@
     </div>
 
     <div class="nav-section-label">Workspace</div>
-    <button class="nav-item" onclick="showTab('home')"><span class="nav-icon">🏠</span> Home</button>
-    <button class="nav-item active" id="nav-analyst" onclick="showTab('analyst')"><span class="nav-icon">📊</span> Data Analysis</button>
-    <button class="nav-item" onclick="showTab('cleaner')"><span class="nav-icon">🧹</span> Data Cleaner</button>
-    <button class="nav-item" onclick="showTab('architecture')"><span class="nav-icon">🏗️</span> Data Architecture</button>
+    <button class="nav-item" onclick="showTab('home')"><span class="nav-icon">H</span> Home</button>
+    <button class="nav-item active" id="nav-analyst" onclick="showTab('analyst')"><span class="nav-icon">A</span> Data Analysis</button>
+    <button class="nav-item" onclick="showTab('cleaner')"><span class="nav-icon">C</span> Data Cleaner</button>
+    <button class="nav-item" onclick="showTab('architecture')"><span class="nav-icon">D</span> Data Architecture</button>
 
     <div class="nav-section-label">Dataset</div>
     <div class="nav-dataset-pill" id="navDatasetPill" style="display:none">
       <div class="pill-nav-label">Active dataset</div>
-      <div class="pill-nav-value" id="navDatasetName">—</div>
+      <div class="pill-nav-value" id="navDatasetName">-</div>
       <div class="pill-nav-meta" id="navDatasetMeta"></div>
     </div>
 
     <div class="nav-bottom">
       Storyboard-style analytics workspace<br />
-      Ask → Understand → Visualize → Explain
+      Ask -> Understand -> Visualize -> Explain
     </div>
   </nav>
 
   <div class="main-area">
     <div class="topbar">
       <div class="topbar-left">
-        <div class="topbar-title">Data Analysis Workspace</div>
-        <div class="topbar-subtitle">Ask a question, get KPI summaries, charts, and a business-friendly narrative.</div>
+        <div class="topbar-title">AI Data Analyst</div>
+        <div class="topbar-subtitle">Business-first analysis, charts, and narrative from your dataset.</div>
       </div>
       <div class="topbar-right">
-        <div class="top-chip workspace-status">● Workspace ready</div>
+        <div class="top-chip workspace-status">Ready Workspace ready</div>
         <div class="top-chip">Analysis mode</div>
       </div>
     </div>
 
     <div class="content-wrap">
 
-      <section class="hero">
-        <div class="hero-card">
-          <div class="page-eyebrow">AI Analytics Workspace</div>
-          <h1 class="page-title">Turn a business question into a KPI story, not just a chart dump.</h1>
+      <section class="analyst-command-center">
+        <div class="command-main">
+          <div class="page-eyebrow">Modern AI Analytics Workspace</div>
+          <h1 class="page-title">AI Data Analyst</h1>
           <p class="page-subtitle">
-            Upload a dataset or continue with a cleaned dataset from the Data Cleaner.
-            Ask a natural-language question and get a structured answer with KPIs, a primary visual, supporting evidence, and a business-ready narrative.
+            Ask business questions in plain English and get a decision-ready answer with metrics, charts, interpretation, and follow-up paths.
           </p>
 
-          <div class="hero-bullets">
-            <div class="hero-bullet">
-              <div class="hero-bullet-title">Summary-first layout</div>
-              <div class="hero-bullet-text">The answer starts with the main business takeaway before deeper visuals and technical detail.</div>
+          <div class="command-status-row">
+            <div class="command-status-card">
+              <div class="command-status-label">Current dataset</div>
+              <div class="command-status-value" id="heroDatasetName">{{ preloaded_dataset.name if preloaded_dataset else 'No dataset selected' }}</div>
+              <div class="command-status-note" id="heroDatasetMeta">
+                {% if preloaded_dataset %}
+                  {{ preloaded_dataset.size_kb ~ ' KB' if preloaded_dataset.size_kb else 'Ready for analysis' }}
+                {% else %}
+                  Upload a file or use a cleaned dataset from Data Cleaner.
+                {% endif %}
+              </div>
             </div>
-            <div class="hero-bullet">
-              <div class="hero-bullet-title">Question-aware visuals</div>
-              <div class="hero-bullet-text">Charts are generated to support the specific question instead of showing generic graphs.</div>
+            <div class="command-status-card">
+              <div class="command-status-label">Answer format</div>
+              <div class="command-status-value">Business readout</div>
+              <div class="command-status-note">Direct answer, key metrics, main chart, insights, and next steps.</div>
             </div>
-            <div class="hero-bullet">
-              <div class="hero-bullet-title">Narrative + KPI + charts</div>
-              <div class="hero-bullet-text">Each answer is designed like an insight board, with metrics, visuals, and written interpretation together.</div>
-            </div>
-            <div class="hero-bullet">
-              <div class="hero-bullet-title">Follow-up friendly</div>
-              <div class="hero-bullet-text">Keep drilling into the same dataset with follow-up questions without re-uploading each time.</div>
+          </div>
+
+          <div class="quick-prompt-panel">
+            <div class="quick-prompt-label">Try a question</div>
+            <div class="quick-prompt-row">
+              <button type="button" class="quick-prompt" onclick="setPromptQuestion('Compare quantity by country')">Compare quantity by country</button>
+              <button type="button" class="quick-prompt" onclick="setPromptQuestion('Show quantity trend over time')">Show quantity trend over time</button>
+              <button type="button" class="quick-prompt" onclick="setPromptQuestion('Which product description has the highest quantity?')">Highest quantity product</button>
+              <button type="button" class="quick-prompt" onclick="setPromptQuestion('Compare cancellation rate by market segment')">Cancellation rate by segment</button>
             </div>
           </div>
         </div>
 
-        <div class="hero-side">
-          <div class="hero-mini">
-            <div class="hero-mini-title">Best for</div>
-            <div class="hero-mini-value">Summary, comparison, trend, segmentation</div>
-            <div class="hero-mini-note">Ask business questions naturally and let the platform choose the analytical framing.</div>
+        <aside class="command-side">
+          <div class="upload-card">
+            <div class="upload-card-header">
+              <div>
+                <div class="section-badge badge-blue">Dataset</div>
+                <div class="upload-title">Load data</div>
+              </div>
+              <div class="upload-status-dot"></div>
+            </div>
+            <p class="upload-copy">Upload a dataset once, then keep asking follow-up questions in the same workspace.</p>
+            <div class="dataset-upload-box">
+              <label class="dataset-upload-label" for="dataset">Dataset file</label>
+              <input type="file" id="dataset" accept=".csv,.tsv,.xlsx,.xls,.json,.jsonl,.ndjson,.parquet" onchange="onFileSelected(this)" />
+              <div class="dataset-format-row">
+                <span class="mini-pill">CSV</span>
+                <span class="mini-pill">Excel</span>
+                <span class="mini-pill">JSON</span>
+                <span class="mini-pill">Parquet</span>
+              </div>
+            </div>
           </div>
-          <div class="hero-mini">
-            <div class="hero-mini-title">Output style</div>
-            <div class="hero-mini-value">Storyboard analysis</div>
-            <div class="hero-mini-note">Direct answer, KPI strip, hero chart, supporting visuals, and written explanation.</div>
-          </div>
-        </div>
+        </aside>
       </section>
 
       {% if preloaded_dataset %}
@@ -1567,59 +2191,19 @@
         </div>
       </div>
 
-      <section class="dataset-panel">
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-blue">Dataset input</div>
-            <div class="card-title">Load a dataset into this workspace</div>
-            <p class="card-subtitle">
-              Upload a new dataset to start analysis, or continue with a cleaned dataset passed from the Cleaner.
-              The active dataset stays available for follow-up questions during this session.
-            </p>
-          </div>
-
-          <div class="dataset-upload-box">
-            <label class="dataset-upload-label" for="dataset">Dataset file</label>
-            <input type="file" id="dataset" accept=".csv,.tsv,.xlsx,.xls,.json,.jsonl,.ndjson,.parquet" onchange="onFileSelected(this)" />
-            <div class="dataset-format-row">
-              <span class="mini-pill">CSV</span>
-              <span class="mini-pill">TSV</span>
-              <span class="mini-pill">Excel</span>
-              <span class="mini-pill">JSON</span>
-              <span class="mini-pill">JSONL / NDJSON</span>
-              <span class="mini-pill">Parquet</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="dataset-side-grid">
-          <div class="mini-stat-card">
-            <div class="mini-stat-label">Current workflow</div>
-            <div class="mini-stat-value">Question → Insight board</div>
-            <div class="mini-stat-note">Every analysis result is rendered as a structured business story instead of a single long output block.</div>
-          </div>
-
-          <div class="mini-stat-card">
-            <div class="mini-stat-label">Next action</div>
-            <div class="mini-stat-value">Ask a business question</div>
-            <div class="mini-stat-note">Use the sticky bar at the bottom of the page to keep asking follow-up questions on the same dataset.</div>
-          </div>
-        </div>
-      </section>
-
       <div id="loadingBox" class="loading">
         <div class="loading-inner">
           <div class="spinner"></div>
           <div>
-            <div class="loading-title" id="loadingTitle">Running analysis…</div>
+            <div class="loading-title" id="loadingTitle">Building your analysis...</div>
             <div class="loading-steps">
-              <span class="loading-step" id="ls-question">Question Agent</span>
-              <span class="loading-step" id="ls-planner">Planner Agent</span>
-              <span class="loading-step" id="ls-selection">Selection Policy</span>
-              <span class="loading-step" id="ls-kpi">KPI Agent</span>
-              <span class="loading-step" id="ls-analysis">Analysis Agent</span>
-              <span class="loading-step" id="ls-viz">Visualization Agent</span>
-              <span class="loading-step" id="ls-narrative">Narrative Agent</span>
+              <span class="loading-step" id="ls-question">Understanding dataset</span>
+              <span class="loading-step" id="ls-planner">Planning analysis</span>
+              <span class="loading-step" id="ls-selection">Selecting evidence</span>
+              <span class="loading-step" id="ls-kpi">Computing metrics</span>
+              <span class="loading-step" id="ls-analysis">Analyzing patterns</span>
+              <span class="loading-step" id="ls-viz">Generating charts</span>
+              <span class="loading-step" id="ls-narrative">Writing summary</span>
             </div>
           </div>
         </div>
@@ -1636,12 +2220,12 @@
     <textarea
       class="bottom-textarea"
       id="question"
-      placeholder="Ask a business question about your dataset… (Enter to send, Shift+Enter for new line)"
+      placeholder="Ask a question about your dataset. Try: Compare quantity by country"
       rows="1"
       onkeydown="handleQuestionKey(event)"
       oninput="autoGrow(this)"
     ></textarea>
-    <button class="bottom-btn" id="runBtn" onclick="runAnalysis()">Analyze →</button>
+    <button class="bottom-btn" id="runBtn" onclick="runAnalysis()">Analyze -></button>
   </div>
 </div>
 
@@ -1736,6 +2320,10 @@
     const file = input.files[0];
     const pill = document.getElementById('navDatasetPill');
     document.getElementById('navDatasetName').textContent = file.name;
+    const heroName = document.getElementById('heroDatasetName');
+    const heroMeta = document.getElementById('heroDatasetMeta');
+    if (heroName) heroName.textContent = file.name;
+    if (heroMeta) heroMeta.textContent = (file.size / 1024).toFixed(1) + ' KB · manual upload';
     document.getElementById('navDatasetMeta').textContent = (file.size / 1024).toFixed(1) + ' KB · manual upload';
     pill.style.display = 'block';
     existingDatasetPath = '';
@@ -1753,6 +2341,10 @@
     document.getElementById('navDatasetName').textContent = meta.name || 'dataset';
     const sizeText = meta.size_kb ? `${meta.size_kb} KB` : '';
     const sourceText = meta.source === 'cleaner_output' ? 'from Data Cleaner' : (meta.source || '');
+    const heroName = document.getElementById('heroDatasetName');
+    const heroMeta = document.getElementById('heroDatasetMeta');
+    if (heroName) heroName.textContent = meta.name || 'dataset';
+    if (heroMeta) heroMeta.textContent = [sizeText, sourceText || 'Ready for analysis'].filter(Boolean).join(' · ');
     document.getElementById('navDatasetMeta').textContent = [sizeText, sourceText].filter(Boolean).join(' · ');
     pill.style.display = 'block';
   }
@@ -1774,15 +2366,23 @@
     }
   }
 
+  function setPromptQuestion(questionText) {
+    const el = document.getElementById('question');
+    if (!el) return;
+    el.value = questionText;
+    autoGrow(el);
+    el.focus();
+  }
+
   const LS_IDS = ['ls-question','ls-planner','ls-selection','ls-kpi','ls-analysis','ls-viz','ls-narrative'];
   const LS_LABELS = [
-    'Understanding your question…',
-    'Selecting target metric and drivers…',
-    'Applying selection policy…',
-    'Computing KPIs…',
-    'Running statistical analysis…',
-    'Building visualisations…',
-    'Writing narrative and story…'
+    'Understanding dataset...',
+    'Planning analysis...',
+    'Selecting evidence...',
+    'Computing key metrics...',
+    'Analyzing patterns...',
+    'Generating charts...',
+    'Writing business summary...'
   ];
 
   function startLoading() {
@@ -1958,7 +2558,7 @@
 
     const btn = document.getElementById('runBtn');
     btn.disabled = true;
-    btn.textContent = 'Running…';
+    btn.textContent = 'Running...';
 
     const nextQuestionNumber = analysisHistoryCount + 1;
     const pendingId = insertPendingResult(nextQuestionNumber, question);
@@ -2006,7 +2606,7 @@
     }
 
     btn.disabled = false;
-    btn.textContent = 'Analyze →';
+    btn.textContent = 'Analyze ->';
   }
 
   function removePendingResult(pendingId) {
@@ -2067,9 +2667,74 @@
     return String(value).replaceAll('_', ' ');
   }
 
+  function asArray(value) {
+    if (Array.isArray(value)) return value.filter(item => item !== null && item !== undefined && item !== '');
+    if (value === null || value === undefined || value === '') return [];
+    return [value];
+  }
+
+  function firstAvailable(values, fallback = 'Not available') {
+    for (const value of values) {
+      if (value !== null && value !== undefined && value !== '') return value;
+    }
+    return fallback;
+  }
+
+  function formatList(value, fallback = 'Not available') {
+    const items = asArray(value);
+    return items.length ? items.map(formatLabel).join(', ') : fallback;
+  }
+
+  function renderJsonDump(value) {
+    if (value === null || value === undefined || value === '') return '<div class="empty-state">Not available.</div>';
+    try {
+      return `<pre class="json-dump">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+    } catch (e) {
+      return `<pre class="json-dump">${escapeHtml(String(value))}</pre>`;
+    }
+  }
+
+  function getPlannerReview(data) {
+    return data.planner_review || data.review || {};
+  }
+
+  function getPlannerReviewDecision(review) {
+    if (!review || typeof review !== 'object') return 'Not available';
+    if (review.decision) return review.decision;
+    if (review.review_decision) return review.review_decision;
+    if (review.status) return review.status;
+    if (review.should_accept !== undefined) return review.should_accept ? 'Accepted' : 'Needs review';
+    if (review.is_aligned !== undefined) return review.is_aligned ? 'Aligned' : 'Not aligned';
+    return 'Not available';
+  }
+
+  function getPlannerReviewConfidence(review) {
+    if (!review || typeof review !== 'object') return 'Not available';
+    const raw = firstAvailable([review.confidence, review.confidence_score, review.review_confidence], null);
+    if (raw === null) return 'Not available';
+    const num = Number(raw);
+    if (Number.isNaN(num)) return String(raw);
+    return num <= 1 ? `${(num * 100).toFixed(1)}%` : `${num.toFixed(1)}%`;
+  }
+
+  function getUniversalPlannerHintStatus(data) {
+    const shadow = data.universal_planner_shadow || {};
+    const hint = shadow.hint || shadow.hint_layer || {};
+    const status = firstAvailable([
+      data.universal_planner_hint_status,
+      shadow.hint_status,
+      shadow.status,
+      shadow.decision,
+      hint.status,
+      hint.decision
+    ], null);
+    if (status !== null) return status;
+    return Object.keys(shadow).length ? 'Available' : 'Not available';
+  }
+
   function truncateLabel(value, maxLen = 18) {
     const str = String(value ?? '');
-    return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+    return str.length > maxLen ? str.slice(0, maxLen - 1) + '...' : str;
   }
 
   function compactAxis(value) {
@@ -2148,33 +2813,126 @@
     `;
   }
 
-  function buildExecutiveSection(data) {
+  function buildTrustStrip(data) {
+    const review = getPlannerReview(data);
+    const reviewConfidence = getPlannerReviewConfidence(review);
+    const chartCount = Array.isArray(data.charts) ? data.charts.length : 0;
     return `
-      <div class="executive-grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-blue">Executive answer</div>
-            <div class="card-title">Direct answer</div>
-            <p class="card-subtitle">The clearest business readout of the question, written for decision-making.</p>
+      <div class="answer-trust-strip">
+        <div class="answer-trust-item">
+          <div class="answer-trust-label">Intent</div>
+          <div class="answer-trust-value">${formatLabel(data.intent)}</div>
+        </div>
+        <div class="answer-trust-item">
+          <div class="answer-trust-label">Target / metric</div>
+          <div class="answer-trust-value">${formatLabel(data.target)}</div>
+        </div>
+        <div class="answer-trust-item">
+          <div class="answer-trust-label">Aggregation</div>
+          <div class="answer-trust-value">${formatLabel(data.aggregation || 'Not available')}</div>
+        </div>
+        <div class="answer-trust-item">
+          <div class="answer-trust-label">Charts generated</div>
+          <div class="answer-trust-value">${chartCount}</div>
+        </div>
+        <div class="answer-trust-item">
+          <div class="answer-trust-label">Planner confidence</div>
+          <div class="answer-trust-value">${reviewConfidence}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildAnswerHero(data) {
+    return `
+      <div class="card answer-hero">
+        <div class="answer-hero-top">
+          <div>
+            <div class="section-badge badge-blue">Direct answer</div>
+            <div class="card-title" style="margin-top:10px;">Direct answer</div>
+            <p class="card-subtitle">The clearest business readout of the question, followed by the supporting evidence.</p>
           </div>
-          <div class="executive-answer">${data.direct_answer || 'No direct answer was generated.'}</div>
-          <div class="executive-summary">${data.executive_summary || 'No executive summary was generated.'}</div>
-          <div class="pill-row">
+          <div class="pill-row" style="margin-top:0;">
             <div class="pill">Intent: ${formatLabel(data.intent)}</div>
             <div class="pill">Target: ${formatLabel(data.target)}</div>
             <div class="pill">Question type: ${formatLabel(data.question_category || 'general')}</div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="section-badge badge-purple">Decision support</div>
-            <div class="card-title">Business goal</div>
-            <p class="card-subtitle">Why this analysis matters and what decision it is helping support.</p>
+        <div class="question-quote">
+          <span class="question-quote-label">Question</span>
+          ${data.question || 'No question returned.'}
+        </div>
+        <div class="executive-answer">${data.direct_answer || 'No direct answer was generated.'}</div>
+        <div class="executive-summary">${data.executive_summary || 'No executive summary was generated.'}</div>
+        ${buildTrustStrip(data)}
+      </div>
+    `;
+  }
+
+  function buildExecutiveSection(data) {
+    return buildAnswerHero(data);
+  }
+
+  function buildAnalysisPlanCard(data) {
+    const plan = data.plan || {};
+    const review = getPlannerReview(data);
+    const ds = data.dataset_summary || {};
+    const drivers = asArray(data.drivers).length ? data.drivers : firstAvailable([plan.drivers, plan.group_by, ds.driver_columns], []);
+    const reviewDecision = getPlannerReviewDecision(review);
+    const reviewConfidence = getPlannerReviewConfidence(review);
+    const hintStatus = getUniversalPlannerHintStatus(data);
+    const decisionLower = String(reviewDecision).toLowerCase();
+    const reviewClass = decisionLower.includes('accept') || decisionLower.includes('align') || decisionLower.includes('pass') ? 'good' : (reviewDecision === 'Not available' ? 'info' : 'warn');
+    const hintClass = hintStatus === 'Not available' ? 'warn' : 'info';
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="section-badge badge-purple">Analysis plan</div>
+          <div class="card-title">What I analyzed</div>
+          <p class="card-subtitle">A quick trust check that shows how the analyst interpreted the question before producing the answer.</p>
+        </div>
+        <div class="plan-matrix">
+          <div class="plan-cell">
+            <div class="plan-cell-label">Intent</div>
+            <div class="plan-cell-value">${formatLabel(data.intent)}</div>
           </div>
-          <div class="executive-summary">${data.question_goal || 'No business goal was generated.'}</div>
+          <div class="plan-cell">
+            <div class="plan-cell-label">Target / metric</div>
+            <div class="plan-cell-value">${formatLabel(data.target || ds.target_metric)}</div>
+          </div>
+          <div class="plan-cell plan-cell-wide">
+            <div class="plan-cell-label">Drivers / grouped by</div>
+            <div class="plan-cell-value">${formatList(drivers)}</div>
+          </div>
+          <div class="plan-cell">
+            <div class="plan-cell-label">Time column</div>
+            <div class="plan-cell-value">${formatLabel(data.time_column || plan.time_column || 'Not available')}</div>
+          </div>
+          <div class="plan-cell">
+            <div class="plan-cell-label">Aggregation</div>
+            <div class="plan-cell-value">${formatLabel(data.aggregation || plan.aggregation || 'Not available')}</div>
+          </div>
+          <div class="plan-cell">
+            <div class="plan-cell-label">Preferred chart</div>
+            <div class="plan-cell-value">${formatLabel(data.preferred_chart || plan.preferred_chart || 'Not available')}</div>
+          </div>
+          <div class="plan-cell">
+            <div class="plan-cell-label">Business goal</div>
+            <div class="plan-cell-value" style="font-size:17px;">${data.question_goal || 'Not available'}</div>
+          </div>
+        </div>
+        <div class="trust-row">
+          <div class="trust-badge ${reviewClass}">Planner review: ${formatLabel(reviewDecision)}</div>
+          <div class="trust-badge ${reviewClass}">Confidence: ${reviewConfidence}</div>
+          <div class="trust-badge ${hintClass}">Universal Planner hint: ${formatLabel(hintStatus)}</div>
         </div>
       </div>
     `;
+  }
+
+  function buildAnalysisPlanSection(data) {
+    return buildAnalysisPlanCard(data);
   }
 
   function buildDatasetSummarySection(data) {
@@ -2216,7 +2974,7 @@
               <li>Numeric columns: ${formatValue(ds.numeric_column_count, 'numeric columns')}</li>
               <li>Categorical columns: ${formatValue(ds.categorical_column_count, 'categorical columns')}</li>
               <li>Date/time columns: ${formatValue(ds.datetime_column_count, 'datetime columns')}</li>
-              ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} → ${ds.date_range_end}</li>` : ''}
+              ${ds.date_range_start && ds.date_range_end ? `<li>Date coverage: ${ds.date_range_start} to ${ds.date_range_end}</li>` : ''}
             </ul>
           </div>
           <div class="summary-card">
@@ -2283,9 +3041,9 @@
     return `
       <div class="card">
         <div class="card-header">
-          <div class="section-badge badge-amber">Top insights</div>
-          <div class="card-title">What stands out first</div>
-          <p class="card-subtitle">The most important findings surfaced as quick product-style insight cards.</p>
+          <div class="section-badge badge-amber">What stands out</div>
+          <div class="card-title">What stands out</div>
+          <p class="card-subtitle">The most important findings, summarized as quick business insight cards.</p>
         </div>
         <div class="insight-grid">
           ${insights.map(item => `
@@ -2302,27 +3060,25 @@
 
   function buildKPIHtml(data) {
     const kpis = data.kpis || {};
+    const targetLabel = formatLabel(data.target || 'target');
     const kpiItems = [
-      { title: 'Rows analyzed', value: kpis.row_count, footnote: 'Records included after target validation and null handling.' },
-      { title: 'Columns available', value: kpis.column_count, footnote: 'Total available fields in the loaded dataset.' },
-      { title: `Total ${formatLabel(data.target || 'target')}`, value: kpis.total_target, footnote: 'Overall aggregate of the primary metric.' },
-      { title: `Average ${formatLabel(data.target || 'target')}`, value: kpis.average_target, footnote: 'Average value per usable record.' },
-      { title: `Median ${formatLabel(data.target || 'target')}`, value: kpis.median_target, footnote: 'Middle value for the selected target metric.' },
-      { title: 'Top segment', value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} by total target contribution.` : 'Leading category based on aggregate contribution.' },
+      { title: `Total ${targetLabel}`, value: kpis.total_target, footnote: 'Overall aggregate for the selected metric.' },
+      { title: `Average ${targetLabel}`, value: kpis.average_target, footnote: 'Typical value per usable record.' },
+      { title: 'Top segment', value: kpis.top_dimension_value, footnote: kpis.top_dimension_name ? `Leading ${formatLabel(kpis.top_dimension_name).toLowerCase()} in this analysis.` : 'Leading category in this analysis.' },
       { title: 'Top segment value', value: kpis.top_dimension_metric, footnote: 'Measured contribution of the leading segment.' },
-      { title: 'Date coverage', value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} → ${kpis.date_range_end}` : undefined, footnote: 'Observed time range in the dataset.' },
-      { title: 'Best period', value: kpis.best_period, footnote: 'Strongest observed time period for the selected metric.' },
-      { title: 'Worst period', value: kpis.worst_period, footnote: 'Weakest observed time period for the selected metric.' },
-      { title: 'Period change %', value: kpis.period_change_pct, footnote: 'Overall change from first period to last period.' },
-      { title: 'Coverage %', value: kpis.target_coverage_pct, footnote: 'Usable target coverage across all uploaded rows.' }
-    ].filter(item => item.value !== undefined);
+      { title: 'Date coverage', value: kpis.date_range_start && kpis.date_range_end ? `${kpis.date_range_start} to ${kpis.date_range_end}` : undefined, footnote: 'Observed time range in the dataset.' },
+      { title: 'Best period', value: kpis.best_period, footnote: 'Strongest observed time period.' },
+      { title: 'Period change %', value: kpis.period_change_pct, footnote: 'Change from the first observed period to the last.' },
+      { title: 'Coverage %', value: kpis.target_coverage_pct, footnote: 'Usable metric coverage across uploaded rows.' },
+      { title: 'Rows analyzed', value: kpis.row_count, footnote: 'Records included in this result.' }
+    ].filter(item => item.value !== undefined).slice(0, 6);
     if (!kpiItems.length) return '';
     return `
       <div class="card">
         <div class="card-header">
-          <div class="section-badge badge-green">KPI strip</div>
-          <div class="card-title">Key performance indicators</div>
-          <p class="card-subtitle">High-level metrics that anchor the rest of the analysis and set the business context.</p>
+          <div class="section-badge badge-green">Key metrics</div>
+          <div class="card-title">Key metrics</div>
+          <p class="card-subtitle">The most useful metrics for this question, kept intentionally compact.</p>
         </div>
         <div class="kpi-grid">
           ${kpiItems.map(item => `
@@ -2416,9 +3172,9 @@
     return `
       <div class="card">
         <div class="card-header">
-          <div class="section-badge badge-blue">Hero chart</div>
-          <div class="card-title">${chart.title || 'Main chart'} ${role}</div>
-          <p class="card-subtitle">This is the primary visual answer to the business question.</p>
+          <div class="section-badge badge-blue">Main chart</div>
+          <div class="card-title">What the chart shows: ${chart.title || 'Main chart'} ${role}</div>
+          <p class="card-subtitle">The primary visual evidence behind the direct answer.</p>
         </div>
         <div id="${blockId}-chart-main" class="chart-box-large"></div>
         <div class="chart-caption">${chart.description || ''}</div>
@@ -2432,13 +3188,13 @@
       <div class="card">
         <div class="card-header">
           <div class="section-badge badge-purple">Supporting visuals</div>
-          <div class="card-title">Evidence and diagnostic views</div>
-          <p class="card-subtitle">These charts provide support, context, and trust checks for the main answer.</p>
+          <div class="card-title">Supporting charts</div>
+          <p class="card-subtitle">Additional views that add context around the main chart.</p>
         </div>
         <div class="chart-grid">
           ${charts.map((chart, idx) => `
-            <div>
-              <div style="font-size:18px; font-weight:900; margin-bottom:10px;">
+            <div class="supporting-chart-card">
+              <div class="supporting-chart-title">
                 ${chart.title || 'Chart ' + (idx + 2)}
                 ${chart.role ? `<span class="role-tag">${formatLabel(chart.role)}</span>` : ''}
               </div>
@@ -2453,7 +3209,7 @@
 
   function buildDataQualitySection(data) {
     const dq = data.data_quality_summary || {};
-    const dateRange = dq.date_range ? `${dq.date_range.start} → ${dq.date_range.end}` : 'Not available';
+    const dateRange = dq.date_range ? `${dq.date_range.start} to ${dq.date_range.end}` : 'Not available';
     return `
       <div class="card">
         <div class="card-header">
@@ -2501,38 +3257,42 @@
     `;
   }
 
-  function buildDecisionSupportSection(data) {
+  function buildBusinessInterpretationSection(data) {
     const impact  = Array.isArray(data.business_impact) ? data.business_impact : [];
     const actions = Array.isArray(data.recommended_actions) ? data.recommended_actions : [];
     const risks   = Array.isArray(data.risks_or_limitations) ? data.risks_or_limitations : [];
     return `
-      <div class="info-grid">
-        <div class="card">
+      <div class="business-grid">
+        <div class="card interpretation-card">
           <div class="card-header">
-            <div class="section-badge badge-green">Business impact</div>
+            <div class="section-badge badge-green">Business interpretation</div>
             <div class="card-title">Why this matters</div>
             <p class="card-subtitle">The practical business meaning of the result.</p>
           </div>
           ${impact.length ? `<ul class="info-list">${impact.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No business impact notes were generated.</div>`}
         </div>
-        <div class="card">
+        <div class="card interpretation-card">
           <div class="card-header">
-            <div class="section-badge badge-blue">Recommended actions</div>
-            <div class="card-title">What to do next</div>
+            <div class="section-badge badge-blue">Suggested next steps</div>
+            <div class="card-title">Suggested next steps</div>
             <p class="card-subtitle">Suggested next steps based on the current evidence.</p>
           </div>
           ${actions.length ? `<ul class="info-list">${actions.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No recommended actions were generated.</div>`}
         </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <div class="section-badge badge-red">Risks and limitations</div>
-          <div class="card-title">Read this result with context</div>
-          <p class="card-subtitle">Important caveats that help keep the analysis realistic and decision-safe.</p>
+        <div class="card risks-card interpretation-card">
+          <div class="card-header">
+            <div class="section-badge badge-red">Risks to keep in mind</div>
+            <div class="card-title">Risks to keep in mind</div>
+            <p class="card-subtitle">Important caveats that help keep the analysis realistic and decision-safe.</p>
+          </div>
+          ${risks.length ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No risks or limitations were generated.</div>`}
         </div>
-        ${risks.length ? `<ul class="info-list">${risks.map(item => `<li>${item}</li>`).join('')}</ul>` : `<div class="empty-state">No risks or limitations were generated.</div>`}
       </div>
     `;
+  }
+
+  function buildDecisionSupportSection(data) {
+    return buildBusinessInterpretationSection(data);
   }
 
   function renderNarrative(narrative) {
@@ -2578,18 +3338,25 @@
     `;
   }
 
-  function buildDiagnosticsSection(data) {
-    const review = data.review || {};
+  function buildTechnicalDetailsSection(data) {
+    const review = getPlannerReview(data);
     const trace = data.trace || {};
     const traceSteps = Array.isArray(trace.steps) ? trace.steps : [];
     const loader = data.dataset_loader || {};
     const activeDataset = data.active_dataset || {};
     const plannerReasoning = data.planner_reasoning || {};
+    const plannerReview = data.planner_review || {};
+    const universalPlannerShadow = data.universal_planner_shadow || {};
+    const datasetSummary = data.dataset_summary || {};
+    const dataQualitySummary = data.data_quality_summary || {};
+    const rawDiagnostics = data.raw_diagnostics || data.diagnostics || data.trace || {};
     const plannerWarnings = Array.isArray(plannerReasoning.warnings) ? plannerReasoning.warnings : [];
     const reviewIssues = Array.isArray(review.issues) ? review.issues : [];
-    const confidenceValue = review.confidence !== undefined && review.confidence !== null
-      ? Number(review.confidence) * 100
-      : null;
+    const confidenceRaw = firstAvailable([review.confidence, review.confidence_score, review.review_confidence], null);
+    const confidenceNumber = confidenceRaw !== null ? Number(confidenceRaw) : NaN;
+    const confidenceValue = Number.isNaN(confidenceNumber)
+      ? null
+      : (confidenceNumber <= 1 ? confidenceNumber * 100 : confidenceNumber);
 
     const confidenceClass =
       confidenceValue === null ? '' :
@@ -2598,16 +3365,16 @@
       'status-bad';
 
     return `
-      <div class="details-shell">
+      <details class="details-shell">
         <summary>
           <div class="details-left">
-            <div class="details-icon">🛠️</div>
+            <div class="details-icon">i</div>
             <div>
-              <div>Technical diagnostics</div>
-              <div class="details-meta">Reviewer, trace, loader metadata, and pipeline internals</div>
+              <div>Technical details</div>
+              <div class="details-meta">Dataset summary, quality checks, planner internals, loader metadata, and raw diagnostics</div>
             </div>
           </div>
-          <div class="details-caret">⌄</div>
+          <div class="details-caret">v</div>
         </summary>
 
         <div class="details-body">
@@ -2615,7 +3382,7 @@
             <div class="diag-card">
               <div class="diag-title">Review confidence</div>
               <div class="diag-value ${confidenceClass}">${confidenceValue !== null ? confidenceValue.toFixed(1) + '%' : 'N/A'}</div>
-              <div class="diag-note">${review.review_summary || 'No reviewer summary available.'}</div>
+              <div class="diag-note">${review.review_summary || review.summary || 'No reviewer summary available.'}</div>
             </div>
             <div class="diag-card">
               <div class="diag-title">Answer aligned</div>
@@ -2636,8 +3403,22 @@
 
           <div class="tech-grid" style="margin-bottom:20px;">
             <div class="tech-panel">
+              <div class="plan-title">Dataset summary</div>
+              ${renderJsonDump(datasetSummary)}
+            </div>
+
+            <div class="tech-panel">
+              <div class="plan-title">Data quality summary</div>
+              ${renderJsonDump(dataQualitySummary)}
+            </div>
+          </div>
+
+          <div class="tech-grid" style="margin-bottom:20px;">
+            <div class="tech-panel">
               <div class="plan-title">Reviewer details</div>
               <table class="kv-table">
+                <tr><td>Decision</td><td>${formatLabel(getPlannerReviewDecision(review))}</td></tr>
+                <tr><td>Confidence</td><td>${getPlannerReviewConfidence(review)}</td></tr>
                 <tr><td>Recommended fix</td><td>${review.recommended_fix || 'None'}</td></tr>
                 <tr><td>Review issues</td><td>${reviewIssues.length ? reviewIssues.join('<br>') : 'None'}</td></tr>
                 <tr><td>Planner warnings</td><td>${plannerWarnings.length ? plannerWarnings.join('<br>') : 'None'}</td></tr>
@@ -2654,6 +3435,23 @@
                 <tr><td>Loader warnings</td><td>${Array.isArray(loader.warnings) && loader.warnings.length ? loader.warnings.join('<br>') : 'None'}</td></tr>
               </table>
             </div>
+          </div>
+
+          <div class="tech-grid" style="margin-bottom:20px;">
+            <div class="tech-panel">
+              <div class="plan-title">Planner reasoning</div>
+              ${renderJsonDump(plannerReasoning)}
+            </div>
+
+            <div class="tech-panel">
+              <div class="plan-title">Planner review</div>
+              ${renderJsonDump(plannerReview)}
+            </div>
+          </div>
+
+          <div class="tech-panel" style="margin-bottom:20px;">
+            <div class="plan-title">Universal Planner shadow</div>
+            ${renderJsonDump(universalPlannerShadow)}
           </div>
 
           <div class="tech-panel" style="margin-bottom:20px;">
@@ -2681,9 +3479,18 @@
               </div>
             `).join('') : '<div class="empty-state">No trace steps were returned.</div>'}
           </div>
+
+          <div class="tech-panel" style="margin-top:20px;">
+            <div class="plan-title">Raw diagnostics</div>
+            ${renderJsonDump(rawDiagnostics)}
+          </div>
         </div>
-      </div>
+      </details>
     `;
+  }
+
+  function buildDiagnosticsSection(data) {
+    return buildTechnicalDetailsSection(data);
   }
 
   function buildFollowUpSection(data, blockId) {
@@ -2691,8 +3498,8 @@
     return `
       <div class="card" style="border-top:3px solid var(--primary);">
         <div class="card-header">
-          <div class="section-badge badge-blue">Suggested follow-ups</div>
-          <div class="card-title">Continue the analysis</div>
+          <div class="section-badge badge-blue">Follow-up questions</div>
+          <div class="card-title">Follow-up questions</div>
           <p class="card-subtitle">Click a suggestion or type your own question. The dataset stays loaded in the workspace.</p>
         </div>
         ${questions.length ? `
@@ -2706,12 +3513,12 @@
         <div class="inline-q-bar">
           <textarea
             id="inline-q-${blockId}"
-            placeholder="Type your next question…"
+            placeholder="Type your next question..."
             rows="1"
             onkeydown="handleInlineKey(event, '${blockId}')"
             oninput="autoGrow(this)"
           ></textarea>
-          <button onclick="submitInlineQuestion('${blockId}')">Ask →</button>
+          <button onclick="submitInlineQuestion('${blockId}')">Ask -></button>
         </div>
       </div>
     `;
@@ -2727,63 +3534,17 @@
 
         <div class="question-thread-label">Question ${questionNumber}</div>
 
-        <div class="card" style="border-left:5px solid var(--primary);">
-          <div style="font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">
-            Question ${questionNumber}
-          </div>
-          <div class="card-header">
-            <div class="section-badge badge-blue">Question header</div>
-            <div class="card-title">Your question</div>
-            <p class="card-subtitle">
-              The system identified the analytical intent, selected a target metric, generated a storyboard response, and prepared follow-up exploration.
-            </p>
-          </div>
-          <div style="font-size:22px; font-weight:900; line-height:1.5; margin-bottom:18px;">
-            ${data.question || 'No question returned'}
-          </div>
-          <div class="meta-grid">
-            <div class="meta-item">
-              <div class="meta-label">Intent</div>
-              <div class="meta-value">${formatLabel(data.intent)}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Target metric</div>
-              <div class="meta-value">${formatLabel(data.target)}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">KPI mode</div>
-              <div class="meta-value">${data.show_kpis ? 'Enabled' : 'Not needed'}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Charts returned</div>
-              <div class="meta-value">${data.charts ? data.charts.length : 0}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Aggregation</div>
-              <div class="meta-value">${formatLabel(data.aggregation || 'N/A')}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">Time column</div>
-              <div class="meta-value">${formatLabel(data.time_column || 'N/A')}</div>
-            </div>
-          </div>
-        </div>
-
-        ${buildConfidenceStrip(data)}
         ${buildExecutiveSection(data)}
-        ${buildInsightCards(data)}
+        ${buildAnalysisPlanSection(data)}
         ${data.show_kpis && data.kpis && Object.keys(data.kpis).length > 0 ? buildKPIHtml(data) : ''}
-        ${buildTakeaways(data)}
         ${primaryChart ? renderMainChart(primaryChart, blockId) : ''}
         ${supportingCharts.length ? renderSupportingCharts(supportingCharts, blockId) : ''}
+        ${buildInsightCards(data)}
         ${buildDecisionSupportSection(data)}
-        ${buildDataQualitySection(data)}
-        ${buildDatasetSummarySection(data)}
-        ${buildPlannerSection(data)}
         ${renderTextSection(data)}
+        ${buildFollowUpSection(data, blockId)}
         ${buildCrossWorkspaceNextStep(data)}
         ${buildDiagnosticsSection(data)}
-        ${buildFollowUpSection(data, blockId)}
 
       </div>
     `;
@@ -2835,3 +3596,6 @@
 </script>
 </body>
 </html>
+
+
+

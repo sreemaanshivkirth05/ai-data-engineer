@@ -2,6 +2,25 @@ import os
 import re
 import pandas as pd
 
+try:
+    from analyst_runtime.universal_planner.predict import predict_plan
+    from analyst_runtime.universal_planner.column_mapper import map_columns_to_plan
+    from analyst_runtime.universal_planner.planner_schema_validator import attach_schema_validation
+    from analyst_runtime.universal_planner.planner_output_adapter import adapt_mapped_plan_for_platform
+    from analyst_runtime.universal_planner.metadata_adapter import (
+        normalize_planner_metadata,
+        metadata_from_column_profiles,
+        metadata_from_dataframe,
+    )
+except Exception:
+    predict_plan = None
+    map_columns_to_plan = None
+    attach_schema_validation = None
+    adapt_mapped_plan_for_platform = None
+    normalize_planner_metadata = None
+    metadata_from_column_profiles = None
+    metadata_from_dataframe = None
+
 from agents.analyst_agents.legacy.question_agent import QuestionAgent
 from agents.analyst_agents.legacy.planner_agent import PlannerAgent
 from agents.analyst_agents.legacy.analysis_agent import AnalysisAgent
@@ -10,6 +29,7 @@ from agents.analyst_agents.legacy.visualization_agent import VisualizationAgent
 from agents.analyst_agents.legacy.narrative_agent import NarrativeAgent
 from agents.analyst_agents.legacy.storytelling_agent import StorytellingAgent
 from agents.analyst_agents.legacy.review_agent import ReviewAgent
+from agents.analyst_agents.legacy.planner_review_agent import PlannerReviewAgent
 
 # These are used later in the pipeline, so keep them imported too.
 from agents.analyst_agents.legacy.dataset_understanding_agent import DatasetUnderstandingAgent
@@ -17,8 +37,323 @@ from agents.analyst_agents.legacy.column_selector_agent import ColumnSelectorAge
 
 # Keep your existing loader import path if it already works in your project.
 # If your project uses a different loader module, update only this import line.
-from engineer_runtime.dataset_loader import load_dataset
+from data_access.loaders import load_dataset
 
+
+def run_universal_planner_shadow(question, column_profiles, df=None):
+    """
+    Run Universal Planner in shadow mode.
+
+    Shadow mode must never control the final app output.
+    It only returns diagnostics so we can compare the Universal Planner
+    against the existing Data Analysis pipeline.
+    """
+
+    shadow = {
+        "enabled": True,
+        "status": "not_run",
+        "contract": None,
+        "error": None,
+    }
+
+    try:
+        if not all([
+            predict_plan,
+            map_columns_to_plan,
+            attach_schema_validation,
+            adapt_mapped_plan_for_platform,
+            normalize_planner_metadata,
+            metadata_from_column_profiles,
+        ]):
+            shadow["status"] = "import_unavailable"
+            shadow["error"] = "Universal Planner imports are unavailable."
+            return shadow
+
+        if df is not None and metadata_from_dataframe:
+            planner_metadata = metadata_from_dataframe(df)
+        else:
+            planner_metadata = metadata_from_column_profiles(column_profiles)
+
+        planner_metadata = normalize_planner_metadata(planner_metadata)
+
+        plan = predict_plan(question, planner_metadata)
+
+        mapped_plan = map_columns_to_plan(
+            question=question,
+            metadata=planner_metadata,
+            plan=plan,
+        )
+
+        mapped_plan = attach_schema_validation(mapped_plan)
+
+        contract = adapt_mapped_plan_for_platform(mapped_plan)
+
+        shadow["status"] = "success"
+        shadow["contract"] = contract
+        shadow["error"] = None
+
+        return shadow
+
+    except Exception as exc:
+        shadow["status"] = "error"
+        shadow["error"] = str(exc)
+        shadow["contract"] = None
+        return shadow
+
+def apply_universal_planner_hints(
+    universal_planner_shadow,
+    target,
+    drivers,
+    time_column,
+    aggregation,
+    preferred_chart,
+    intent,
+    planner_reasoning=None,
+):
+    """
+    Apply Universal Planner output as a safe hint layer.
+
+    This does NOT replace the full pipeline.
+    It only cleans planning variables when the Universal Planner contract
+    is safe and executable.
+
+    Compatibility note:
+    - Universal Planner uses semantic aggregation="rate" for target-rate operations.
+    - The existing AnalysisAgent/KPIAgent pipeline is safer with aggregation="avg"
+      for binary 0/1 targets, so rate is translated to avg for execution while
+      preserving semantic_aggregation="rate" in planner_reasoning.
+    """
+
+    planner_reasoning = planner_reasoning or {}
+
+    if not universal_planner_shadow:
+        return target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning
+
+    if universal_planner_shadow.get("status") != "success":
+        planner_reasoning.setdefault("warnings", []).append(
+            "Universal Planner hint not applied because shadow status was not success."
+        )
+        return target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning
+
+    contract = universal_planner_shadow.get("contract") or {}
+
+    if not contract.get("safe_to_execute") or contract.get("needs_fallback"):
+        planner_reasoning.setdefault("warnings", []).append(
+            "Universal Planner hint not applied because the contract was unsafe or needed fallback."
+        )
+        return target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning
+
+    columns = contract.get("columns", {}) or {}
+
+    shadow_target = contract.get("main_target") or columns.get("measure") or columns.get("target")
+    shadow_dimension = columns.get("dimension")
+    shadow_time = contract.get("main_time_column") or columns.get("time")
+    shadow_aggregation = contract.get("main_aggregation")
+    shadow_chart = contract.get("main_chart")
+    shadow_intent = contract.get("main_intent") or contract.get("analysis_intent")
+    shadow_operation = contract.get("operation")
+
+    if shadow_operation == "full_dataset_analysis":
+        planner_reasoning["universal_planner_hint"] = {
+            "applied": False,
+            "applied_fields": {
+                "note": (
+                    "Broad full-dataset analysis detected. Universal Planner was used "
+                    "for classification only. Existing target, drivers, time column, "
+                    "aggregation, and chart were preserved for compatibility."
+                )
+            },
+            "raw_contract": contract,
+        }
+
+        return target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning
+
+    applied = {}
+
+    if shadow_target:
+        target = shadow_target
+        applied["target"] = shadow_target
+
+    # These operations do not need a categorical driver for the primary answer.
+    # Clearing noisy drivers avoids irrelevant breakdowns such as InvoiceNo/StockCode.
+    dimension_optional_operations = {
+        "distribution",
+        "outlier_check",
+        "time_groupby_sum",
+        "time_groupby_mean",
+        "correlation_heatmap",
+        "null_check",
+        "duplicate_check",
+        "full_dataset_analysis",
+    }
+
+    if shadow_dimension:
+        drivers = [shadow_dimension]
+        applied["drivers"] = drivers
+    elif shadow_operation in dimension_optional_operations:
+        drivers = []
+        applied["drivers"] = []
+
+    if shadow_time:
+        time_column = shadow_time
+        applied["time_column"] = shadow_time
+
+    if shadow_aggregation:
+        if shadow_aggregation == "rate":
+            aggregation = "avg"
+            applied["aggregation"] = "avg"
+            applied["semantic_aggregation"] = "rate"
+        else:
+            aggregation = shadow_aggregation
+            applied["aggregation"] = shadow_aggregation
+
+    if shadow_chart:
+        preferred_chart = shadow_chart
+        applied["preferred_chart"] = shadow_chart
+
+    if shadow_intent:
+        intent = normalize_intent(shadow_intent)
+        applied["intent"] = intent
+
+    planner_reasoning["universal_planner_hint"] = {
+        "applied": True,
+        "applied_fields": applied,
+        "raw_contract": contract,
+    }
+
+    return target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning
+
+def should_run_planner_reviewer(universal_planner_shadow, intent, question, planner_reasoning=None):
+    """
+    Decide whether OpenAI PlannerReviewAgent should be called.
+
+    We avoid calling the LLM for every request.
+    """
+
+    planner_reasoning = planner_reasoning or {}
+    q = (question or "").strip().lower()
+
+    contract = (universal_planner_shadow or {}).get("contract") or {}
+
+    if not contract:
+        return False
+
+    if universal_planner_shadow.get("status") != "success":
+        return True
+
+    if not contract.get("safe_to_execute") or contract.get("needs_fallback"):
+        return True
+
+    if contract.get("confidence_status") in {"low_confidence", "medium_confidence"}:
+        return True
+
+    if contract.get("operation") == "full_dataset_analysis":
+        return True
+
+    broad_phrases = [
+        "analyze this dataset",
+        "business insights",
+        "main insights",
+        "summarize",
+        "summary",
+        "what do you see",
+        "what is happening",
+        "why",
+    ]
+
+    if any(phrase in q for phrase in broad_phrases):
+        return True
+
+    warnings = planner_reasoning.get("warnings", []) or []
+    if warnings:
+        return True
+
+    return False
+
+def prepare_binary_target_for_rate_analysis(df, target, aggregation, planner_reasoning=None):
+    """
+    Convert binary categorical targets like Yes/No, True/False, 1/0 into numeric flags
+    when the pipeline needs avg/rate-style analysis.
+
+    Example:
+    Attrition = Yes/No
+    → Attrition_Flag = 1/0
+    """
+
+    planner_reasoning = planner_reasoning or {}
+
+    if not target or target not in df.columns:
+        return df, target, planner_reasoning
+
+    if aggregation not in {"avg", "mean", "rate"}:
+        return df, target, planner_reasoning
+
+    series = df[target]
+
+    if pd.api.types.is_numeric_dtype(series):
+        return df, target, planner_reasoning
+
+    unique_values = (
+        series.dropna()
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .unique()
+        .tolist()
+    )
+
+    unique_set = set(unique_values)
+
+    yes_no_sets = [
+        {"yes", "no"},
+        {"true", "false"},
+        {"y", "n"},
+        {"1", "0"},
+        {"left", "stayed"},
+        {"churned", "retained"},
+        {"cancelled", "not cancelled"},
+        {"canceled", "not canceled"},
+    ]
+
+    is_binary = len(unique_set) == 2
+
+    if not is_binary:
+        return df, target, planner_reasoning
+
+    positive_values = {
+        "yes",
+        "true",
+        "y",
+        "1",
+        "left",
+        "churned",
+        "cancelled",
+        "canceled",
+    }
+
+    flag_col = f"{target}_Flag"
+
+    if flag_col not in df.columns:
+        df = df.copy()
+        df[flag_col] = (
+            df[target]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .apply(lambda x: 1 if x in positive_values else 0)
+        )
+
+    planner_reasoning.setdefault("warnings", []).append(
+        f"Converted binary target '{target}' to numeric rate column '{flag_col}' for avg/rate analysis."
+    )
+
+    planner_reasoning["binary_target_conversion"] = {
+        "original_target": target,
+        "converted_target": flag_col,
+        "reason": "Binary categorical target converted to numeric flag for rate-style analysis.",
+    }
+
+    return df, flag_col, planner_reasoning
 
 def run_analysis_pipeline(dataset_path, question, question_history=None, dataset_context=None):
     question_history = question_history or []
@@ -48,6 +383,44 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
 
     print(f"✅ Preprocessing complete — columns: {columns}")
     print("🧾 Built column profiles for planner")
+
+    print("🛰️ Running Universal Planner shadow mode")
+    universal_planner_shadow = run_universal_planner_shadow(
+        question=question,
+        column_profiles=column_profiles,
+        df=df,
+    )
+
+    if universal_planner_shadow.get("status") == "success":
+        contract = universal_planner_shadow.get("contract") or {}
+
+        print(
+            "✅ Universal Planner shadow complete — "
+            f"intent={contract.get('analysis_intent')} | "
+            f"operation={contract.get('operation')} | "
+            f"chart={contract.get('chart_type')} | "
+            f"safe={contract.get('safe_to_execute')} | "
+            f"fallback={contract.get('needs_fallback')} | "
+            f"measure={contract.get('columns', {}).get('measure')} | "
+            f"secondary={contract.get('columns', {}).get('secondary_measure')} | "
+            f"dimension={contract.get('columns', {}).get('dimension')} | "
+            f"target={contract.get('columns', {}).get('target')} | "
+            f"time={contract.get('columns', {}).get('time')}"
+        )
+
+        if not contract.get("safe_to_execute"):
+            print(
+                "⚠️ Universal Planner shadow marked unsafe — "
+                f"errors={contract.get('validation_errors')} | "
+                f"warnings={contract.get('validation_warnings')}"
+            )
+
+    else:
+        print(
+            "⚠️ Universal Planner shadow unavailable — "
+            f"status={universal_planner_shadow.get('status')} | "
+            f"error={universal_planner_shadow.get('error')}"
+        )
 
     if dataset_context is None:
         print("🔍 Running DatasetUnderstandingAgent")
@@ -132,13 +505,103 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         if preferred_chart == "table":
             preferred_chart = "line" if time_column else "bar"
 
+    shadow_contract = (universal_planner_shadow or {}).get("contract") or {}
+
+    if shadow_contract:
+        shadow_columns = shadow_contract.get("columns", {}) or {}
+
+        print("🧪 Universal Planner shadow comparison")
+        print(f"   Main target: {target} | Shadow measure: {shadow_columns.get('measure')}")
+        print(f"   Main drivers: {drivers} | Shadow dimension: {shadow_columns.get('dimension')}")
+        print(f"   Main time: {time_column} | Shadow time: {shadow_columns.get('time')}")
+        print(f"   Main aggregation: {aggregation} | Shadow aggregation: {shadow_contract.get('main_aggregation')}")
+        print(f"   Main chart: {preferred_chart} | Shadow chart: {shadow_contract.get('main_chart')}")
+        print(f"   Main intent: {intent} | Shadow intent: {shadow_contract.get('main_intent')}")
+
+    target, drivers, time_column, aggregation, preferred_chart, intent, planner_reasoning = apply_universal_planner_hints(
+        universal_planner_shadow=universal_planner_shadow,
+        target=target,
+        drivers=drivers,
+        time_column=time_column,
+        aggregation=aggregation,
+        preferred_chart=preferred_chart,
+        intent=intent,
+        planner_reasoning=planner_reasoning,
+    )
+
+    print(
+        "🧭 Universal Planner hint layer applied — "
+        f"Target: {target} | Drivers: {drivers} | "
+        f"Intent: {intent} | Time column: {time_column} | "
+        f"Aggregation: {aggregation} | Preferred chart: {preferred_chart}"
+    )
+
+    df, target, planner_reasoning = prepare_binary_target_for_rate_analysis(
+        df=df,
+        target=target,
+        aggregation=aggregation,
+        planner_reasoning=planner_reasoning,
+    )
+
     resolved_plan = dict(plan)
     resolved_plan["target"] = target
     resolved_plan["drivers"] = drivers
     resolved_plan["time_column"] = time_column
-    resolved_plan["analysis_type"] = planner_intent
+    resolved_plan["analysis_type"] = intent
     resolved_plan["aggregation"] = aggregation
     resolved_plan["chart"] = preferred_chart
+    resolved_plan["universal_planner_shadow"] = universal_planner_shadow
+    resolved_plan["universal_planner_hint"] = planner_reasoning.get("universal_planner_hint")
+    resolved_plan["binary_target_conversion"] = planner_reasoning.get("binary_target_conversion")
+
+    planner_review = None
+
+    if should_run_planner_reviewer(
+        universal_planner_shadow=universal_planner_shadow,
+        intent=intent,
+        question=question,
+        planner_reasoning=planner_reasoning,
+    ):
+        print("🧠 Running PlannerReviewAgent")
+
+        try:
+            reviewer = PlannerReviewAgent()
+
+            current_plan_for_review = {
+                "target": target,
+                "drivers": drivers,
+                "time_column": time_column,
+                "aggregation": aggregation,
+                "chart": preferred_chart,
+                "intent": intent,
+            }
+
+            planner_review = reviewer.run(
+                question=question,
+                columns=df.columns.tolist(),
+                current_plan=current_plan_for_review,
+                universal_contract=(universal_planner_shadow or {}).get("contract"),
+                dataset_context=dataset_context,
+            )
+
+            print(
+                "✅ PlannerReviewAgent complete — "
+                f"decision={planner_review.get('decision')} | "
+                f"confidence={planner_review.get('confidence')} | "
+                f"reason={planner_review.get('reason')}"
+            )
+
+        except Exception as e:
+            print(f"⚠️ PlannerReviewAgent failed: {e}")
+            planner_review = {
+                "decision": "use_current_pipeline",
+                "confidence": "low",
+                "reason": f"PlannerReviewAgent failed: {e}",
+                "warnings": [str(e)],
+            }
+
+        planner_reasoning["planner_review"] = planner_review
+        resolved_plan["planner_review"] = planner_review
 
     print(
         f"✅ Target: {target} | Drivers: {drivers} | "
@@ -168,6 +631,7 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
             "warnings": bundle.warnings,
             "metadata": bundle.metadata,
         }
+        result["universal_planner_shadow"] = universal_planner_shadow
         return result
 
     print("📌 Running KPIAgent")
@@ -367,6 +831,7 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
         "aggregation": aggregation,
         "preferred_chart": preferred_chart,
         "planner_reasoning": planner_reasoning,
+        "planner_review": planner_reasoning.get("planner_review"),
         "kpis": kpis,
         "analysis": analysis_results,
         "charts": charts,
@@ -387,6 +852,7 @@ def run_analysis_pipeline(dataset_path, question, question_history=None, dataset
             "warnings": bundle.warnings,
             "metadata": bundle.metadata,
         },
+        "universal_planner_shadow": universal_planner_shadow,
     }
 
 
@@ -1912,9 +2378,15 @@ def normalize_intent(intent):
         "ranking_analysis": "ranking_analysis",
         "relationship": "relationship_analysis",
         "relationship_analysis": "relationship_analysis",
+        "correlation": "relationship_analysis",
+        "target_rate": "comparison",
+        "target_rate_ranking": "ranking_analysis",
+        "outlier_check": "distribution_analysis",
+        "data_quality": "general_analysis",
         "composition": "contribution_analysis",
         "contribution_analysis": "contribution_analysis",
         "diagnostic": "general_analysis",
+        "diagnostic_analysis": "general_analysis",
         "general_analysis": "general_analysis",
         "summary_analysis": "summary_analysis",
         "segment_analysis": "segment_analysis",
