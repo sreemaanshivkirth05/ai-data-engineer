@@ -3,6 +3,7 @@ import pandas as pd
 
 from agents.engineer_agents.dataset_profiler import DatasetProfilerAgent
 from agents.engineer_agents.cleaning_planner_agent import CleaningPlannerAgent
+from engineer_runtime.cleaning_policy import assess_step
 
 
 SENTINEL_VALUES = {"ERROR", "UNKNOWN", "N/A", "NULL", "?", ""}
@@ -61,6 +62,11 @@ def apply_cleaning_steps(df: pd.DataFrame, steps: list):
         action = step.get("action")
         col    = step.get("column")
         params = step.get("parameters", {}) or {}
+
+        allowed, policy_reason = assess_step(cleaned, step)
+        if not allowed:
+            execution_log.append({"action": action, "column": col, "status": "review_required", "reason": policy_reason})
+            continue
 
         try:
             if action == "replace_invalid_values" and col in cleaned.columns:
@@ -210,7 +216,8 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
         raise ValueError("Unsupported dataset format")
 
     # Replace obvious placeholder strings with NaN before profiling
-    working_df = replace_sentinel_values(raw_df.copy())
+    # Preserve source values: placeholder detection is advisory, not an irreversible edit.
+    working_df = raw_df.copy()
 
     # ── Profile the working (pre-clean) dataframe ────────────────
     profiler        = DatasetProfilerAgent(df=working_df)
