@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import shutil
+import secrets
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -23,7 +24,7 @@ from orchestrator import run_full_pipeline
 app = FastAPI()
 app.add_middleware(
     SessionMiddleware,
-    secret_key="ai-data-platform-dev-secret-key-change-later",
+    secret_key=os.getenv("SESSION_SECRET_KEY") or secrets.token_urlsafe(48),
     same_site="lax",
     https_only=False,
 )
@@ -177,11 +178,23 @@ def set_latest_architecture_report(request: Request, result: Dict[str, Any]) -> 
 def save_upload_file(upload_file: UploadFile, folder: str = "datasets") -> str:
     os.makedirs(folder, exist_ok=True)
 
-    filename = os.path.basename(upload_file.filename or "uploaded_file")
-    dataset_path = os.path.join(folder, filename)
+    filename = os.path.basename((upload_file.filename or "uploaded_file").replace("\\", "/"))
+    # A unique prefix prevents users with identically named uploads from overwriting each other.
+    dataset_path = os.path.join(folder, f"{uuid.uuid4().hex}_{filename}")
 
-    with open(dataset_path, "wb") as buffer:
-        shutil.copyfileobj(upload_file.file, buffer)
+    max_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(100 * 1024 * 1024)))
+    total = 0
+    try:
+        with open(dataset_path, "wb") as buffer:
+            while chunk := upload_file.file.read(1024 * 1024):
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ValueError(f"Upload exceeds maximum size of {max_bytes} bytes")
+                buffer.write(chunk)
+    except Exception:
+        if os.path.exists(dataset_path):
+            os.remove(dataset_path)
+        raise
 
     return dataset_path.replace("\\", "/")
 
