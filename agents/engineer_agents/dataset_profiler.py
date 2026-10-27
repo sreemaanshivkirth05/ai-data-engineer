@@ -2,6 +2,7 @@ import pandas as pd
 from typing import Dict, Any, Optional
 
 from data_access.loaders import load_dataframe
+from engineer_runtime.cleaning_policy import is_identifier
 
 
 class DatasetProfilerAgent:
@@ -139,16 +140,9 @@ class DatasetProfilerAgent:
         is_candidate_key: bool,
         unique_ratio: float = 0.0,
     ) -> str:
-        id_keywords = [
-            "id", "uuid", "key", "row number", "rownum",
-            "transaction id", "order id", "customer id", "product id",
-            "postal", "zip", "zipcode", "row id"
-        ]
-        if is_candidate_key:
-            return "id"
-        if any(k in col_name for k in id_keywords):
-            return "id"
-        if unique_ratio >= 0.95 and "int" not in dtype and "float" not in dtype and "datetime" not in dtype:
+        # Uniqueness alone does not prove a field is an identifier.
+        # A column of unique prices or measurements must remain numeric.
+        if is_identifier(col_name):
             return "id"
 
         if any(x in col_name for x in ["date", "time", "timestamp", "month", "year", "quarter"]):
@@ -172,7 +166,7 @@ class DatasetProfilerAgent:
             return "categorical"
 
         lower_dtype = dtype.lower()
-        if "int" in lower_dtype or "float" in lower_dtype:
+        if "int" in lower_dtype or "float" in lower_dtype or "decimal" in lower_dtype:
             return "numeric"
         if "object" in lower_dtype or "string" in lower_dtype:
             return "categorical"
