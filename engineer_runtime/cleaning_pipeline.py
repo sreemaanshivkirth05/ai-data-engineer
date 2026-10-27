@@ -6,6 +6,7 @@ from agents.engineer_agents.cleaning_planner_agent import CleaningPlannerAgent
 from engineer_runtime.cleaning_policy import assess_step
 from engineer_runtime.data_quality import diagnose_dataframe
 from engineer_runtime.cleaning_review import preview_plan, validate_result, audit_record
+from data_access.loaders import load_dataset, save_dataframe
 
 
 SENTINEL_VALUES = {"ERROR", "UNKNOWN", "N/A", "NULL", "?", ""}
@@ -210,12 +211,8 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
     os.makedirs("outputs/cleaner/cleaned_files", exist_ok=True)
 
     # ── Load raw data ────────────────────────────────────────────
-    if dataset_path.endswith(".csv"):
-        raw_df = pd.read_csv(dataset_path)
-    elif dataset_path.endswith(".xlsx"):
-        raw_df = pd.read_excel(dataset_path)
-    else:
-        raise ValueError("Unsupported dataset format")
+    dataset_bundle = load_dataset(dataset_path)
+    raw_df = dataset_bundle.dataframe
 
     # Replace obvious placeholder strings with NaN before profiling
     # Preserve source values: placeholder detection is advisory, not an irreversible edit.
@@ -243,16 +240,12 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
     audit = audit_record(plan.get("cleaning_steps", []), execution_log, validation)
 
     # ── Save cleaned file ────────────────────────────────────────
-    base_name   = os.path.basename(dataset_path)
-    output_path = os.path.join("outputs/cleaner/cleaned_files", f"cleaned_{base_name}")
-
-    if output_path.endswith(".csv"):
-        cleaned_df.to_csv(output_path, index=False)
-    elif output_path.endswith(".xlsx"):
-        cleaned_df.to_excel(output_path, index=False)
-    else:
-        output_path += ".csv"
-        cleaned_df.to_csv(output_path, index=False)
+    base_name = os.path.splitext(os.path.basename(dataset_path))[0]
+    source_ext = os.path.splitext(dataset_path)[1].lower()
+    # Use one consistent CSV fallback for file formats without a compatible writer.
+    result_ext = source_ext if source_ext in {".csv", ".xlsx", ".json", ".jsonl", ".parquet"} else ".csv"
+    output_path = os.path.join("outputs/cleaner/cleaned_files", f"cleaned_{base_name}{result_ext}")
+    output_path = save_dataframe(cleaned_df, output_path)
 
     # ── Cleaned profile summary ──────────────────────────────────
     cleaned_profile = {
@@ -280,6 +273,7 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
         "status":                  "success",
         "dataset_profile":         dataset_profile,
         "quality_diagnostics":     quality_diagnostics,
+        "source_warnings":         dataset_bundle.warnings,
         "cleaning_preview":        cleaning_preview,
         "cleaning_validation":     validation,
         "cleaning_audit":          audit,
