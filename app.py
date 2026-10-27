@@ -22,18 +22,20 @@ from orchestrator import run_full_pipeline
 # ======================================================
 
 app = FastAPI()
+if os.getenv("ENVIRONMENT", "").lower() == "production" and not os.getenv("SESSION_SECRET_KEY"):
+    raise RuntimeError("SESSION_SECRET_KEY must be configured for production")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY") or secrets.token_urlsafe(48),
     same_site="lax",
-    https_only=False,
+    https_only=os.getenv("ENVIRONMENT", "").lower() == "production",
 )
 
 templates = Jinja2Templates(directory="templates")
 
 os.makedirs("outputs", exist_ok=True)
 os.makedirs("datasets", exist_ok=True)
-os.makedirs("outputs/session_state", exist_ok=True)
+os.makedirs(os.getenv("PRIVATE_SESSION_DIR", "private/session_state"), exist_ok=True)
 
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -42,7 +44,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # CONSTANTS
 # ======================================================
 
-SESSION_STATE_DIR = "outputs/session_state"
+SESSION_STATE_DIR = os.getenv("PRIVATE_SESSION_DIR", "private/session_state")
 
 EMPTY_SHARED_DATASET = {
     "path": None,
@@ -245,7 +247,8 @@ def resolve_dataset_for_analysis(
 
     if existing_dataset_path:
         normalized = existing_dataset_path.replace("\\", "/")
-        if os.path.exists(normalized):
+        current = get_current_shared_dataset(request)
+        if current and current.get("path") == normalized and os.path.isfile(normalized):
             return normalized
 
     current = get_current_shared_dataset(request)
@@ -581,9 +584,10 @@ async def set_shared_dataset_endpoint(
     ensure_session_id(request)
     normalized = dataset_path.replace("\\", "/")
 
-    if not os.path.exists(normalized):
+    current = get_current_shared_dataset(request)
+    if not current or current.get("path") != normalized or not os.path.isfile(normalized):
         return JSONResponse(
-            {"error": f"Dataset not found: {normalized}"},
+            {"error": "Dataset is unavailable in this session."},
             status_code=400
         )
 
@@ -729,9 +733,10 @@ async def use_cleaned_for_analysis(
     ensure_session_id(request)
     normalized = cleaned_file_path.replace("\\", "/")
 
-    if not os.path.exists(normalized):
+    current = get_current_shared_dataset(request)
+    if not current or current.get("path") != normalized or not os.path.isfile(normalized):
         return JSONResponse(
-            {"error": f"Cleaned dataset not found: {normalized}"},
+            {"error": "Cleaned dataset is unavailable in this session."},
             status_code=400
         )
 
@@ -812,7 +817,7 @@ async def design_architecture(
             set_current_shared_dataset(request, dataset_path, source="manual_upload_architecture")
         elif existing_dataset_path:
             normalized = existing_dataset_path.replace("\\", "/")
-            if os.path.exists(normalized):
+            if shared_meta and shared_meta.get("path") == normalized and os.path.isfile(normalized):
                 dataset_path = normalized
         elif shared_meta and shared_meta.get("path") and os.path.exists(shared_meta["path"]):
             dataset_path = shared_meta["path"]
@@ -913,6 +918,8 @@ async def run_full_system(
 
 @app.get("/session-debug")
 async def session_debug(request: Request):
+    if os.getenv("ENVIRONMENT", "").lower() != "development":
+        return PlainTextResponse("Not found", status_code=404)
     state = load_session_state(request)
     return JSONResponse({
         "session_id": ensure_session_id(request),
