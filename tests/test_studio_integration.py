@@ -29,6 +29,7 @@ class WorkspaceIntegrationTests(unittest.TestCase):
         self.assertEqual(self.client.get("/session-debug").status_code, 404)
         self.assertEqual(self.client.get("/outputs/cleaner/cleaned_files/secret.csv").status_code, 404)
         self.assertEqual(self.client.get("/download-cleaned-dataset").status_code, 404)
+        self.assertEqual(self.client.get("/outputs/analyst/analysis_report.json").status_code, 404)
         self.assertNotEqual(self.client.post("/set-shared-dataset", data={"dataset_path": "app.py"}).status_code, 200)
 
     def test_csv_preserves_identifiers_and_literal_missing_markers(self):
@@ -53,6 +54,18 @@ class WorkspaceIntegrationTests(unittest.TestCase):
             self.assertIn("cleaning_audit", result)
             self.assertEqual(result["rows_after_cleaning"], 3)
             self.assertTrue(Path(result["cleaned_file_path"]).exists())
+
+    def test_cleaner_post_renders_review_and_private_download(self):
+        payload = b"customer_id,amount,region\\n001,10,North\\n002,20,South\\n"
+        payload = payload.replace(b"\\n", b"\n")
+        response = self.client.post(
+            "/clean", files={"dataset": ("sample.csv", payload, "text/csv")},
+            data={"business_requirements": "Preserve identifiers"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Transformation review", response.text)
+        self.assertIn("/download-cleaned-dataset", response.text)
+        self.assertEqual(self.client.get("/download-cleaned-dataset").status_code, 200)
 
     def test_no_provider_credentials_required(self):
         planner = CleaningPlannerAgent()
