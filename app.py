@@ -39,9 +39,14 @@ os.makedirs(os.getenv("PRIVATE_SESSION_DIR", "private/session_state"), exist_ok=
 
 class RestrictedOutputsStaticFiles(StaticFiles):
     async def get_response(self, path, scope):
-        # Session state and cleaned source files must not be published as static assets.
-        resource = str(path).replace("\\\\", "/").lstrip("/")
-        if resource.startswith("session_state/") or resource.startswith("cleaner/cleaned_files/"):
+        # Expose only visualizations, never raw datasets, Markdown reports or state.
+        resource = str(path).replace(chr(92), "/").lstrip("/")
+        chart = resource.startswith(("analyst/charts/", "architect/charts/"))
+        diagram = resource == "architect/architecture_diagram.png"
+        visual_extension = os.path.splitext(resource)[1].lower() in {
+            ".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".html"
+        }
+        if not ((chart and visual_extension) or diagram):
             return PlainTextResponse("Not found", status_code=404)
         return await super().get_response(path, scope)
 
