@@ -19,8 +19,9 @@ class WorkspaceIntegrationTests(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_workspace_pages_and_styles(self):
-        self.assertEqual(self.client.get("/").status_code, 200)
-        self.assertEqual(self.client.get("/clean").status_code, 200)
+        for route in ("/", "/home", "/analyst", "/clean", "/architect", "/analysis-report", "/architecture-report"):
+            with self.subTest(route=route):
+                self.assertEqual(self.client.get(route).status_code, 200)
         style = self.client.get("/static/studio.css")
         self.assertEqual(style.status_code, 200)
         self.assertIn("Studio", style.text)
