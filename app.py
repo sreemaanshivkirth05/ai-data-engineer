@@ -471,6 +471,7 @@ def build_architecture_markdown(report: Dict[str, Any]) -> str:
 async def home(request: Request):
     ensure_session_id(request)
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
@@ -483,6 +484,7 @@ async def home(request: Request):
 async def home_alt(request: Request):
     ensure_session_id(request)
     return templates.TemplateResponse(
+        request,
         "home.html",
         {
             "request": request,
@@ -496,6 +498,7 @@ async def analyst_page(request: Request):
     ensure_session_id(request)
     shared_dataset = get_current_shared_dataset(request)
     return templates.TemplateResponse(
+        request,
         "analyst.html",
         {
             "request": request,
@@ -509,6 +512,7 @@ async def analyst_page(request: Request):
 async def engineer_page(request: Request):
     ensure_session_id(request)
     return templates.TemplateResponse(
+        request,
         "engineer.html",
         {
             "request": request,
@@ -522,6 +526,7 @@ async def engineer_page(request: Request):
 async def clean_page(request: Request):
     ensure_session_id(request)
     return templates.TemplateResponse(
+        request,
         "engineer.html",
         {
             "request": request,
@@ -536,6 +541,7 @@ async def clean_page(request: Request):
 async def architect_page(request: Request):
     ensure_session_id(request)
     return templates.TemplateResponse(
+        request,
         "architect.html",
         {
             "request": request,
@@ -550,6 +556,7 @@ async def analysis_report_page(request: Request):
     ensure_session_id(request)
     report = get_latest_analysis_report(request)
     return templates.TemplateResponse(
+        request,
         "analysis_report.html",
         {
             "request": request,
@@ -564,6 +571,7 @@ async def architecture_report_page(request: Request):
     ensure_session_id(request)
     report = get_latest_architecture_report(request)
     return templates.TemplateResponse(
+        request,
         "architecture_report.html",
         {
             "request": request,
@@ -791,6 +799,7 @@ async def clean_dataset(
             set_current_shared_dataset(request, cleaned_path, source="cleaner_output")
 
         return templates.TemplateResponse(
+            request,
             "engineer.html",
             {
                 "request": request,
@@ -803,6 +812,7 @@ async def clean_dataset(
     except Exception as e:
         print("CLEANING ENDPOINT ERROR:", str(e))
         return templates.TemplateResponse(
+            request,
             "engineer.html",
             {
                 "request": request,
@@ -870,6 +880,7 @@ async def design_architecture(
         set_latest_architecture_report(request, result)
 
         return templates.TemplateResponse(
+            request,
             "architect.html",
             {
                 "request": request,
@@ -892,6 +903,7 @@ async def design_architecture(
         }
 
         return templates.TemplateResponse(
+            request,
             "architect.html",
             {
                 "request": request,
