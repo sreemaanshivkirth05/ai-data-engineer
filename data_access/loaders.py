@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+from engineer_runtime.cleaning_policy import is_identifier
 
 
 SUPPORTED_FORMATS = {
@@ -80,6 +81,13 @@ def _flatten_json_records(obj: Any) -> Tuple[pd.DataFrame, Dict[str, Any], List[
     raise ValueError("Could not parse JSON into a tabular structure.")
 
 
+def _read_delimited_preserving_keys(path: str, sep: str) -> pd.DataFrame:
+    # Pandas type inference would turn identifiers such as 00123 into 123.
+    headers = pd.read_csv(path, sep=sep, nrows=0).columns
+    key_types = {col: "string" for col in headers if is_identifier(col)}
+    return pd.read_csv(path, sep=sep, dtype=key_types, keep_default_na=False, na_values=[""])
+
+
 def load_dataframe(path: str) -> pd.DataFrame:
     return load_dataset(path).dataframe
 
@@ -90,10 +98,10 @@ def load_dataset(path: str) -> DatasetBundle:
     metadata: Dict[str, Any] = {}
 
     if dataset_format == "csv":
-        df = pd.read_csv(path)
+        df = _read_delimited_preserving_keys(path, ",")
 
     elif dataset_format == "tsv":
-        df = pd.read_csv(path, sep="\t")
+        df = _read_delimited_preserving_keys(path, "\t")
 
     elif dataset_format == "xlsx":
         excel_file = pd.ExcelFile(path)
