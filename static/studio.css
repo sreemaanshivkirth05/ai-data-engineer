@@ -25,3 +25,10 @@ td,th{border-bottom-color:#2b3c56}
 .studio-announcement a{color:#c3d3ff;font-weight:700}
 @media(max-width:800px){.content-wrap{padding:20px 14px}.hero-card,.card{padding:18px}.page-title{font-size:clamp(27px,7vw,38px)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+
+/* Action feedback and theme switching */
+.studio-theme-toggle{cursor:pointer;white-space:nowrap;font:inherit}
+.studio-theme-toggle:hover{border-color:#7d99da!important;background:#223960!important}
+.studio-processing{padding:12px 16px;margin:14px 0;border:1px solid #5570a1;border-radius:12px;background:#1b3357;color:#eaf2ff;font-weight:700}
+button:disabled,input[type=submit]:disabled{opacity:.68;cursor:progress;box-shadow:none}
+@media(max-width:790px){.topbar-right{display:flex!important;gap:4px!important}.topbar-right>.top-chip:not(.studio-theme-toggle){display:none}.studio-theme-toggle{font-size:11px!important;padding:8px!important}.topbar{gap:8px;padding:0 14px}.topbar-title{font-size:15px!important}}
