@@ -1,49 +1,49 @@
 import json
+import os
 from llm.huggingface_client import HuggingFaceClient
+from llm.ollama_client import OllamaClient
+from engineer_runtime.cleaning_policy import is_identifier
 
 
 # Columns that should NEVER be cleaned — they are identifiers, not values.
 # Text-standardising an Order ID destroys its format.
 # Filling a Postal Code with a numeric median produces nonsense.
-ID_COLUMN_KEYWORDS = [
-    "id", "uuid", "key", "row number", "rownum",
-    "transaction id", "order id", "customer id", "product id",
-    "postal", "postal code", "zip", "zipcode", "row id",
-]
-
-
 def _is_protected_id_column(col_name: str, semantic_type: str, unique_ratio: float) -> bool:
-    """Return True if this column should be excluded from cleaning actions."""
-    if semantic_type == "id":
-        return True
-    norm = str(col_name).lower().replace("_", " ").strip()
-    if any(kw in norm for kw in ID_COLUMN_KEYWORDS):
-        return True
-    # Near-unique string columns are almost certainly identifiers
-    if unique_ratio >= 0.90:
-        return True
-    return False
+    """Protect identifiable keys, not unrelated words such as paid/valid."""
+    return is_identifier(col_name) or semantic_type == "id"
 
 
 class CleaningPlannerAgent:
     def __init__(self):
-        self.llm = HuggingFaceClient()
+        provider = os.getenv("MODEL_PROVIDER", "ollama").lower().strip()
+        self.provider = provider
+        if provider == "huggingface" and os.getenv("HF_TOKEN"):
+            self.llm = HuggingFaceClient()
+        elif provider == "ollama":
+            self.llm = OllamaClient()
+        else:
+            self.llm = None  # deterministic mode when no local model is configured
 
     def run(self, dataset_profile, business_requirements=""):
-        prompt = self._build_prompt(dataset_profile, business_requirements)
-        response = self.llm.generate(prompt, max_tokens=1800)
-        response = self._clean_response(response)
-
+        if self.llm is None:
+            return self._fallback_plan(dataset_profile)
         try:
+            prompt = self._build_prompt(dataset_profile, business_requirements)
+            response = self._clean_response(self.llm.generate(prompt, max_tokens=1800))
             plan = json.loads(response)
-        except Exception as e:
-            print(f"CleaningPlannerAgent JSON parse failed: {e}")
-            print("RAW HF RESPONSE:", response)
-            plan = self._fallback_plan(dataset_profile)
-
-        return self._validate_plan(plan, dataset_profile)
+            if not isinstance(plan, dict):
+                raise ValueError("Cleaning plan must be a JSON object")
+            return self._validate_plan(plan, dataset_profile)
+        except Exception as exc:
+            # Do not log prompts, dataset contents or third-party raw responses.
+            print(f"[CleaningPlanner] Using deterministic fallback: {type(exc).__name__}")
+            return self._fallback_plan(dataset_profile)
 
     def _build_prompt(self, dataset_profile, business_requirements):
+        # Send only column metadata to a model; never include sample row values.
+        safe_profile = dict(dataset_profile)
+        safe_profile["columns"] = [{**c, "sample_values": []} for c in dataset_profile.get("columns", [])]
+        safe_profile["column_profiles"] = safe_profile["columns"]
         return f"""
 You are a senior data cleaning planner for a production AI Data Cleaner.
 
@@ -51,14 +51,14 @@ You do NOT clean data yourself.
 You only produce a deterministic cleaning plan that Python will execute.
 
 DATASET PROFILE:
-{json.dumps(dataset_profile, indent=2)}
+{json.dumps(safe_profile, indent=2, default=str)}
 
 BUSINESS REQUIREMENTS:
 {business_requirements}
 
 STRICT RULES:
 1. Use ONLY exact column names from the dataset profile.
-2. Treat ERROR, UNKNOWN, N/A, NULL, ?, empty strings, and blank strings as invalid placeholder values.
+2. Placeholder strings such as UNKNOWN, N/A, NULL and ERROR can have business meaning: flag for review.
 3. Use median fill for numeric/metric columns ONLY (not for ID, postal code, or text columns).
 4. Use mode fill for categorical columns.
 5. Use datetime casting for date-like columns (semantic_type == datetime).
@@ -66,8 +66,8 @@ STRICT RULES:
 7. Use standardize_text ONLY for categorical columns (segment, region, product name, etc).
 8. NEVER apply standardize_text, fill_missing, or cast_type to any column whose semantic_type is "id",
    or whose name contains "id", "postal", "zip", "zipcode", "row id", "order id", "customer id".
-9. If duplicate_rows > 0, include remove_duplicates.
-10. If a column has missing values AND is not an ID column, include fill_missing.
+9. Duplicate rows may be legitimate repeated events: only suggest removal for human review.
+10. Missing values may encode unknown/not applicable: do not assume imputation is safe.
 11. Return valid JSON only.
 
 ALLOWED ACTIONS:
@@ -414,13 +414,11 @@ Return JSON in EXACTLY this structure:
 
     def _default_validation_checks(self):
         return [
-            "Check that all date columns are in a consistent YYYY-MM-DD format.",
-            "Check that all categorical text columns have standardised casing.",
-            "Check that missing values in numeric columns are filled with the median.",
-            "Check that missing values in categorical columns are filled with the mode.",
-            "Check that there are no duplicate rows.",
-            "Check that no placeholder values (ERROR, UNKNOWN, N/A, NULL, ?) remain.",
-            "Check that numeric columns have the correct dtype after casting.",
+            "Check executed steps against review decisions and audit records.",
+            "Verify no identifiers or code columns changed.",
+            "Check before/after row counts and schema.",
+            "Do not report deferred steps as applied.",
+            "Retain source data for reversibility.",
         ]
 
     def _dedupe_steps(self, steps):
