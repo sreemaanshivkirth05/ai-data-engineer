@@ -4,6 +4,7 @@ import pandas as pd
 from agents.engineer_agents.dataset_profiler import DatasetProfilerAgent
 from agents.engineer_agents.cleaning_planner_agent import CleaningPlannerAgent
 from engineer_runtime.cleaning_policy import assess_step
+from engineer_runtime.data_quality import diagnose_dataframe
 
 
 SENTINEL_VALUES = {"ERROR", "UNKNOWN", "N/A", "NULL", "?", ""}
@@ -218,6 +219,7 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
     # Replace obvious placeholder strings with NaN before profiling
     # Preserve source values: placeholder detection is advisory, not an irreversible edit.
     working_df = raw_df.copy()
+    quality_diagnostics = diagnose_dataframe(working_df)
 
     # ── Profile the working (pre-clean) dataframe ────────────────
     profiler        = DatasetProfilerAgent(df=working_df)
@@ -272,6 +274,7 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
     return {
         "status":                  "success",
         "dataset_profile":         dataset_profile,
+        "quality_diagnostics":     quality_diagnostics,
         "dataset_profile_markdown": dataset_markdown,
         "cleaning_plan":           plan,
         "execution_log":           execution_log,
