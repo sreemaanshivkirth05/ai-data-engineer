@@ -5,6 +5,7 @@ from agents.engineer_agents.dataset_profiler import DatasetProfilerAgent
 from agents.engineer_agents.cleaning_planner_agent import CleaningPlannerAgent
 from engineer_runtime.cleaning_policy import assess_step
 from engineer_runtime.data_quality import diagnose_dataframe
+from engineer_runtime.cleaning_review import preview_plan, validate_result, audit_record
 
 
 SENTINEL_VALUES = {"ERROR", "UNKNOWN", "N/A", "NULL", "?", ""}
@@ -232,10 +233,14 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
     plan    = planner.run(dataset_profile, business_requirements)
 
     # ── Execute cleaning steps ───────────────────────────────────
+    cleaning_preview = preview_plan(working_df, plan.get("cleaning_steps", []))
     cleaned_df, execution_log = apply_cleaning_steps(
         working_df,
         plan.get("cleaning_steps", [])
     )
+
+    validation = validate_result(working_df, cleaned_df, execution_log)
+    audit = audit_record(plan.get("cleaning_steps", []), execution_log, validation)
 
     # ── Save cleaned file ────────────────────────────────────────
     base_name   = os.path.basename(dataset_path)
@@ -275,6 +280,9 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
         "status":                  "success",
         "dataset_profile":         dataset_profile,
         "quality_diagnostics":     quality_diagnostics,
+        "cleaning_preview":        cleaning_preview,
+        "cleaning_validation":     validation,
+        "cleaning_audit":          audit,
         "dataset_profile_markdown": dataset_markdown,
         "cleaning_plan":           plan,
         "execution_log":           execution_log,
