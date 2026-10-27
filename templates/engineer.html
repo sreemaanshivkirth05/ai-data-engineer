@@ -520,6 +520,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "partials/cleaner_review_panel.html" %}
 
 <div class="hero-grid">
   <div class="hero-card">
@@ -674,7 +675,7 @@
       </div>
       <div class="helper-pills">
         <span class="pill pill-green">Validation complete</span>
-        <span class="pill pill-blue">{{ result.cleaning_plan.cleaning_steps | length | default("0") }} steps applied</span>
+        <span class="pill pill-blue">{{ result.cleaning_validation.applied_steps | default(0) }} steps applied</span>
         <span class="pill pill-amber">{{ result.cleaning_plan.issues | length | default("0") }} issues detected</span>
       </div>
     </div>
@@ -705,7 +706,7 @@
       </div>
       <div class="summary-card">
         <div class="summary-title">Steps executed</div>
-        <div class="summary-value">{{ result.cleaning_plan.cleaning_steps | length | default("0") }}</div>
+        <div class="summary-value">{{ result.cleaning_validation.applied_steps | default(0) }}</div>
         <div class="summary-footnote">Deterministic cleaning actions applied by the pipeline.</div>
       </div>
     </div>
@@ -1022,7 +1023,7 @@
                       <td>{{ item.action }}</td>
                       <td>{{ item.column if item.column else "Dataset-level" }}</td>
                       <td>
-                        {% if item.status == "applied" %}<span class="status-applied">Applied</span>
+                        {% if item.status == "applied" %}<span class="status-applied">Applied</span>{% elif item.status == "review_required" %}<span class="pill pill-amber">Needs review</span>
                         {% elif item.status == "skipped" %}<span class="status-skipped">Skipped</span>
                         {% else %}<span class="status-error">{{ item.status }}</span>{% endif %}
                       </td>
