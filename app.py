@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, Form, Request
-from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -37,7 +37,16 @@ os.makedirs("outputs", exist_ok=True)
 os.makedirs("datasets", exist_ok=True)
 os.makedirs(os.getenv("PRIVATE_SESSION_DIR", "private/session_state"), exist_ok=True)
 
-app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+class RestrictedOutputsStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        # Session state and cleaned source files must not be published as static assets.
+        resource = str(path).replace("\\\\", "/").lstrip("/")
+        if resource.startswith("session_state/") or resource.startswith("cleaner/cleaned_files/"):
+            return PlainTextResponse("Not found", status_code=404)
+        return await super().get_response(path, scope)
+
+
+app.mount("/outputs", RestrictedOutputsStaticFiles(directory="outputs"), name="outputs")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ======================================================
@@ -634,6 +643,18 @@ async def use_shared_dataset_for_architecture(request: Request):
 # ======================================================
 # REPORT DOWNLOAD ENDPOINTS
 # ======================================================
+
+@app.get("/download-cleaned-dataset")
+async def download_cleaned_dataset(request: Request):
+    shared = get_current_shared_dataset(request) or {}
+    path = shared.get("path")
+    root = os.path.realpath("outputs/cleaner/cleaned_files")
+    if (shared.get("source") != "cleaner_output" or not path
+            or not os.path.realpath(path).startswith(root + os.sep)
+            or not os.path.isfile(path)):
+        return PlainTextResponse("No cleaned dataset available in this session.", status_code=404)
+    return FileResponse(path, filename=os.path.basename(path), media_type="application/octet-stream")
+
 
 @app.get("/download-analysis-report")
 async def download_analysis_report(request: Request):
