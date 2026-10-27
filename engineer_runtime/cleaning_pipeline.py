@@ -22,6 +22,13 @@ def replace_sentinel_values(df: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+def preview_records(df: pd.DataFrame):
+    """Render a small null-safe preview without coercing numeric columns."""
+    sample = df.head(10).copy().astype(object)
+    sample = sample.where(pd.notna(sample), "")
+    return sample.to_dict(orient="records")
+
+
 def safe_missing_pct(df: pd.DataFrame) -> float:
     if len(df) == 0 or len(df.columns) == 0:
         return 0.0
@@ -285,6 +292,6 @@ def run_cleaning_pipeline(dataset_path: str, business_requirements: str = ""):
         "rows_before_cleaning":    int(len(working_df)),
         "rows_after_cleaning":     int(len(cleaned_df)),
         "duplicates_removed":      duplicates_removed,
-        "preview_before":          working_df.head(10).fillna("").to_dict(orient="records"),
-        "preview_after":           cleaned_df.head(10).fillna("").to_dict(orient="records"),
+        "preview_before":          preview_records(working_df),
+        "preview_after":           preview_records(cleaned_df),
     }
