@@ -36,6 +36,7 @@ os.makedirs("datasets", exist_ok=True)
 os.makedirs("outputs/session_state", exist_ok=True)
 
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ======================================================
 # CONSTANTS
