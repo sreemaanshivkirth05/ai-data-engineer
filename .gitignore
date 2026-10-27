@@ -17,3 +17,6 @@ inputs/
 
 .DS_Store
 Thumbs.db
+# Studio 2.0 private runtime state and temporary agent worktrees
+private/
+.claude/worktrees/
