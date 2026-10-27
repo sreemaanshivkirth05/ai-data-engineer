@@ -1,0 +1,29 @@
+{% if result is defined and result.status == "success" and result.cleaning_preview is defined %}
+<section class="card" aria-labelledby="review-title">
+  <div class="card-header">
+    <div class="page-eyebrow">Trust &amp; control</div>
+    <h2 id="review-title" class="card-title">Transformation review</h2>
+    <p class="card-subtitle">Proposed cleaning actions are evaluated before execution. Deferred actions are not counted as completed.</p>
+  </div>
+  <div class="grid-3" aria-label="Cleaning execution summary">
+    <div class="mini-card"><div class="label">Applied</div><div class="value">{{ result.cleaning_validation.applied_steps }}</div></div>
+    <div class="mini-card"><div class="label">Needs review</div><div class="value">{{ result.cleaning_validation.review_required_steps }}</div></div>
+    <div class="mini-card"><div class="label">Failed</div><div class="value">{{ result.cleaning_validation.failed_steps }}</div></div>
+  </div>
+  <div style="overflow-x:auto;margin-top:18px">
+    <table>
+      <thead><tr><th>Proposed action</th><th>Field</th><th>Decision</th><th>Why</th></tr></thead>
+      <tbody>
+        {% for item in result.cleaning_preview.reviews %}
+        <tr><td>{{ item.action | replace("_", " ") }}</td><td>{{ item.column or "Entire dataset" }}</td>
+          <td><span class="pill">{{ item.decision | replace("_", " ") }}</span></td>
+          <td>{{ item.reason }}</td></tr>
+        {% else %}
+        <tr><td colspan="4">No transformations proposed.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="card-subtitle" style="margin-top:16px">Run ID: <code>{{ result.cleaning_audit.run_id }}</code>. Review-gated operations remain unchanged until a dedicated approval executor is available.</p>
+</section>
+{% endif %}
